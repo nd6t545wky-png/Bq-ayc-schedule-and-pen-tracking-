@@ -22,6 +22,7 @@ Coaches sign in with email and password. Only signed-in coaches whose email is o
 - Pens store the athlete's name and an anonymous user id, not coach emails.
 - Sign-in, sign-up and password reset show the same message whether or not an account exists, so the form can't be used to find out which emails are registered.
 - Passwords must be at least 10 characters. Forgotten passwords are reset by an emailed link.
+- A coach only gets access after confirming their email, enforced in the database itself (`supabase/migrations/`).
 
 ## Supabase settings (one-time)
 
