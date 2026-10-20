@@ -133,6 +133,8 @@ button:disabled{opacity:.35;cursor:default}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);justify-content:center}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
 .notice{font-size:15px;color:var(--warn)}
+.or{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--muted);font-size:14px}.or::before,.or::after{content:"";flex:1;border-top:.5px solid var(--line)}
+#a-code{letter-spacing:.2em;font-variant-numeric:tabular-nums}
 .gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#fff;color:#1f1f1f;border:1px solid #747775;font-family:"Roboto",var(--font);font-weight:500;font-size:16px;border-radius:12px;min-height:50px}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:15px}
 .ttp{display:flex;gap:8px;align-items:center;justify-content:center}
@@ -194,8 +196,15 @@ details.plist .dose{color:var(--muted)}
     <div class="card" id="acct">
       <div id="acct-out">
         <h2>Coach sign in</h2>
-        <div class="pen-desc">Sign in with your Google account to sync pens across every coach's phone. No password is stored in this app. You can run a pen without signing in; it uploads once you sign in.</div>
+        <div class="pen-desc">Sign in with Google or with a one-time code sent to your email. There are no passwords to leak. You can run a pen without signing in; it uploads once you sign in.</div>
         <button class="gbtn" id="a-google" style="margin-top:12px"><svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Sign in with Google</button>
+        <div class="or"><span>or use any email</span></div>
+        <div id="otp-1"><div class="row"><input id="a-email" type="email" placeholder="Email" autocomplete="email" autocapitalize="off" inputmode="email"><button id="a-send">Email me a code</button></div></div>
+        <div id="otp-2" hidden>
+          <div class="pen-desc" id="otp-sent"></div>
+          <div class="row" style="margin-top:10px"><input id="a-code" placeholder="Code" inputmode="numeric" autocomplete="one-time-code" maxlength="10"><button class="primary" id="a-verify">Sign in</button></div>
+          <button class="small ghost" id="a-back">Use a different email</button>
+        </div>
       </div>
       <div id="acct-in" class="livehead" hidden><div><div class="who" id="a-who"></div><div class="pen" id="a-sync"></div></div><button class="small ghost" id="a-out">Sign out</button></div>
       <div class="notice" id="a-msg" hidden></div>
@@ -1032,6 +1041,31 @@ $("a-google").addEventListener("click", async ()=>{
   const {error} = await sb.auth.signInWithOAuth({provider:"google", options:{redirectTo: location.origin + location.pathname, queryParams:{prompt:"select_account"}}});
   if (error){ $("a-google").disabled = false; msg(error.message); }
 });
+let otpEmail = "";
+function otpStep(two){ $("otp-1").hidden = two; $("otp-2").hidden = !two; }
+$("a-send").addEventListener("click", async ()=>{
+  const email = $("a-email").value.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg("Enter a valid email address."); return; }
+  $("a-send").disabled = true;
+  const {error} = await sb.auth.signInWithOtp({email, options:{shouldCreateUser:true, emailRedirectTo: location.origin + location.pathname}});
+  $("a-send").disabled = false;
+  if (error){ msg(/rate|security purposes/i.test(error.message) ? "Too many codes requested. Wait a minute and try again." : error.message); return; }
+  otpEmail = email; msg("");
+  $("otp-sent").textContent = "We sent a sign-in code to "+email+". Enter it below. It expires in an hour.";
+  otpStep(true); $("a-code").value = ""; $("a-code").focus();
+});
+$("a-verify").addEventListener("click", async ()=>{
+  const token = $("a-code").value.replace(/\s/g,"");
+  if (!token){ msg("Enter the code from the email."); return; }
+  $("a-verify").disabled = true;
+  const {error} = await sb.auth.verifyOtp({email:otpEmail, token, type:"email"});
+  $("a-verify").disabled = false;
+  if (error) msg(/expired|invalid/i.test(error.message) ? "That code is wrong or has expired. Check the latest email or request a new code." : error.message);
+  else { msg(""); otpStep(false); $("a-email").value = ""; }
+});
+$("a-code").addEventListener("keydown", e=>{ if (e.key==="Enter") $("a-verify").click(); });
+$("a-email").addEventListener("keydown", e=>{ if (e.key==="Enter") $("a-send").click(); });
+$("a-back").addEventListener("click", ()=>{ otpStep(false); msg(""); });
 // Google sends errors back on the URL (e.g. the provider isn't switched on yet)
 {
   const q = new URLSearchParams(location.search + "&" + location.hash.slice(1));
