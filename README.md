@@ -12,28 +12,26 @@ It's an installable web app (PWA): open it on a phone, add it to the home screen
 
 Pens sync through the Supabase project `bq-pen-tracker` (ap-southeast-2). Each pen is saved on the phone first and uploads when there's a connection, so nothing is lost without signal.
 
-Coaches sign in with Google or with a one-time code emailed to any address, so there are no passwords to leak. Only signed-in coaches whose email is on the coach list can read or write pens. Anyone can sign in, but they see nothing until their email is added.
+Coaches sign in with email and password. Only signed-in coaches whose email is on the coach list can read or write pens. Anyone can create an account, but they see nothing until their email is added.
 
-## Turning on sign-in (one-time)
+## How emails and passwords are protected
 
-### Google
+- Passwords go straight to Supabase over HTTPS and are stored only as bcrypt hashes. Nobody, including the admin, can read them.
+- The app never saves a password on the phone, and clears the password box as soon as it's sent.
+- The accounts table isn't reachable from the app. The coach list is locked so each coach can only see their own row, so no one can pull a list of emails.
+- Pens store the athlete's name and an anonymous user id, not coach emails.
+- Sign-in, sign-up and password reset show the same message whether or not an account exists, so the form can't be used to find out which emails are registered.
+- Passwords must be at least 10 characters. Forgotten passwords are reset by an emailed link.
 
-1. Google Cloud Console → APIs & Services → OAuth consent screen: set it up as **External**, app name "BQ Pen Tracker", and publish it.
-2. Credentials → Create credentials → OAuth client ID → **Web application**.
-   - Authorized JavaScript origins: the app's hosted URL origin (e.g. `https://<user>.github.io`).
-   - Authorized redirect URI: `https://icczlruovqfhqllnkohh.supabase.co/auth/v1/callback`
-3. Supabase → Authentication → Sign In / Providers → **Google**: enable it and paste the client ID and client secret.
-4. Supabase → Authentication → URL Configuration: set **Site URL** to the app's hosted URL and add it under **Redirect URLs**.
+## Supabase settings (one-time)
 
-### Email code (for non-Google addresses)
-
-1. Supabase → Authentication → Sign In / Providers → **Email**: leave it **on**. The app has no password form, so coaches only ever get one-time codes.
-2. Supabase → Authentication → Email Templates → **Magic Link**: make sure the email shows the code, e.g. add `<p>Your sign-in code: <strong>{{ .Token }}</strong></p>`. The link in the email also works when opened on the same phone.
-3. Supabase's built-in email sender only allows a few emails an hour. For a whole team, add your own SMTP sender under Authentication → Emails → SMTP Settings (e.g. Resend, Postmark or a Gmail/Workspace account).
+1. Authentication → Sign In / Providers → Email: keep it on with **Confirm email** on, and set the minimum password length to 10.
+2. Authentication → URL Configuration: set **Site URL** to the app's hosted URL and add it under **Redirect URLs**, so confirmation and reset links open the app.
+3. Supabase's built-in email sender only allows a few emails an hour. For a whole team, add your own sender under Authentication → Emails → SMTP Settings.
 
 ## Adding a coach
 
-In the Supabase dashboard → SQL editor, with the email the coach signs in with:
+In the Supabase dashboard → SQL editor:
 
 ```sql
 insert into public.coaches (email) values ('coach@example.com');
@@ -49,7 +47,7 @@ The app is plain static files, so any static host works. With GitHub Pages:
 
 1. The repo must be public (Pages on a private repo needs a paid GitHub plan). The Supabase key in `index.html` is a publishable key, which is meant to be public; access is enforced by row-level security.
 2. Settings → Pages → Build and deployment → Deploy from a branch → `main`, `/ (root)`.
-3. Finish the Google sign-in steps above using the Pages URL.
+3. Finish the Supabase settings above using the Pages URL.
 
 ## Install on a phone
 

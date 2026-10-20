@@ -133,9 +133,7 @@ button:disabled{opacity:.35;cursor:default}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);justify-content:center}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
 .notice{font-size:15px;color:var(--warn)}
-.or{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--muted);font-size:14px}.or::before,.or::after{content:"";flex:1;border-top:.5px solid var(--line)}
-#a-code{letter-spacing:.2em;font-variant-numeric:tabular-nums}
-.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#fff;color:#1f1f1f;border:1px solid #747775;font-family:"Roboto",var(--font);font-weight:500;font-size:16px;border-radius:12px;min-height:50px}
+
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:15px}
 .ttp{display:flex;gap:8px;align-items:center;justify-content:center}
 .ttp .label{margin:0}
@@ -196,16 +194,17 @@ details.plist .dose{color:var(--muted)}
     <div class="card" id="acct">
       <div id="acct-out">
         <h2>Coach sign in</h2>
-        <div class="pen-desc">Sign in with Google or with a one-time code sent to your email. There are no passwords to leak. You can run a pen without signing in; it uploads once you sign in.</div>
-        <button class="gbtn" id="a-google" style="margin-top:12px"><svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Sign in with Google</button>
-        <div class="or"><span>or use any email</span></div>
-        <div id="otp-1"><div class="row"><input id="a-email" type="email" placeholder="Email" autocomplete="email" autocapitalize="off" inputmode="email"><button id="a-send">Email me a code</button></div></div>
-        <div id="otp-2" hidden>
-          <div class="pen-desc" id="otp-sent"></div>
-          <div class="row" style="margin-top:10px"><input id="a-code" placeholder="Code" inputmode="numeric" autocomplete="one-time-code" maxlength="10"><button class="primary" id="a-verify">Sign in</button></div>
-          <button class="small ghost" id="a-back">Use a different email</button>
-        </div>
+        <div class="pen-desc">Sign in to sync pens across every coach's phone. You can run a pen without signing in; it uploads once you sign in.</div>
+        <form id="a-form" autocomplete="on">
+          <div class="row" style="margin-top:12px"><input id="a-email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" inputmode="email" required><input id="a-pass" type="password" placeholder="Password" autocomplete="current-password" minlength="10" required></div>
+          <div class="row" style="margin-top:10px"><button class="primary" id="a-in" type="submit">Sign in</button><button id="a-up" type="button">Create account</button></div>
+          <button class="small ghost" id="a-forgot" type="button">Forgot password?</button>
+        </form>
       </div>
+      <form id="acct-reset" hidden autocomplete="on">
+        <h2>Set a new password</h2>
+        <div class="row" style="margin-top:10px"><input id="a-new" type="password" placeholder="New password (10+ characters)" autocomplete="new-password" minlength="10" required><button class="primary" type="submit">Save password</button></div>
+      </form>
       <div id="acct-in" class="livehead" hidden><div><div class="who" id="a-who"></div><div class="pen" id="a-sync"></div></div><button class="small ghost" id="a-out">Sign out</button></div>
       <div class="notice" id="a-msg" hidden></div>
     </div>
@@ -925,8 +924,8 @@ $("s-del-yes").addEventListener("click", ()=>{
 // ---------- storage: Supabase, with an outbox so pens survive no signal ----------
 const SB_URL = "https://icczlruovqfhqllnkohh.supabase.co";
 const SB_KEY = "sb_publishable_wcCYY8iA-1odDWGP2MxgIw_t9DEyy1X";
-// Implicit flow: the session comes back in the redirect URL itself, which survives
-// iOS home-screen apps finishing sign-in in a different browser context.
+// Implicit flow: confirmation and reset links carry the session in the URL itself, which still
+// works when iOS opens the link in Safari rather than the home-screen app.
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, {auth:{flowType:"implicit", detectSessionInUrl:true, persistSession:true}}) : null;
 let session = null, isCoach = false, chan = null, serverPens = [], flushing = false, again = false, syncErr = "";
 function lsGet(k, d){ try{ const v = JSON.parse(localStorage.getItem(k)||"null"); return v==null ? d : v; }catch(e){ return d; } }
@@ -1025,7 +1024,7 @@ async function afterAuth(){
 function msg(t, warn){ const el = $("a-msg"); el.textContent = t; el.hidden = !t; el.className = warn===false ? "pen-desc" : "notice"; }
 function renderAcct(){
   const n = pendingCount();
-  $("acct-out").hidden = !!session; $("acct-in").hidden = !session;
+  $("acct-out").hidden = !!session; $("acct-in").hidden = !session; $("acct-reset").hidden = !(session && recovering);
   if (!sb){ msg("Sync isn't available. Pens are kept on this phone."); return; }
   if (!session) return;
   $("a-who").textContent = session.user.email;
@@ -1035,47 +1034,64 @@ function renderAcct(){
   if (!isCoach) msg("Ask the team admin to add "+session.user.email+" to the coach list, then sign out and back in. Pens you log stay on this phone until then.");
   else if (!$("a-msg").classList.contains("pen-desc")) msg("");
 }
-$("a-google").addEventListener("click", async ()=>{
-  if (!sb) return;
-  $("a-google").disabled = true;
-  const {error} = await sb.auth.signInWithOAuth({provider:"google", options:{redirectTo: location.origin + location.pathname, queryParams:{prompt:"select_account"}}});
-  if (error){ $("a-google").disabled = false; msg(error.message); }
+// Passwords go straight to Supabase over HTTPS, where they are stored only as bcrypt hashes.
+// This page never saves them, and every field is cleared as soon as a request is sent.
+// Messages are deliberately the same whether or not an account exists, so the form
+// can't be used to find out which emails are registered.
+const BACK = location.origin + location.pathname;
+let recovering = false;
+function readCreds(){
+  const email = $("a-email").value.trim().toLowerCase(), password = $("a-pass").value;
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg("Enter a valid email address."); return null; }
+  if (password.length < 10){ msg("Passwords are at least 10 characters."); return null; }
+  $("a-pass").value = "";
+  return {email, password};
+}
+function busy(on){ ["a-in","a-up","a-forgot"].forEach(id=>$(id).disabled = on); }
+$("a-form").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const c = readCreds(); if (!c) return;
+  busy(true);
+  const {error} = await sb.auth.signInWithPassword(c);
+  busy(false);
+  if (error) msg(/rate|too many/i.test(error.message) ? "Too many attempts. Wait a few minutes and try again."
+    : "Email or password is incorrect, or the email hasn't been confirmed yet.");
+  else msg("");
 });
-let otpEmail = "";
-function otpStep(two){ $("otp-1").hidden = two; $("otp-2").hidden = !two; }
-$("a-send").addEventListener("click", async ()=>{
+$("a-up").addEventListener("click", async ()=>{
+  const c = readCreds(); if (!c) return;
+  busy(true);
+  const {data, error} = await sb.auth.signUp({...c, options:{emailRedirectTo: BACK}});
+  busy(false);
+  if (error && !/registered|exists/i.test(error.message)){ msg(/weak|password/i.test(error.message) ? error.message : "Couldn't create the account. Try again in a few minutes."); return; }
+  if (!data || !data.session) msg("If this email can be used, a confirmation link is on its way. Open it, then sign in here.", false);
+});
+$("a-forgot").addEventListener("click", async ()=>{
   const email = $("a-email").value.trim().toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg("Enter a valid email address."); return; }
-  $("a-send").disabled = true;
-  const {error} = await sb.auth.signInWithOtp({email, options:{shouldCreateUser:true, emailRedirectTo: location.origin + location.pathname}});
-  $("a-send").disabled = false;
-  if (error){ msg(/rate|security purposes/i.test(error.message) ? "Too many codes requested. Wait a minute and try again." : error.message); return; }
-  otpEmail = email; msg("");
-  $("otp-sent").textContent = "We sent a sign-in code to "+email+". Enter it below. It expires in an hour.";
-  otpStep(true); $("a-code").value = ""; $("a-code").focus();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg("Enter your email above first."); return; }
+  busy(true);
+  await sb.auth.resetPasswordForEmail(email, {redirectTo: BACK});
+  busy(false);
+  msg("If there's an account for "+email+", a reset link is on its way. Open it on this phone.", false);
 });
-$("a-verify").addEventListener("click", async ()=>{
-  const token = $("a-code").value.replace(/\s/g,"");
-  if (!token){ msg("Enter the code from the email."); return; }
-  $("a-verify").disabled = true;
-  const {error} = await sb.auth.verifyOtp({email:otpEmail, token, type:"email"});
-  $("a-verify").disabled = false;
-  if (error) msg(/expired|invalid/i.test(error.message) ? "That code is wrong or has expired. Check the latest email or request a new code." : error.message);
-  else { msg(""); otpStep(false); $("a-email").value = ""; }
+$("acct-reset").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const password = $("a-new").value; $("a-new").value = "";
+  if (password.length < 10){ msg("Use at least 10 characters."); return; }
+  const {error} = await sb.auth.updateUser({password});
+  if (error){ msg(error.message); return; }
+  recovering = false; msg("Password updated.", false); renderAcct();
 });
-$("a-code").addEventListener("keydown", e=>{ if (e.key==="Enter") $("a-verify").click(); });
-$("a-email").addEventListener("keydown", e=>{ if (e.key==="Enter") $("a-send").click(); });
-$("a-back").addEventListener("click", ()=>{ otpStep(false); msg(""); });
-// Google sends errors back on the URL (e.g. the provider isn't switched on yet)
+// Confirmation and reset links send errors back on the URL (e.g. an expired link)
 {
   const q = new URLSearchParams(location.search + "&" + location.hash.slice(1));
   const err = q.get("error_description");
-  if (err){ setTimeout(()=>msg("Sign-in failed: "+err), 0); history.replaceState(null, "", location.pathname); }
+  if (err){ setTimeout(()=>msg("That link didn't work: "+err.replace(/\+/g," ")+". Request a new one."), 0); history.replaceState(null, "", location.pathname); }
 }
-$("a-out").addEventListener("click", async ()=>{ await sb.auth.signOut(); msg(""); });
+$("a-out").addEventListener("click", async ()=>{ recovering = false; await sb.auth.signOut(); msg(""); });
 if (sb){
   // supabase-js warns against awaiting its own calls inside this callback
-  sb.auth.onAuthStateChange((ev, s)=>{ session = s; setTimeout(afterAuth, 0); });
+  sb.auth.onAuthStateChange((ev, s)=>{ session = s; if (ev==="PASSWORD_RECOVERY") recovering = true; setTimeout(afterAuth, 0); });
   window.addEventListener("online", flush);
   document.addEventListener("visibilitychange", ()=>{ if (!document.hidden){ flush(); scheduleReload(); } });
   setInterval(()=>{ if (pendingCount()) flush(); }, 30000);
