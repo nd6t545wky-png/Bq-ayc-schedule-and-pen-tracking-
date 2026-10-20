@@ -1,0 +1,949 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>BQ Pen Tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: iOS grouped-inset app. Large title, segmented controls, white rounded groups on system grey. BQ maroon is the tint. */
+:root{
+  --bg:#f4f1f3; --surface:#ffffff; --fill:rgba(78,24,41,.08); --ink:#1a1018; --muted:rgba(64,40,56,.62); --line:rgba(78,24,41,.16);
+  --maroon:#4e1829; --maroon-ink:#ffffff; --gold:#b8891f; --gold-soft:rgba(184,137,31,.16); --maroon-soft:rgba(78,24,41,.10);
+  --intent:#007aff; --hit:#248a3d; --miss:#d70015; --warn:#c93400;
+  --zone-fill:#ffffff; --shadow:rgba(78,24,41,.06); --thumb:#ffffff;
+  --font:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e0a0d; --surface:#1d161b; --fill:rgba(182,93,121,.16); --ink:#ffffff; --muted:rgba(240,228,236,.62); --line:rgba(182,93,121,.24);
+  --maroon:#b65d79; --maroon-ink:#ffffff; --gold:#e2b84a; --gold-soft:rgba(226,184,74,.18); --maroon-soft:rgba(182,93,121,.18);
+  --intent:#0a84ff; --hit:#30d158; --miss:#ff453a; --warn:#ff9f0a;
+  --zone-fill:#271e24; --shadow:rgba(182,93,121,.10); --thumb:#636366; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e0a0d; --surface:#1d161b; --fill:rgba(182,93,121,.16); --ink:#ffffff; --muted:rgba(240,228,236,.62); --line:rgba(182,93,121,.24);
+  --maroon:#b65d79; --maroon-ink:#ffffff; --gold:#e2b84a; --gold-soft:rgba(226,184,74,.18); --maroon-soft:rgba(182,93,121,.18);
+  --intent:#0a84ff; --hit:#30d158; --miss:#ff453a; --warn:#ff9f0a;
+  --zone-fill:#271e24; --shadow:rgba(182,93,121,.10); --thumb:#636366; color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.35;letter-spacing:-.01em;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px 48px}
+.wrap{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.wrap .wrap{width:100%;max-width:none;margin:0}
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding-top:8px;padding-bottom:12px;border-bottom:2px solid var(--gold)}
+header.top img{height:34px;width:auto;order:2}
+header.top h1{font-family:var(--display);font-size:36px;font-weight:700;letter-spacing:.02em;margin:0;line-height:1.05}
+header.top .sub{color:var(--muted);font-size:15px}
+.card{background:var(--surface);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.label{font-family:var(--display);font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px}
+.label span{text-transform:none}
+h2{font-family:var(--display);font-size:24px;font-weight:700;margin:0;letter-spacing:.01em}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row>*{flex:1 1 140px;min-width:0}
+input,select{font:inherit;color:var(--ink);background:var(--fill);border:0;border-radius:10px;padding:11px 12px;width:100%;-webkit-appearance:none;appearance:none}
+select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:34px}
+input::placeholder{color:var(--muted)}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--intent);outline-offset:2px}
+button{font:inherit;font-size:17px;cursor:pointer;border:0;border-radius:10px;background:var(--fill);color:var(--maroon);padding:10px 14px;min-height:44px;font-weight:400}
+button:active{opacity:.6}
+button.primary{background:var(--maroon);color:var(--maroon-ink);box-shadow:inset 0 0 0 1.5px var(--gold);font-family:var(--display);font-size:20px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;border-radius:12px;min-height:50px}
+button.ghost{background:transparent;color:var(--maroon);padding-inline:4px}
+button.small{min-height:36px;padding:7px 12px;font-size:15px}
+button:disabled{opacity:.35;cursor:default}
+/* selection buttons */
+.seg,.checklist{display:flex;flex-wrap:wrap;gap:6px}
+.seg button,.checklist button{flex:1 1 auto;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;min-height:44px;padding:9px 12px;font-weight:600;font-size:16px}
+.seg button.on,.checklist button.on{background:var(--maroon);border-color:var(--maroon);color:var(--maroon-ink)}
+.tabs{display:flex;gap:6px;background:var(--surface);border-radius:12px;padding:4px}
+.tabs button{flex:1;background:transparent;color:var(--ink);min-height:40px;font-family:var(--display);font-size:18px;font-weight:600;letter-spacing:.03em}
+.tabs button.on{background:var(--maroon);color:var(--maroon-ink)}
+.pen-desc{font-size:15px;color:var(--muted)}
+.hist{display:flex;flex-direction:column;margin:0 -16px}
+.hist button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;text-align:left;border-radius:0;background:transparent;color:var(--ink);padding:11px 16px;position:relative}
+.hist button+button::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:.5px solid var(--line)}
+.hist .n{font-weight:600}
+.hist .m{color:var(--muted);font-size:15px}
+.hist .s{grid-row:span 2;align-self:center;font-size:17px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--fill);color:var(--muted);vertical-align:2px}
+.pill.pass{background:color-mix(in srgb,var(--hit) 16%,transparent);color:var(--hit)}
+.pill.fail{background:color-mix(in srgb,var(--miss) 14%,transparent);color:var(--miss)}
+.empty{color:var(--muted);font-size:15px;padding:4px 16px}
+/* live */
+.livehead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.livehead .who{font-weight:600}
+.livehead .pen{color:var(--muted);font-size:15px}
+.prog{height:4px;background:var(--fill);border-radius:99px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--gold);width:0;border-radius:99px}
+.next{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center}
+.pnum{font-family:var(--display);font-size:42px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.pnum small{font-size:17px;color:var(--muted);font-weight:500}
+.call{display:flex;flex-direction:column;gap:2px;min-width:0}
+.call .pt{font-family:var(--display);font-size:28px;font-weight:700;line-height:1.05}
+.call .meta{color:var(--muted);font-size:15px}
+.zbadge{font-size:12px;font-weight:600;color:var(--intent);background:color-mix(in srgb,var(--intent) 12%,transparent);border-radius:12px;padding:6px 12px;text-align:center;line-height:1.1;text-transform:uppercase}
+.zbadge b{display:block;font-family:var(--display);font-size:28px;text-transform:none}
+.zonebox{display:flex;justify-content:center}
+.zsvg{width:100%;max-width:380px;height:auto;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.zsvg .cell{fill:var(--zone-fill);stroke:var(--ink);stroke-opacity:.35;stroke-width:1;cursor:pointer}
+.zsvg .chase{fill:var(--shadow);stroke:var(--muted);stroke-dasharray:4 4;stroke-width:1;cursor:pointer}
+.zsvg .off{fill:transparent;cursor:pointer}
+.zsvg text{font-family:var(--display);font-weight:700;pointer-events:none}
+.zsvg .zn{fill:var(--muted);font-size:16px}
+.zsvg .cn{fill:var(--muted);font-size:14px}
+.zsvg .side{fill:var(--muted);font-size:11px;font-weight:500}
+.zsvg .plate{fill:var(--surface);stroke:var(--ink);stroke-opacity:.5;stroke-width:1.2}
+.zsvg .box{stroke:var(--muted);stroke-width:1}
+.zsvg .ring{fill:none;stroke:var(--intent);stroke-width:4}
+.zsvg .trail{fill:var(--muted);opacity:.35}
+.zsvg .lastx{stroke:var(--ink);stroke-width:3.5;stroke-linecap:round}
+.hint{font-size:15px;color:var(--muted);text-align:center}
+.toggles{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.toggles button{flex:0 1 auto}
+.toggles button.on{background:var(--maroon);color:var(--maroon-ink)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;background:var(--surface);border-radius:12px;overflow:hidden}
+.stat{background:var(--surface);padding:10px 12px;box-shadow:inset -.5px -.5px 0 var(--line)}
+.stat b{display:block;font-family:var(--display);font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
+.stat span{font-size:13px;color:var(--muted)}
+.card .stats{margin:0 -16px;border-radius:0}
+.count{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--fill);border-radius:10px;padding:10px 12px}
+.count .bs{font-family:var(--display);font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+.count .sit{font-size:15px;font-weight:600}
+.count .sit small{display:block;font-weight:400;color:var(--muted)}
+.log{width:100%;border-collapse:collapse;font-size:15px;font-variant-numeric:tabular-nums}
+.log th{font-size:13px;color:var(--muted);text-align:left;font-weight:400;padding:6px 8px 6px 0;border-bottom:.5px solid var(--line)}
+.log td{padding:9px 8px 9px 0;border-bottom:.5px solid var(--line)}
+.log tr:last-child td{border-bottom:0}
+.scroll{overflow-x:auto}
+.pts2{color:var(--hit);font-weight:600}.pts1{color:var(--ink)}.pts0{color:var(--muted)}.ptsm{color:var(--miss);font-weight:600}
+.verdict{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px}
+.verdict.pass{background:color-mix(in srgb,var(--hit) 13%,transparent)}
+.verdict.fail{background:color-mix(in srgb,var(--miss) 11%,transparent)}
+.verdict b{font-family:var(--display);font-size:22px;font-weight:700;white-space:nowrap}
+.verdict.pass b{color:var(--hit)}.verdict.fail b{color:var(--miss)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);justify-content:center}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+.notice{font-size:15px;color:var(--warn)}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:15px}
+.ttp{display:flex;gap:8px;align-items:center;justify-content:center}
+.ttp .label{margin:0}
+.ttp input{width:110px}
+/* schedule */
+.days{display:flex;flex-direction:column;gap:12px}
+.day{background:var(--surface);border-radius:12px;padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+.day.today{box-shadow:inset 0 0 0 2px var(--gold)}
+.dayhead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.dayname{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:.01em}
+.dayname small{font-size:13px;font-weight:600;color:var(--gold);margin-left:8px;text-transform:uppercase}
+.dtype{display:flex;align-items:center;gap:10px}
+.int{font-family:var(--display);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.tag{font-size:13px;font-weight:500;padding:3px 10px;border-radius:99px;background:var(--fill);color:var(--muted)}
+.tag.game{background:color-mix(in srgb,var(--miss) 13%,transparent);color:var(--miss)}
+.tag.pen{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn)}
+.tag.bq{background:var(--maroon);color:var(--gold)}
+.items{display:grid;grid-template-columns:84px minmax(0,1fr);gap:0;font-size:15px;margin:0}
+.items dt,.items dd{padding:8px 0;border-top:.5px solid var(--line)}
+.items dt{color:var(--muted)}
+.items dd{margin:0}
+details.plist{font-size:15px;border-top:.5px solid var(--line);padding-top:8px}
+details.plist summary{cursor:pointer;color:var(--maroon);list-style:none}
+details.plist summary::-webkit-details-marker{display:none}
+details.plist summary::after{content:" ›";font-weight:600}
+details.plist[open] summary::after{content:" ⌄"}
+details.plist ol{margin:6px 0 0;padding-left:20px}
+details.plist li{margin:3px 0}
+details.plist .dose{color:var(--muted)}
+@media (max-width:480px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.pnum{font-size:34px}}
+@media (prefers-reduced-motion:no-preference){.prog i{transition:width .25s ease}.seg button,.tabs button{transition:background .15s ease}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <img alt="Baseball Queensland" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAABgCAYAAABbjPFwAAAQGklEQVR42t1ce4xc1Xn/fd85987Mzr78BvP2A+zFxgYbLIyBQHg0CaGI4kapVNSqaRtVqKqE0kgVlDZQKVRthYKSvkKlBJoKkyYSCAVSiE3t4pgsxmsbP7BlYO218T7sfc7Ovfec7+sfd2Z3dthd7653yTp3tZp9zJz7PX7f87znAp/RpaqkqkZVTfX/Wls7LznV2ffI+x+euH60z423rv0sCAfAROQBeABoa2urUZtdKyK3sOAmWL4tn88tNCQHz/QM7DBsDor4xoE+9x0i6lJVJiIZbX36jAhHR0dHXbGomzxwfxjae7NheFVjYx4EQAA45yW0hivXiJ3fWSwMfLmhoWFcJmYUJocPf7zkxOkz3z/R1nGkt6+oXlVFVZ0XVdVE1TunXpx4Tbzz6pxT552qRqqq3vu3VXVeaX2eKaK5Gttbt26tbWs/c+vprp5dqqpOVZ1X70svIk69JJr4RKMk/U6SRF2SqEuciveqXhNVVa+6c9qZGI3o2594wn7ySefdvb0D/9g/EH3gNL2c+sSp94l3GrtEIxdplBQ1cpGKio51iXclLal673/Z16cLq5mwkyUa2MZEd7gyHrds2RJ+7nN3X5vLhQ9Za76YzWbWlt/vxKsHFArrVaCqYGaEJhxa82x3Lz46eBSfHD6GM+2dUMO4avky3PT5TQjyIUTEAnDMvCEI4hebm5vvAeAmZcQljpWItPy39vb2G/L5/FeDIPgigVbYwDJSg1QIvKqwwDNAMMaAK251svUk9jfvQcuOZhzd/T7Otp4CDSaAKpQBEcWK29bhG9/7O9TNbYAq1BBUFNzR2bHmoosu2ls2ajtBwgUAetpPXJ2pqXmQbHAfs91og2xKlQIicKrCUGEQWWMMDFJNJ+LxwcGj2P/L3di/vRkftRxGf8dZZIWRDbNotDWg+hIqiMFkceDN3Xjxmf/Anzz1KLz3JCBhwxoEwUYAe7dt28YAhMYh3pRd4ED3yfVBTf6bTJn7jM1kAUAlgffiiZigRERMbIftqzAwiEMtB9Cy4x3s2/kuTh06BtddhDEharIZhCaAAvCqqR8tXawENYTEOeQW1uDpV55D/YJGeBFnmG1fX88T9fWN31JVS0TOjuVZiMh3dbWuqqtteIpN5n5jMgQofBJ7BaAqzGSMscHQ53rP9uJg8160bN+FPbuacfroSaAQIR9kUR9mwHU1cAyoOiTqoMIAaAS8hAFSgTEGAx09OHmsFfULGqGaoje01o0ZiVVBgDIR+UJ/58NhNv9dY7K1gFcR59ULk2FjePhjXac6sfedd9GyvRmH3nkPnR+fAkWCTCaHOZk8TGMdBArvFR4K9VoyPRoyQYFWEJG+GGbExQRdbe1DxKXvdTQqA4ph4qPBs0+G2cbHAIVI4iFq2FqDEuGdbe14b9e7aH5jO46+tx99pzrBkUEYZDA3nAsKGU4FogJ4QJVSWrVM6LlduRIAUcSFwTIqSp/kMXKh1Kp9XDjzWJBtfAzwXkSYiA1Zg2KhiLff3I7/e+V/8MGv9qG/vQehWuSyWTSEjeAwgIjCQ6DqU9kqIGWidfKZi45wlOkr8yjJnG7ZYojIx70dXw9yc56EeC/qmY0lgPGLl1/HT7/7PE68fwQQIJ/JYV6+ASALFS0R7kaQp+cZKEkBkmGYDa9dpYGSq5QzJ49dwZm6bwMQUU9sLBX7i/jnbz2DbT96GXUmi/m180AKePGp91ApY29aiJ7KZQGAiDQZ7H3ShJkGcYknNiYajPH0nz+O3a9ux6I5CwCkhGMIiQSZyXR2gnGWiUgKZ45dwSZ8MEWsMrHBD//hX9D8ylu4ZM7F8KJwXkHKgDJUCaoEmnGRV9yAysyMzKgZAILcvD/kIJMXL97YkI4ePIzXnv8xFs2Zj1h8uo4SpET4TMt9fC1UMdDc/K8Bc/glACppZMHrL70M7nMIrIWSVJjR5IgnIjAzmBlE08N0dUVjly+/e4kSVgIga0MUi0Uc2rkPYaYGiZdSdnYuE9Vhb8EEJoaKIkliRFEEIkYQWARBMHFDpzGEVcWBDcP6y4i5Rr2ADFN722mcOXEaoQngJ4Bz0jTosGFAgCSKUCwWEQQB5l+yCEvWrsSNd2/Cweb9+PkLP0FdrhaiHnoOTVK1HQwFsioGDGgpm5B84sUYcE/HWfj+CMbWpq7yXColgEAY6O8DMXDJ0ivRtHEd1m68EUvXrUT9xQ1pfWs9kucTEJXtaJrcqFc0BUOyBHrOdEMShQYEmgADTATnItz623fjtq98AcvXNCHTmE0LGgCFJEKWA8RxEUbpnJKffBzwaKxUURJFUBVwuQdCOn4aoApRwZe/9hVcdsMyiAq8eBAIhghZtmCTGjKg0Cn7XikncyMZIB5JWfX6BExIaoVCAeLTPKgyxZ7pUMHEtnU4lU4pHnIAk7g7EaeGTJ9ljAA4DMKPKkWvqkNGdi7fPezphv28VqS+YwXVidXhJWkqVfmlkX6IvSTB6DeazB1HOr3phc34QmRAdGabjNONmXF/vfAuLvNA5YRhlmiCyiZQWWKeWyEXwCW/eRAqq6hUNGtF82A2XfqbAqELlYFyTHVVuRBXhwudpYRrRTvhwtKAntMGzCzHTrUbre5K8AWigTFyHcZQs2r2SZ4m0E/l2Sv4ibmTCgjprIPORJhgU0ouhjsFs4eRkYXR6HsLsxdCZeIJ43od/rTtzI58mohSWnSiBU25JgYBxADMrx1MI1qahHNAaETFQLMRU2MxcGElpNXUsq9CWdoeEQAyVGbOFpsYgyEKJ1NAzDYdsIivH41iIsKF0Gth9TJ3Notcz2EEVhW5EX2Vscr/KWXACi8CEI3ebpxSPl3FAEjzMxVFiYAgSDuXQSacER1bKE17Pi0qsGzx4g9ewCcffIw77/sCjh08AiaaOlR1dAxZHmvkZhpiTueHx/GzZ/8Tu1/cCiKD2po6iD/PyUmuqsiY7JHSTafN5ZR9djaswby6hajlelhkoDMwZ2uNtZ+kd52emdIRUvACEYUjQESmhpuKfYvRbaA8L6FmilhRKElFtk5DhYgqQVRAKlMEJlVolUf1jjy06nlsDel4f9HpjTAioMq5UR7uqsza3KG6HktKU5SlzS0vM8cATUeZOsJ/qjH2YY1aVxFRoqrEpd3gCXcBJgenNJ8imhoTmgaVlHoiBgRsc02wi3ZqcvZBlEqvmSsldeq2VR4fsUEAVU3jhzIBEoPDWuH8/aXJXRmlIptWZzpl3RITzpzuAhEhyATQtOANRCBgs9m5nm18voQSGVTuiqfTEKV9N7YgMPwUJiREPHL5HH76bz/C3//Z3+LArhZ45yHpTowyuIbE3Duj9WSxOIg4GgQbAngKGmYCRx67X96Kbz70dbzy3BYwETRthyqghZlhoETrNWtWYOGSi9Hb241oMJr01BYpgYnQ2NAAihXdbV2VsYwAsIWcf4edqn5jZqgq7tr8JWy47Ra07GjGqz/4CdpajiIMM/CQCQwMUgmQAu8Ehgg2NJ8yKgabGRE/AfDeI7+oEZt+5y7c+/ADGHCD6RydTtrSykMYIyQmoqjQgE67B2Vi+DiGEMG7BCGleZKex5qVPygLrPdQEwBaCgk6qQVpKKEri0Whqd8WAaAw1oKYEdbk4bUcb3QCDQMFlXyaIt3+LY82KZcn2RkWIFvRWZwSYNK9ZYF4DxUBGQNjUmj29w/g0N4D2PHqG8jaTEn+NGlIMmjYVMvEioWNI7kul8VobdSJ+WsQhIBMLgc2BmwMznacwYH39mPPjndwcMdunPywFYEGqAvz8CLTEPPLk+wMq8qZ84qWRCAltOxoxkfHP8av3tyBD97dh67jp2EiRU0mh3mZRgAEp1KKeROvjak6LxwhPIaV8oA/TaSJ8WmcqgI2CLHln76P2MUgFWTDLObl6oGcgYiUxjcVwzmdjkuwUApL4nSam5DOr1JV14MB2OGCYGo6KI9m5oIcaoMaKKcGrKIQnXrDg4gQDRQQZAxMEI6eqsmY7fVJ6ICGWymJeiQiEOiU22IKwBAhdgmWrV+NYE4tznZ3g4VA1cc3QGAhTAU742ikxNUUBWJtgL6ePlx3yw144sfP4PEXnsEdv38fIvYolM7TVKb+M36eeDKQMcagp7cHly67Cn/01KPQQHHpysvxp08/ilt+63b09PakMYGHrEl+7QyUp92dc+jr7sU166/DI8/8FeZcOR8+8ZI2JIhW3bEe5QKNjRGk+UPNDDMwfHRqaL+LUqIBgnhBPBghiWPUz5+HzX/wu3jgkd9DMCeEc07K5zO9iPfOqxLIpgEyANBPxr4wwwzQkBNP7Y/gEkFxoABxDvnaWixdeTXW3nkzNj7weSxccTEAiHeerLWcRMk+Yl5oA7OosiXqvbRpIl8LcsFrdrTO8nQU+EMHIVQQJzGSYhGsQMP8eWi68Tqs3rQeKzasxuXXLgHnbYlwJ8Zaa6xBNBg9u/PFnX+55M4lcxfNX/SQsWax9749iZKW46d69jQ1XdqlqvwpBjJhBobSgz5QPad3Kh+AUErdH8pEFyPEcQxrGfMWL8TVa1dhze0bsPLmNZh/xaJyDSICaJI4CgLLxlpOEtc62B893jC39oelW5wE8J1RBJ0ex+WqrkTDnEbYwA7PKoznDgkgZjARxHtEgxGSOEKYy+KKZcuw4sY1WLVpLZauuwZ1i+eUjUJFvKhTY6xlBsCBRZK4o3Gc/Htr60fPNTU1dZWPApfuZKoMS8pHhK2yHqrMNhZcsgjZhhpor08/pp9uVjGlZyO98xiMBiDeIVOTwxWrl+Pam2/A9XdswJLrr0FYGw7dMPExLLMhssRsGAwkcdLqvW8WJ/915NiRn61du3agJN2ho8Cly40ZN7zHPhGoYSb1igWXX4TLVizF0f9tQb6xHt6l5yKJUkg579A/OAh4QV1jPZatvR6rb12P1RvX4cqmZaDa8sFuaOISCmzAAExgQjiXRCLxnjiO30oSffX0gb3vrdy0qa8CFqYk3QnnILZwtq+5pi5zmgN7kU+82sDSA3/8VXz77T3o7e6FNRbwAvUCIY/snFpce8N63HTXLVi9cR0WX3M5EJYzEy8uTowNg/R8mg3gItfhvT/kvHvNR4P/3bBgweFqLA/lcDT53SICgLgQvxbkgnvEixDBEDP2/HwX3nrpdXSf6oLNBFhw1WIsXXU1Vt54HRavvBwl1y5eYlVVa01mWN+xO+a9fyOJi79o7+ratnTp0tNVRNsKLJ+/y+vu7LsrffSBevXqnRt+VIIveNV4+EkJqupiTRLv3PB7XKJxXNxTKBSe7e/uvmfr1q21VQSTqtqZerAFA0CxEH9jiCKnzsXOJc45p94lPv2qfOaDS5IkGoy2FfoLf93Z2blh8+bNpmpdU/qe+d3yLVu2GACI++K/cInrH+tBFS52nVExemugZ+Bvjh87vmYUYXx2RFcn0eXA0HWqa1WuLvcggZZbtomqt7Fz3Qp9p28g2b548dyPK6EBwLz00ku6efPm6cHzJK//B4oq0fZo6Bi9AAAAAElFTkSuQmCC">
+    <div><h1>BQ Pen Tracker</h1><div class="sub">Throwing week and bullpens, pitch by pitch</div></div>
+  </header>
+
+  <nav class="tabs" id="tabs"><button data-t="sched" class="on">Throwing week</button><button data-t="pens">Bullpens</button></nav>
+
+  <!-- SCHEDULE -->
+  <section id="v-sched" class="wrap" style="gap:12px">
+    <div class="card">
+      <div class="row">
+        <div><div class="label">Age group</div><div class="seg" id="w-age"><button data-v="U16">U16</button><button data-v="U18">U18</button></div></div>
+      </div>
+      <div><div class="label">This week's games</div><select id="w-type"></select></div>
+      <div class="pen-desc" id="w-note"></div>
+    </div>
+    <div class="days" id="w-days"></div>
+  </section>
+
+  <!-- SETUP -->
+  <section id="v-setup" class="wrap" style="gap:16px" hidden>
+    <div class="card">
+      <h2>New pen</h2>
+      <div class="row">
+        <div><div class="label">Athlete</div><input id="f-ath" list="athletes" placeholder="Athlete name" autocomplete="off"><datalist id="athletes"></datalist></div>
+        <div><div class="label">Age group</div><div class="seg" id="f-age"><button data-v="U16">U16</button><button data-v="U18">U18</button></div></div>
+      </div>
+      <div class="row">
+        <div><div class="label">Throws</div><div class="seg" id="f-hand"><button data-v="R">RHP</button><button data-v="L">LHP</button></div></div>
+      </div>
+      <div><div class="label">Pitch mix <span style="text-transform:none;letter-spacing:0;font-family:var(--body);font-weight:400">· tap every pitch the athlete throws</span></div>
+        <div class="checklist" id="f-mix"></div>
+        <div class="pen-desc" id="mix-note"></div>
+      </div>
+      <div><div class="label">Pen</div>
+        <div class="checklist" id="f-fw">
+          <button data-v="control">Full control</button><button data-v="cmd">Command</button><button data-v="tun">Tunneling</button><button data-v="des">Pitch design</button><button data-v="custom">Custom</button>
+        </div>
+      </div>
+      <div id="lvl-wrap"><div class="label">Level</div><div class="seg" id="f-lvl"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button></div></div>
+      <div id="des-wrap" hidden><div class="label">Design pitch</div><div class="checklist" id="f-des"></div></div>
+      <div class="pen-desc" id="pen-desc"></div>
+      <div class="notice" id="setup-err" hidden></div>
+      <button class="primary" id="start">Start pen</button>
+    </div>
+    <div class="card">
+      <h2>Recent pens</h2>
+      <div class="hist" id="hist"><div class="empty">Saved pens show here. Start a pen above and every pitch is saved as you log it.</div></div>
+      <div class="notice" id="db-note" hidden>Pens can't be saved in this view. You can still run a pen, but it won't appear here later.</div>
+    </div>
+  </section>
+
+  <!-- LIVE -->
+  <section id="v-live" class="wrap" style="gap:12px" hidden>
+    <div class="card">
+      <div class="livehead">
+        <div><div class="who" id="l-who"></div><div class="pen" id="l-pen"></div></div>
+        <button class="small ghost" id="l-exit">Save and exit</button>
+      </div>
+      <div class="prog"><i id="l-prog"></i></div>
+      <div id="l-count" class="count" hidden>
+        <div class="sit" id="l-sit"></div>
+        <div class="bs" id="l-bs">0-0</div>
+      </div>
+      <div class="next">
+        <div class="pnum" id="l-num">1<small>/35</small></div>
+        <div class="call"><div class="pt" id="l-pitch">FB</div><div class="meta" id="l-meta"></div></div>
+        <div class="zbadge" id="l-zbadge">Zone<b id="l-z">5</b></div>
+      </div>
+      <div id="l-pick" class="seg" hidden></div>
+    </div>
+    <div class="card">
+      <div class="hint" id="l-hint">Tap where the pitch finished</div>
+      <div class="zonebox"><svg id="zone" class="zsvg" viewBox="0 0 320 360" role="img" aria-label="Strike zone from the pitcher's view"></svg></div>
+      <div class="toggles" id="l-toggles"></div>
+      <div class="ttp" id="l-ttp" hidden><span class="label">Time to plate (s)</span><input id="f-ttp" type="number" step="0.01" min="0.8" max="3" inputmode="decimal" placeholder="1.42"></div>
+      <div id="l-outcome" class="toggles" hidden></div>
+      <div class="row">
+        <button class="small" id="l-undo">Undo last pitch</button>
+        <button class="small" id="l-wp">Wild pitch / HBP</button>
+        <button class="small" id="l-finish">Finish pen</button>
+      </div>
+    </div>
+    <div class="stats" id="l-stats"></div>
+    <div class="card" id="l-typecard" hidden><div class="label">By pitch</div><div class="scroll"><table class="log" id="l-types"></table></div></div>
+  </section>
+
+  <!-- SUMMARY -->
+  <section id="v-sum" class="wrap" style="gap:12px" hidden>
+    <div class="card">
+      <div class="livehead">
+        <div><h2 id="s-title"></h2><div class="pen" id="s-sub"></div></div>
+        <button class="small ghost" id="s-back">Back</button>
+      </div>
+      <div id="s-verdict"></div>
+      <div class="stats" id="s-stats"></div>
+    </div>
+    <div class="card">
+      <div class="label">Where each pitch finished</div>
+      <div class="zonebox"><svg id="szone" class="zsvg" viewBox="0 0 320 360" role="img" aria-label="All pitch locations"></svg></div>
+      <div class="legend" id="s-legend"></div>
+    </div>
+    <div class="card">
+      <div class="label">By pitch type</div>
+      <div class="scroll"><table class="log" id="s-types"></table></div>
+    </div>
+    <div class="card">
+      <div class="label">Pitch log</div>
+      <div class="scroll"><table class="log" id="s-log"></table></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <button class="small" id="s-resume" hidden>Resume pen</button>
+        <button class="small" id="s-again">Run this pen again</button>
+        <button class="small ghost" id="s-del">Delete pen</button>
+      </div>
+      <div class="confirm" id="s-confirm" hidden>Delete this pen for good? <button class="small" id="s-del-yes">Delete</button><button class="small ghost" id="s-del-no">Keep</button></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+// ---------- pen definitions (zones written for a RHP, pitcher's view; mirrored for LHP) ----------
+const MIRROR = {1:3,3:1,4:6,6:4,7:9,9:7,11:12,12:11,13:14,14:13};
+const P = (set,p,z,extra) => Object.assign({set,p,z},extra||{});
+const rep = (n,fn) => Array.from({length:n},(_,i)=>fn(i));
+
+const CONTROL = [
+ ...[5,6,4,9,7,3,1,8].map(z=>P("W","FB",z)),
+ ...[8,9,6,7,14,4,13,9].map(z=>P("W","CH",z)),
+ ...[8,7,13,9,4,14,7,13].map(z=>P("W","BB",z)),
+ ...[["FB",3],["CH",9],["BB",7],["FB",1],["CH",14],["FB",11],["BB",13],["FB",12],["CH",8],["BB",9],["FB",5]].map(([p,z])=>P("S",p,z)),
+];
+const cmd1 = [...rep(6,()=>P("W","FB",5)),...rep(5,()=>P("W","CH",5)),...rep(5,()=>P("W","BB",5)),...rep(2,()=>P("W","FB",5)),
+              ...rep(4,()=>P("S","FB",5)),...rep(5,()=>P("S","CH",5)),...rep(5,()=>P("S","BB",5))];
+const cmd2 = [...[6,4,6,4,6,4].map(z=>P("W","FB",z,{side:1})),...[6,4,6,4,6,4].map(z=>P("W","CH",z,{side:1})),...[4,6,4,6,4,6].map(z=>P("W","BB",z,{side:1})),
+              ...[6,4,6,4].map(z=>P("S","FB",z,{side:1})),...[6,4,6,4,6].map(z=>P("S","CH",z,{side:1})),...[4,6,4,6,4].map(z=>P("S","BB",z,{side:1}))];
+const cmd3 = [...[1,3,7,9,1,3,7,9,2,2].map(z=>P("W","FB",z)),...[9,9,7,7,14,14,9,7,14,14,9,7].map(z=>P("W","CH",z)),
+              ...[7,7,9,9,13,13,7,9,13,13,7,9].map((z,i)=>P(i<6?"W":"S","BB",z))];
+const tun1 = [...rep(5,i=>[P(i<3?"W":"S","FB",5,{grp:"a"+i}),P(i<3?"W":"S","CH",8,{grp:"a"+i})]).flat(),
+              ...rep(5,i=>[P(i<3?"W":"S","FB",5,{grp:"b"+i}),P(i<3?"W":"S","BB",8,{grp:"b"+i})]).flat(),
+              ...rep(5,i=>[P(i<3?"W":"S","CH",8,{grp:"c"+i}),P(i<3?"W":"S","BB",8,{grp:"c"+i})]).flat(),
+              P("S","FB",5),P("S","FB",5)].map(x=>Object.assign(x,{gate:1}));
+const T2 = [[["FB",2],["BB",8]],[["CH",9],["FB",3]],[["BB",7],["CH",9]],[["BB",4],["FB",6]]];
+const tun2 = rep(16,i=>T2[i%4].map(([p,z])=>P(i<8?"W":"S",p,z,{grp:"p"+i,gate:1}))).flat();
+const T3 = [[["BB",8],["FB",2],["CH",9]],[["CH",9],["CH",8],["FB",6]],[["FB",2],["BB",4],["CH",9]],[["BB",8],["CH",9],["BB",7]]];
+const tun3 = rep(11,i=>T3[i%4].map(([p,z])=>P(i<6?"W":"S",p,z,{grp:"s"+i,gate:1}))).flat();
+const des1 = [...rep(4,()=>P("W","FB",5)),...rep(28,i=>P("W","D",5,{shape:1,note:"Grip "+(Math.floor(i/7)+1)}))];
+const des2 = [...rep(6,()=>P("W","FB",5)),...rep(26,i=>P(i<13?"W":"S","D",5,{shape:1,note:"Set "+(Math.floor(i/5)+1)}))];
+const des3 = [...[4,6,4,6,4,6,4,6,8,8,8,8,13,14,13,14,8,8].map((z,i)=>P(i<9?"W":"S","D",z,{shape:1})),
+              ...[1,3,7,9,5,2,6,4].map(z=>P("S","FB",z)),...[8,9,7,14,8,9,7,13].map(z=>P("S","OS",z))];
+const D4 = [[["FB",2],["D",8]],[["D",8],["FB",3]],[["OS",9],["D",7]],[["D",4],["OS",9]]];
+const des4 = rep(16,i=>D4[i%4].map(([p,z])=>P(i<8?"W":"S",p,z,{grp:"d"+i,gate:1,shape:p==="D"?1:0}))).flat();
+
+const COUNTS4 = ["0-0","1-0","0-1","1-1","2-1","0-2","3-2"];
+const SITS = [
+ {s:"Runner on 1st",c:["0-0","1-0","1-1"],r1:1},
+ {s:"Runner on 2nd",c:["0-1","2-1","2-2"]},
+ {s:"Runner on 3rd, less than 2 outs",c:["1-1","0-2","3-2"],outs:[0,1]},
+ {s:"Runners on 1st and 3rd",c:["1-0","2-1","1-2"],r1:1},
+ {s:"Bases loaded",c:["2-0","3-1","3-2"],loaded:1},
+ {s:"Bases empty, 2 outs",c:["0-0","0-2","2-2"],outs:[2]},
+];
+
+const LV = {
+ cmd:["Strike foundation","Zone halves","Corners and chase","Counts","Counts + runners"],
+ tun:["Tunnel pairs","Split finishes","Three-pitch sequences","Counts","Counts + runners"],
+ des:["Grip and feel","Shape consistency","Command the new shape","Tunnel with the arsenal","Counts + runners"],
+};
+const DESC = {
+ control:"35 planned pitches: fastball to every zone, changeups, breaking balls, then a mixed stretch block. Target: 60%+ of max points and 65%+ strikes.",
+ cmd1:"32 pitches aimed at the middle, 12 FB / 10 CH / 10 BB. Target: 65%+ strikes, 60%+ strikes with each offspeed pitch.",
+ cmd2:"32 pitches to called halves (arm side / glove side). Target: 60%+ to the called half with each pitch type.",
+ cmd3:"34 pitches to corners, bottom of the zone and chase. Target: 60%+ of max points overall and with each offspeed pitch.",
+ cmd4:"8 simulated hitters from drawn counts. You call each pitch. 40%+ offspeed. Target: win 6 of 8, max 1 walk.",
+ cmd5:"Simulated hitters with situation cards (count, runners, outs). 40%+ offspeed. Target: win 6 of 8, no walks with bases loaded, time to plate under 1.5 s.",
+ tun1:"32 pitches in tunnel pairs: FB-CH, FB-BB, CH-BB. Mark each pitch through the gate. Target: 60%+ pairs both through the gate.",
+ tun2:"16 pairs that share a tunnel and split to different finishes. Target: 60%+ of pairs fully executed (gate + spot).",
+ tun3:"11 three-pitch sequences through the gate. Target: 7 of 11 sequences fully executed.",
+ tun4:"8 simulated hitters. Each sequence needs 2 offspeed pitches and a tunnel pair. Target: win 6 of 8, max 1 walk.",
+ tun5:"Simulated hitters with situation cards, every sequence built off tunnels. Target: win 6 of 8, no walks with bases loaded, time to plate under 1.5 s.",
+ des1:"4 FB, then 4 grip variations x 7 of the design pitch at 75-85% intent. Mark shape match on each. Goal: pick the best grip.",
+ des2:"6 FB, then 26 design pitches in sets of 5. Judge shape, not location. Target: 70%+ shape match.",
+ des3:"18 design pitches to spots plus 8 FB and 8 other offspeed. Target: 55%+ design pitches to the spot with 70%+ shape match.",
+ des4:"16 pairs mixing the design pitch with the FB and other offspeed through the gate. Target: 60%+ of pairs fully executed.",
+ des5:"Simulated hitters with situation cards. Design pitch 30%+ of the pen and used to put a hitter away. Target: win 6 of 8.",
+ custom:"Blank pen: pick the pitch and intended zone before each pitch. Up to 35 pitches, no target.",
+};
+
+function penDef(fw, lvl){
+  if (fw==="control") return {key:"control",name:"Full control pen",mode:"plan",plan:CONTROL};
+  if (fw==="custom") return {key:"custom",name:"Custom pen",mode:"called",max:35};
+  const k = fw+lvl, nm = {cmd:"Command",tun:"Tunneling",des:"Pitch design"}[fw]+" L"+lvl+" - "+LV[fw][lvl-1];
+  const plans = {cmd1,cmd2,cmd3,tun1,tun2,tun3,des1,des2,des3,des4};
+  if (plans[k]) return {key:k,name:nm,mode:"plan",plan:plans[k]};
+  return {key:k,name:nm,mode:"counts",hitters:8,sit:lvl===5,max:35};
+}
+
+// ---------- pitch catalogue ----------
+const PITCHES = [
+ {c:"FB",n:"4-seam fastball",f:"FB"},{c:"SI",n:"2-seam / sinker",f:"FB"},{c:"CT",n:"Cutter",f:"BB"},
+ {c:"SL",n:"Slider",f:"BB"},{c:"SW",n:"Sweeper",f:"BB"},{c:"CB",n:"Curveball",f:"BB"},
+ {c:"CH",n:"Changeup",f:"CH"},{c:"SPL",n:"Splitter",f:"CH"}];
+const PNAME = Object.fromEntries(PITCHES.map(p=>[p.c,p.n]));
+const FAM = Object.fromEntries(PITCHES.map(p=>[p.c,p.f]));
+const ORDER = PITCHES.map(p=>p.c);
+function mixOf(rec){ return (rec.mix && rec.mix.length) ? rec.mix : ["FB","CH",rec.bb||"CB"]; }
+function families(mix){
+  const sorted = ORDER.filter(c=>mix.includes(c));
+  const f = {FB:sorted.filter(c=>FAM[c]==="FB"), CH:sorted.filter(c=>FAM[c]==="CH"), BB:sorted.filter(c=>FAM[c]==="BB")};
+  if (!f.FB.length) f.FB = sorted.includes("CT") ? ["CT"] : [sorted[0]||"FB"];
+  // missing families borrow from the other offspeed group, then the fastball
+  if (!f.CH.length) f.CH = f.BB.length ? f.BB : f.FB;
+  if (!f.BB.length) f.BB = f.CH.length ? f.CH : f.FB;
+  return f;
+}
+const OS_ROLES = ["CH","BB","OS"];
+function offspeedList(rec){ const mix = mixOf(rec); return ORDER.filter(c=>mix.includes(c) && FAM[c]!=="FB" && c!==rec.design); }
+function rolePitch(role, k, rec){
+  const mix = mixOf(rec), f = families(mix);
+  if (role==="D") return rec.design;
+  if (OS_ROLES.includes(role)){ const os = offspeedList(rec); return os.length ? os[k % os.length] : f.FB[k % f.FB.length]; }
+  return f.FB[k % f.FB.length];
+}
+
+// ---------- throwing schedule ----------
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const T_GAME = "Pregame throw and bullpen, pitch count under 45";
+const T_REC = "Play catch to max 90 ft (no more than 30 throws total)";
+const T_LT = "Long toss to tolerance: throw on an arc, no pull-downs, +/- low-intent mound work";
+const T_PEN = "Throw as needed to get hot, then bullpen (30-35 pitches)";
+const PL_REC = "Reverse throws and pivot picks only";
+const DAYTYPES = {
+  game:{n:"Game day",i:"100%",pl:"Plyos",t:T_GAME,cls:"game"},
+  game2:{n:"Game day",i:"100%",pl:"Plyos",t:T_GAME+", or play position",cls:"game"},
+  pos:{n:"Game day - play position",i:"Position",pl:"Plyos",t:"Pregame throw, play position as selected (not pitching, no extra throwing)",cls:"game"},
+  pospen:{n:"Game day - play position",i:"Position / 90%+",pl:"Plyos",t:"Pregame throw, play position. Bullpen option if not pitching (30-35 pitches)",cls:"pen",pen:true},
+  off:{n:"No throw",i:"0%",pl:"-",t:"-",cls:"off"},
+  rec:{n:"Recovery day",i:"50%",pl:PL_REC,t:T_REC,cls:""},
+  lt:{n:"Low intent throwing day",i:"60-70%",pl:"Plyo balls (full routine)",t:T_LT,cls:""},
+  pen:{n:"High intent bullpen",i:"90%+",pl:"Plyos (50% volume)",t:T_PEN,cls:"pen",pen:true},
+};
+const WEEKS = [
+ {k:"fri",n:"Friday game",d:{Fri:"game",Sat:"off",Sun:"rec",Mon:"lt",Tue:"pen",Wed:"rec",Thu:"rec"}},
+ {k:"sat",n:"Saturday game",d:{Sat:"game",Sun:"off",Mon:"rec",Tue:"lt",Wed:"pen",Thu:"rec",Fri:"rec"}},
+ {k:"sun",n:"Sunday game",d:{Sun:"game",Mon:"off",Tue:"rec",Wed:"lt",Thu:"pen",Fri:"rec",Sat:"rec"}},
+ {k:"fs1",n:"Friday + Sunday games - pitched Friday",d:{Fri:"game",Sat:"off",Sun:"pos",Mon:"lt",Tue:"pen",Wed:"rec",Thu:"rec"}},
+ {k:"fs2",n:"Friday + Sunday games - pitched Sunday",d:{Fri:"pospen",Sat:"rec",Sun:"game",Mon:"off",Tue:"rec",Wed:"lt",Thu:"rec"}},
+ {k:"fs3",n:"Friday + Sunday games - did not pitch",d:{Fri:"pospen",Sat:"rec",Sun:"pos",Mon:"off",Tue:"lt",Wed:"pen",Thu:"rec"}},
+ {k:"ss1",n:"Saturday + Sunday games - pitched Saturday",d:{Sat:"game",Sun:"pos",Mon:"off",Tue:"lt",Wed:"pen",Thu:"rec",Fri:"rec"}},
+ {k:"ss2",n:"Saturday + Sunday games - pitched Sunday",d:{Sat:"pos",Sun:"game",Mon:"off",Tue:"lt",Wed:"pen",Thu:"rec",Fri:"rec"}},
+ {k:"ss3",n:"Saturday + Sunday games - did not pitch",d:{Sat:"pos",Sun:"pos",Mon:"off",Tue:"lt",Wed:"pen",Thu:"rec",Fri:"rec"}},
+];
+const BQ_DAYS = {U16:["Mon","Thu"], U18:["Mon","Wed"]};
+const DAYS = [["Mon","Monday"],["Tue","Tuesday"],["Wed","Wednesday"],["Thu","Thursday"],["Fri","Friday"],["Sat","Saturday"],["Sun","Sunday"]];
+const RECOVERY = [["T spine levered extension over foam roll","1-2 min"],["Thoracic spine windmills","15 each direction"],["Lat/triceps long head stretch at wall","45 s"],["Pec minor release w/ active ER","2 min"],["Single arm pec stretch","1 min"],["Infraspinatus/teres minor self mobilization","2 min"],["Biceps tack and pump","2 min"],["Levator scap elongation","3 s each direction"],["Foam roll levered 90/90 to Y's","12 slides"]];
+const ARM_A = [["Superset x3: Posterior wall angels","20"],["Superset x3: Arm bar banded ER (abduction)","12"],["Superset x3: Single arm serratus slides","15 each"],["Superset x3: Tripod rotations w/ oscillations, weighted ball","12"],["Superset x3: SA split stance serratus scoops","15 slow"]];
+const ARM_B = [["Split stance flexion ball drops","50-75"],["Tripod T dribbles","20 s"],["Superset x2: Scap lifts off wall","15"],["Superset x2: 90/90 to Y scap wall slides","max"],["Superset x2: Pivot pick (low/mid trap)","15"],["Superset x2: Sidelying serratus punch w/ stability ball","20"],["Superset x2: Back to wall serratus scoops","15"],["Superset x3: Fingertip farmer carries","45-60 s"],["Superset x3: 1st and 2nd digit/wrist flexion","40"]];
+const progList = (name, rows) => `<details class="plist"><summary>${name}</summary><ol>${rows.map(([a,b])=>`<li>${esc(a)} <span class="dose">· ${esc(b)}</span></li>`).join("")}</ol></details>`;
+
+// ---------- state ----------
+const $ = id => document.getElementById(id);
+let db = null, pensCol = null, histUnsub = null, histDocs = [];
+let setup = {age:"U16",hand:"R",mix:["FB","CH","CB"],fw:"control",lvl:1,des:"CH"};
+try { const s = JSON.parse(localStorage.getItem("bqpen.setup")||"null"); if (s) Object.assign(setup,s); } catch(e){}
+if (!Array.isArray(setup.mix) || !setup.mix.length) setup.mix = ["FB","CH","CB"];
+let athletesCol = null, athleteDocs = {};
+let pen = null;           // current pen record
+let live = null;          // runtime extras: {def, called:{p,z}, swung, gate, shape}
+let writeChain = Promise.resolve(), dirty = false, saving = false;
+
+function plannedPitch(def, i, rec){
+  const it = def.plan[i]; if (!it) return null;
+  const isOS = OS_ROLES.includes(it.p);
+  let k = 0; for (let j=0; j<i; j++) if (isOS ? OS_ROLES.includes(def.plan[j].p) : def.plan[j].p===it.p) k++;
+  const p = rolePitch(it.p, k, rec);
+  const z = rec.hand==="L" && MIRROR[it.z] ? MIRROR[it.z] : it.z;
+  return {set:it.set, p, z, side:!!it.side, grp:it.grp||null, gate:!!it.gate, shape:!!it.shape, design:it.p==="D", note:it.note||""};
+}
+const isStrikeZone = z => z>=1 && z<=9;
+const col = z => (z-1)%3, rowOf = z => Math.floor((z-1)/3);
+function hitTarget(pt){
+  if (pt.actual==null) return false;
+  if (pt.side) return isStrikeZone(pt.actual) && isStrikeZone(pt.intended) && col(pt.actual)===col(pt.intended);
+  return pt.actual===pt.intended;
+}
+const OS = p => p!=="FB";
+
+// ---------- zone drawing ----------
+const G = {x:80,y:50,w:160,h:200};               // strike zone
+const S = {x:40,y:20,w:240,h:260};               // shadow / chase
+function zoneCenter(z){
+  if (isStrikeZone(z)) return [G.x+G.w*(col(z)+.5)/3, G.y+G.h*(rowOf(z)+.5)/3];
+  const c = {11:[S.x+22,S.y+24],12:[S.x+S.w-22,S.y+24],13:[S.x+22,S.y+S.h-24],14:[S.x+S.w-22,S.y+S.h-24]}[z];
+  return c || [S.x+S.w+16, S.y+S.h+30];
+}
+function zoneFromPoint(x,y){
+  if (x>=G.x && x<=G.x+G.w && y>=G.y && y<=G.y+G.h){
+    const c = Math.min(2,Math.floor((x-G.x)/(G.w/3))), r = Math.min(2,Math.floor((y-G.y)/(G.h/3)));
+    return r*3+c+1;
+  }
+  if (x>=S.x && x<=S.x+S.w && y>=S.y && y<=S.y+S.h){
+    const left = x < S.x+S.w/2, up = y < S.y+S.h/2;
+    return up ? (left?11:12) : (left?13:14);
+  }
+  return 0;
+}
+function drawZone(svg, opts){
+  const o = opts||{};
+  let h = `<rect class="off" x="0" y="0" width="320" height="360"/>`;
+  const mx = S.x+S.w/2, my = S.y+S.h/2;
+  h += `<path class="chase" d="M${S.x},${S.y}H${mx}V${G.y}H${G.x}V${my}H${S.x}Z"/>`;
+  h += `<path class="chase" d="M${mx},${S.y}H${S.x+S.w}V${my}H${G.x+G.w}V${G.y}H${mx}Z"/>`;
+  h += `<path class="chase" d="M${S.x},${my}H${G.x}V${G.y+G.h}H${mx}V${S.y+S.h}H${S.x}Z"/>`;
+  h += `<path class="chase" d="M${G.x+G.w},${my}H${S.x+S.w}V${S.y+S.h}H${mx}V${G.y+G.h}H${G.x+G.w}Z"/>`;
+  for (let z=1; z<=9; z++){
+    const x = G.x+G.w*col(z)/3, y = G.y+G.h*rowOf(z)/3;
+    h += `<rect class="cell" x="${x}" y="${y}" width="${G.w/3}" height="${G.h/3}"/>`;
+    if (o.numbers!==false) h += `<text class="zn" x="${x+G.w/6}" y="${y+G.h/6+6}" text-anchor="middle">${z}</text>`;
+  }
+  if (o.numbers!==false) [11,12,13,14].forEach(z=>{const [cx,cy]=zoneCenter(z); h+=`<text class="cn" x="${cx}" y="${cy+5}" text-anchor="middle">${z}</text>`;});
+  // plate from the mound: flat front edge toward the pitcher
+  const py = 300, pw = G.w*0.92, px = 160-pw/2;
+  h += `<line class="box" x1="${px-14}" y1="290" x2="${px-14}" y2="352"/><line class="box" x1="${px+pw+14}" y1="290" x2="${px+pw+14}" y2="352"/>`;
+  h += `<polygon class="plate" points="${px},${py+44} ${px+pw},${py+44} ${px+pw},${py+22} 160,${py+6} ${px},${py+22}"/>`;
+  h += `<text class="side" x="10" y="${my+4}">LHH</text><text class="side" x="310" y="${my+4}" text-anchor="end">RHH</text>`;
+  h += `<text class="side" x="8" y="350">1B side</text><text class="side" x="312" y="350" text-anchor="end">3B side</text>`;
+  (o.dots||[]).forEach(d=>{const [x,y]=jitter(d); h+=`<circle cx="${x}" cy="${y}" r="${d.r||6}" fill="${d.fill||'currentColor'}" class="${d.cls||''}" opacity="${d.op||1}"/>`;});
+  if (o.ring!=null){ const [x,y]=zoneCenter(o.ring); h+=`<circle class="ring" cx="${x}" cy="${y}" r="19"/>`; }
+  if (o.lastX!=null){ const [x,y]=zoneCenter(o.lastX); h+=`<path class="lastx" d="M${x-9},${y-9}L${x+9},${y+9}M${x+9},${y-9}L${x-9},${y+9}"/>`; }
+  svg.innerHTML = h;
+}
+function jitter(d){
+  const [x,y] = zoneCenter(d.z); const a = (d.k*2.399)%(2*Math.PI), r = 4+((d.k*7)%14);
+  return [x+Math.cos(a)*r, y+Math.sin(a)*r];
+}
+
+// ---------- schedule view ----------
+let weekKey = "sat";
+try{ weekKey = localStorage.getItem("bqpen.week") || "sat"; }catch(e){}
+$("w-type").innerHTML = WEEKS.map(w=>`<option value="${w.k}">${w.n}</option>`).join("");
+$("w-type").value = weekKey;
+$("w-type").addEventListener("change", ()=>{ weekKey = $("w-type").value; try{ localStorage.setItem("bqpen.week", weekKey); }catch(e){} renderWeek(); });
+function renderWeek(){
+  $("w-age").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===setup.age));
+  const w = WEEKS.find(x=>x.k===weekKey) || WEEKS[1];
+  const bq = BQ_DAYS[setup.age] || BQ_DAYS.U16;
+  const today = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
+  $("w-note").textContent = setup.age+" BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ")+". Tissue prep, bands and recovery every day except the no-throw day.";
+  $("w-days").innerHTML = DAYS.map(([d,full])=>{
+    const t = w.d[d], T = DAYTYPES[t];
+    const label = bq.includes(d) ? `<span class="tag bq">BQ training</span>` : t==="off" ? `<span class="tag off">Day off</span>` : `<span class="tag">On own</span>`;
+    const on = t!=="off";
+    const arm = t==="pen" ? progList("Arm care A", ARM_A) : t==="lt" ? progList("Arm care B", ARM_B) : "";
+    const recov = t==="rec" ? progList("Recovery / mobility program (before or after throwing)", RECOVERY) : "";
+    const btn = T.pen ? `<button class="small" data-pen="${d}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
+    return `<div class="day ${d===today?'today':''}">
+      <div class="dayhead"><div class="dayname">${full}${d===today?"<small>Today</small>":""}</div>${label}</div>
+      <div class="dtype"><span class="int">${T.i}</span><span class="tag ${T.cls}">${T.n}</span></div>
+      ${on ? `<dl class="items"><dt>Prep</dt><dd>Tissue prep, bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${t==="pen"||t==="lt"?`<dt>Arm care</dt><dd>${t==="pen"?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${t==="rec"?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
+      ${arm}${recov}${btn}
+    </div>`;
+  }).join("");
+}
+$("w-age").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; setup.age=b.dataset.v; saveSetup(); repaintAll(); renderWeek();});
+$("w-days").addEventListener("click", e=>{const b=e.target.closest("button[data-pen]"); if(!b) return; setTab("pens"); show("v-setup"); $("f-ath").focus();});
+let tab = "sched";
+function setTab(t){
+  tab = t;
+  $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t===t));
+  $("v-sched").hidden = t!=="sched";
+  if (t==="sched"){ ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden=true); renderWeek(); }
+  else if ($("v-live").hidden && $("v-sum").hidden) $("v-setup").hidden = false;
+}
+$("tabs").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return;
+  if (b.dataset.t==="pens" && pen && pen.status==="live" && live){ setTab("pens"); show("v-live"); return; }
+  setTab(b.dataset.t);});
+
+// ---------- setup view ----------
+function segBind(id, key, after){
+  const el = $(id);
+  const paint = () => el.querySelectorAll("button").forEach(b=>b.classList.toggle("on", String(setup[key])===b.dataset.v));
+  el.addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; setup[key]= key==="lvl"?+b.dataset.v:b.dataset.v; paint(); after&&after(); saveSetup();});
+  paint();
+}
+function saveSetup(){ try{ localStorage.setItem("bqpen.setup", JSON.stringify(setup)); }catch(e){} }
+function paintSetup(){
+  $("lvl-wrap").hidden = setup.fw==="control"||setup.fw==="custom";
+  $("des-wrap").hidden = setup.fw!=="des";
+  const k = (setup.fw==="control"||setup.fw==="custom") ? setup.fw : setup.fw+setup.lvl;
+  let txt = DESC[k];
+  const def = penDef(setup.fw, setup.lvl);
+  if (def.mode==="plan"){
+    const rec = {mix:setup.mix, design:setup.fw==="des"?setup.des:null, hand:setup.hand};
+    const cnt = {}; def.plan.forEach((x,i)=>{ const p = plannedPitch(def,i,rec).p; cnt[p]=(cnt[p]||0)+1; });
+    txt += " For this pitch mix: " + ORDER.filter(c=>cnt[c]).map(c=>c+" "+cnt[c]).join(" · ") + ".";
+  }
+  $("pen-desc").textContent = txt;
+}
+$("f-mix").innerHTML = PITCHES.map(p=>`<button data-v="${p.c}" aria-pressed="false">${p.n}</button>`).join("");
+$("f-des").innerHTML = PITCHES.filter(p=>p.c!=="FB").map(p=>`<button data-v="${p.c}">${p.n}</button>`).join("");
+function paintMix(){
+  $("f-mix").querySelectorAll("button").forEach(b=>{const on=setup.mix.includes(b.dataset.v); b.classList.toggle("on",on); b.setAttribute("aria-pressed",on);});
+  const os = ORDER.filter(c=>setup.mix.includes(c) && FAM[c]!=="FB");
+  const fb = ORDER.filter(c=>setup.mix.includes(c) && FAM[c]==="FB");
+  $("mix-note").textContent = os.length ? "Offspeed reps are split evenly across "+os.map(c=>PNAME[c]).join(", ")+"."+(fb.length>1?" Fastball reps alternate "+fb.map(c=>PNAME[c]).join(" / ")+".":"") : "";
+  paintSetup();
+}
+$("f-mix").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; const c=b.dataset.v;
+  setup.mix = setup.mix.includes(c) ? setup.mix.filter(x=>x!==c) : ORDER.filter(x=>x===c||setup.mix.includes(x));
+  paintMix(); saveSetup();});
+["f-age:age","f-hand:hand","f-des:des"].forEach(s=>{const [id,k]=s.split(":"); segBind(id,k,paintSetup);});
+segBind("f-fw","fw",paintSetup); segBind("f-lvl","lvl",paintSetup); paintMix();
+$("f-ath").addEventListener("change", loadAthlete);
+renderWeek();
+function slug(n){ return n.trim().toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,80) || "athlete"; }
+function loadAthlete(){
+  const a = athleteDocs[slug($("f-ath").value)]; if (!a) return;
+  Object.assign(setup, {age:a.age||setup.age, hand:a.hand||setup.hand, mix:(a.mix&&a.mix.length)?a.mix:setup.mix});
+  saveSetup(); repaintAll(); paintMix();
+}
+try{ $("f-ath").value = localStorage.getItem("bqpen.ath")||""; }catch(e){}
+
+$("start").addEventListener("click", ()=>{
+  const ath = $("f-ath").value.trim();
+  if (!ath){ $("setup-err").textContent="Enter the athlete's name to start."; $("setup-err").hidden=false; $("f-ath").focus(); return; }
+  if (!setup.mix.some(c=>FAM[c]==="FB") && !setup.mix.includes("CT")){ $("setup-err").textContent="Add at least one fastball to the pitch mix."; $("setup-err").hidden=false; return; }
+  if (setup.mix.length<2){ $("setup-err").textContent="Pick at least two pitches in the pitch mix."; $("setup-err").hidden=false; return; }
+  $("setup-err").hidden = true;
+  try{ localStorage.setItem("bqpen.ath", ath); }catch(e){}
+  saveAthlete(ath);
+  const def = penDef(setup.fw, setup.lvl);
+  const now = new Date();
+  pen = { id:"p"+now.getTime().toString(36)+Math.random().toString(36).slice(2,6), athlete:ath, age:setup.age, hand:setup.hand, mix:setup.mix.slice(),
+          design: setup.fw==="des" ? setup.des : null, fw:setup.fw, lvl:(setup.fw==="control"||setup.fw==="custom")?null:setup.lvl,
+          penKey:def.key, penName:def.name, mode:def.mode, date:now.toISOString().slice(0,10), createdAt:now.getTime(),
+          status:"live", pitches:[], hitters:[] };
+  if (def.mode==="counts") newHitter();
+  openLive();
+  queueSave();
+});
+
+// ---------- live view ----------
+function curDef(){ return penDef(pen.fw, pen.lvl||1); }
+function total(){ const d=curDef(); return d.mode==="plan" ? d.plan.length : d.max; }
+function curHitter(){ return pen.hitters[pen.hitters.length-1]; }
+function newHitter(){
+  const def = curDef(); const n = pen.hitters.length;
+  let h;
+  if (def.sit){
+    const s = SITS[Math.floor(Math.random()*SITS.length)];
+    const c = s.c[Math.floor(Math.random()*s.c.length)];
+    const outs = s.outs ? s.outs[Math.floor(Math.random()*s.outs.length)] : Math.floor(Math.random()*3);
+    h = {n:n+1, sit:s.s, start:c, outs, r1:!!s.r1, loaded:!!s.loaded, result:null, walk:false, ttp:null};
+  } else {
+    const c = COUNTS4[n % COUNTS4.length];
+    const osFirst = pen.fw==="cmd" && (n===0||n===3||n===6);
+    h = {n:n+1, start:c, osFirst, result:null, walk:false};
+  }
+  const [b,s] = h.start.split("-").map(Number); h.b=b; h.s=s; h.np=0;
+  pen.hitters.push(h);
+}
+function openLive(){
+  live = {def:curDef(), called:{p:null,z:null}, swung:false, gate:true, shape:true};
+  show("v-live"); renderLive();
+}
+function show(id){ $("v-sched").hidden = true; if (tab!=="pens"){ tab="pens"; $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t==="pens")); }
+  ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden = v!==id); window.scrollTo(0,0); }
+
+function pitchChoices(){
+  const arr = mixOf(pen).slice();
+  if (pen.design && !arr.includes(pen.design)) arr.push(pen.design);
+  return ORDER.filter(c=>arr.includes(c));
+}
+function renderLive(){
+  const def = live.def, i = pen.pitches.length, tot = total();
+  $("l-who").textContent = pen.athlete+" · "+pen.age+" · "+(pen.hand==="L"?"LHP":"RHP");
+  $("l-pen").textContent = pen.penName;
+  $("l-prog").style.width = Math.min(100, 100*i/tot)+"%";
+  const done = i>=tot || (def.mode==="counts" && pen.hitters.length>=def.hitters && !!curHitter().result);
+  $("l-num").innerHTML = Math.min(i+1,tot)+"<small>/"+tot+"</small>";
+  const last = pen.pitches[i-1];
+  let ring = null, hint = "Tap where the pitch finished";
+  $("l-pick").hidden = true; $("l-count").hidden = true; $("l-outcome").hidden = true; $("l-ttp").hidden = true;
+  if (def.mode==="plan"){
+    const pp = plannedPitch(def,i,pen);
+    if (pp){
+      $("l-pitch").textContent = PNAME[pp.p] || pp.p;
+      $("l-meta").textContent = (pp.set==="W"?"Windup":"Stretch") + (pp.side?" · "+sideName(pp.z)+" half":"") + (pp.note?" · "+pp.note:"") + (pp.grp?" · "+grpLabel(def,i):"");
+      $("l-z").textContent = pp.z; ring = pp.z; $("l-zbadge").hidden = false;
+    }
+  } else {
+    // called pitch: choose pitch type and intended zone first
+    const c = live.called;
+    $("l-pick").hidden = false;
+    $("l-pick").innerHTML = pitchChoices().map(p=>`<button class="${c.p===p?'on':''}" data-p="${p}">${p}</button>`).join("");
+    $("l-pitch").textContent = c.p ? (PNAME[c.p]||c.p) : "Pick pitch";
+    $("l-meta").textContent = c.z==null ? "Then tap the intended zone" : "Intended zone set";
+    $("l-z").textContent = c.z==null ? "–" : c.z; ring = c.z;
+    hint = !c.p ? "Pick the pitch type above" : c.z==null ? "Tap the INTENDED zone" : "Now tap where the pitch FINISHED";
+    if (def.mode==="counts"){
+      const h = curHitter();
+      $("l-count").hidden = false;
+      $("l-bs").textContent = h.b+"-"+h.s;
+      $("l-sit").innerHTML = "Hitter "+h.n+" of "+def.hitters + `<small>${h.sit? esc(h.sit)+" · "+h.outs+" out"+(h.outs===1?"":"s")+" · started "+h.start : "Started "+h.start+(h.osFirst?" · offspeed first":"")}</small>`;
+      $("l-outcome").hidden = false;
+      $("l-outcome").innerHTML = `<button class="small" data-o="W">Hitter out / weak contact (win)</button><button class="small" data-o="L">Hard contact (loss)</button>`;
+      if (h.r1){ $("l-ttp").hidden = false; $("f-ttp").value = h.ttp ?? ""; }
+      if (h.np>=4 && !h.result) hint = "4 pitches thrown: record the hitter result below";
+    }
+  }
+  $("l-hint").textContent = done ? "Pen complete. Tap Finish pen for the summary." : hint;
+  // toggles
+  const pp = def.mode==="plan" ? plannedPitch(def,i,pen) : null;
+  let t = "";
+  if (def.mode!=="plan") t += `<button class="small ${live.swung?'on':''}" data-t="swung">Swung</button>`;
+  if ((pp&&pp.gate) || (def.mode==="counts" && pen.fw==="tun")) t += `<button class="small ${live.gate?'on':''}" data-t="gate">Through gate</button>`;
+  if ((pp&&pp.shape) || (def.mode==="counts" && pen.fw==="des" && live.called.p===pen.design)) t += `<button class="small ${live.shape?'on':''}" data-t="shape">Shape match</button>`;
+  $("l-toggles").innerHTML = t;
+  const trail = pen.pitches.map((p,k)=>({z:p.actual,k,fill:"currentColor",cls:"trail",r:4}));
+  drawZone($("zone"), {ring, lastX: last ? last.actual : null, dots: trail});
+  $("l-undo").disabled = !i;
+  $("l-finish").textContent = done ? "Finish pen" : "Finish pen early";
+  $("l-finish").classList.toggle("primary", done);
+  const lst = computeStats(pen);
+  renderStats($("l-stats"), lst);
+  $("l-typecard").hidden = !lst.n;
+  $("l-types").innerHTML = typeRows(lst, pen, false);
+}
+function typeRows(st, r, withTrend){
+  const plannedN = {};
+  const def = penDef(r.fw, r.lvl||1);
+  if (def.mode==="plan") def.plan.forEach((x,i)=>{ const p = plannedPitch(def,i,r).p; plannedN[p]=(plannedN[p]||0)+1; });
+  const codes = ORDER.filter(c=>st.types[c] || plannedN[c]);
+  return `<tr><th>Pitch</th><th>Thrown</th><th>Strike %</th><th>Hit zone %</th><th>Points</th>${withTrend?"<th>Tendency</th>":""}</tr>` +
+    codes.map(k=>{ const t = st.types[k] || {n:0,strikes:0,hit:0,pts:0,m:0};
+      const thrown = plannedN[k] ? t.n+" / "+plannedN[k] : t.n;
+      return `<tr><td><b>${k}</b> <span class="m" style="color:var(--muted)">${PNAME[k]||""}</span></td><td>${thrown}</td><td>${t.n?pct(t.strikes,t.n)+"%":"–"}</td><td>${t.n?pct(t.hit,t.n)+"%":"–"}</td><td>${t.n?t.pts+" / "+(2*t.n):"–"}</td>${withTrend?`<td>${missWords(t,r.hand)}</td>`:""}</tr>`; }).join("");
+}
+function sideName(z){ const arm = pen.hand==="L" ? 0 : 2; return col(z)===arm ? "Arm side" : "Glove side"; }
+function grpLabel(def,i){ const g = def.plan[i].grp; const idx = def.plan.filter((x,k)=>k<=i && x.grp===g).length; const n = def.plan.filter(x=>x.grp===g).length; return (n===3?"Sequence":"Pair")+" pitch "+idx+" of "+n; }
+
+$("l-pick").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; live.called.p=b.dataset.p; live.shape = true; renderLive();});
+$("l-toggles").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; const k=b.dataset.t; live[k]=!live[k]; renderLive();});
+$("l-outcome").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; endHitter(b.dataset.o==="W"?"W":"L"); });
+$("f-ttp").addEventListener("change", ()=>{ const h=curHitter(); const v=parseFloat($("f-ttp").value); h.ttp = isFinite(v)?v:null; queueSave(); });
+
+$("zone").addEventListener("click", e=>{
+  const svg = $("zone"), pt = svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  const z = zoneFromPoint(p.x,p.y);
+  tapZone(z);
+});
+function tapZone(z){
+  const def = live.def, i = pen.pitches.length;
+  if (i>=total()) return;
+  if (def.mode==="plan"){
+    const pp = plannedPitch(def,i,pen); if (!pp) return;
+    record({n:i+1,set:pp.set,p:pp.p,intended:pp.z,actual:z,side:pp.side,grp:pp.grp,
+            gate: pp.gate ? live.gate : null, shape: pp.shape ? live.shape : null, design:pp.design, note:pp.note});
+    live.gate = true; live.shape = true;
+  } else {
+    const c = live.called;
+    if (!c.p) return;
+    if (c.z==null){ c.z = z; renderLive(); return; }
+    const h = def.mode==="counts" ? curHitter() : null;
+    if (h && (h.result || h.np>=4)) return;
+    const rec = {n:i+1,set:h&&(h.r1||h.sit&&h.sit!=="Bases empty, 2 outs")?"S":"",p:c.p,intended:c.z,actual:z,
+                 swung:live.swung, gate: pen.fw==="tun" ? live.gate : null, shape: pen.fw==="des"&&c.p===pen.design ? live.shape : null, design: c.p===pen.design};
+    if (h){ rec.hitter = h.n; rec.count = h.b+"-"+h.s; }
+    record(rec);
+    live.called = {p:c.p, z:null}; live.swung = false; live.gate = true; live.shape = true;
+  }
+}
+function record(rec){
+  const strike = isStrikeZone(rec.actual) || (!!rec.swung && rec.actual!==0);
+  rec.strike = strike;
+  let pts;
+  if (hitTarget(rec)) pts = 2;
+  else if (isStrikeZone(rec.actual)) pts = 1;
+  else if (rec.actual!==0 && rec.count){ const [b,s]=rec.count.split("-").map(Number); pts = s>b ? 1 : 0; }
+  else if (rec.actual!==0 && rec.intended>=11 && !rec.count) pts = 1;
+  else pts = 0;
+  if (rec.swung && !isStrikeZone(rec.actual) && rec.actual!==0) pts = Math.max(pts,1);
+  rec.pts = pts;
+  // count logic
+  if (rec.hitter){
+    const h = curHitter(); h.np++;
+    if (strike){ if (h.s<2) h.s++; else { h.result="W"; rec.event="Strikeout"; } }
+    else { h.b++; if (h.b>=4){ h.result="L"; h.walk=true; rec.pts=-1; rec.event="Walk"; } }
+  }
+  pen.pitches.push(rec);
+  afterHitterCheck();
+  queueSave(); renderLive();
+}
+function afterHitterCheck(){
+  const def = live.def; if (def.mode!=="counts") return;
+  const h = curHitter();
+  if (h.result && pen.hitters.length < def.hitters) newHitter();
+}
+function endHitter(r){
+  const h = curHitter(); if (h.result) return;
+  h.result = r;
+  const last = pen.pitches[pen.pitches.length-1];
+  if (last && last.hitter===h.n && !last.event) last.event = r==="W" ? "Out / weak contact" : "Hard contact";
+  afterHitterCheck(); queueSave(); renderLive();
+}
+$("l-wp").addEventListener("click", ()=>{
+  const last = pen.pitches[pen.pitches.length-1]; if (!last) return;
+  last.pts = -1; last.event = (last.event? last.event+", ":"")+"WP/HBP"; queueSave(); renderLive();
+});
+$("l-undo").addEventListener("click", ()=>{
+  const rec = pen.pitches.pop(); if (!rec) return;
+  if (rec.hitter){
+    // rebuild hitters from scratch by replaying
+    const hs = pen.hitters.slice(0, rec.hitter); // keep through this hitter
+    pen.hitters = hs.map(h=>{ const [b,s]=h.start.split("-").map(Number); return Object.assign({},h,{b,s,np:0,result:null,walk:false}); });
+    pen.pitches.filter(p=>p.hitter).forEach(p=>{
+      const h = pen.hitters[p.hitter-1]; if (!h) return; h.np++;
+      if (p.strike){ if (h.s<2) h.s++; else h.result="W"; } else { h.b++; if (h.b>=4){ h.result="L"; h.walk=true; } }
+      if (p.event && /weak/.test(p.event)) h.result="W"; if (p.event && /Hard/.test(p.event)) h.result="L";
+    });
+  }
+  if (live.def.mode!=="plan") live.called = {p:rec.p, z:rec.intended};
+  queueSave(); renderLive();
+});
+$("l-exit").addEventListener("click", ()=>{ queueSave(); show("v-setup"); });
+$("l-finish").addEventListener("click", ()=>{
+  if (!pen.pitches.length){ show("v-setup"); return; }
+  pen.status = "done"; queueSave(); openSummary(pen);
+});
+
+// ---------- stats ----------
+function computeStats(r){
+  const ps = r.pitches, n = ps.length;
+  const st = {n, strikes:0, hit:0, pts:0, os:0, types:{}, osStrikeRates:[], gatePct:null, shapePct:null};
+  ps.forEach(p=>{
+    if (p.strike) st.strikes++; if (hitTarget(p)) st.hit++; st.pts += p.pts; if (OS(p.p)) st.os++;
+    const t = st.types[p.p] || (st.types[p.p]={n:0,strikes:0,hit:0,pts:0,dx:0,dy:0,m:0});
+    t.n++; if (p.strike) t.strikes++; if (hitTarget(p)) t.hit++; t.pts+=p.pts;
+    if (p.actual && p.intended){ const a=zoneCenter(p.actual), b=zoneCenter(p.intended); t.dx+=a[0]-b[0]; t.dy+=a[1]-b[1]; t.m++; }
+  });
+  const g = ps.filter(p=>p.gate!=null); if (g.length) st.gatePct = g.filter(p=>p.gate).length/g.length;
+  const s = ps.filter(p=>p.shape!=null); if (s.length) st.shapePct = s.filter(p=>p.shape).length/s.length;
+  // groups (pairs / sequences)
+  const grps = {}; ps.forEach(p=>{ if(p.grp){ (grps[p.grp]=grps[p.grp]||[]).push(p);} });
+  const def = penDef(r.fw, r.lvl||1);
+  const size = {}; if (def.plan) def.plan.forEach(x=>{ if(x.grp) size[x.grp]=(size[x.grp]||0)+1; });
+  const full = Object.entries(grps).filter(([k,a])=>a.length===size[k]);
+  st.groups = full.length; st.groupsGate = full.filter(([k,a])=>a.every(p=>p.gate)).length;
+  st.groupsExec = full.filter(([k,a])=>a.every(p=>p.gate && hitTarget(p))).length;
+  st.groupSize = Object.values(size)[0] || 0;
+  // hitters
+  const hs = (r.hitters||[]).filter(h=>h.result);
+  st.hitters = hs.length; st.wins = hs.filter(h=>h.result==="W").length; st.walks = hs.filter(h=>h.walk).length;
+  st.loadedWalks = hs.filter(h=>h.walk && h.loaded).length;
+  const tt = (r.hitters||[]).map(h=>h.ttp).filter(v=>typeof v==="number"); st.ttp = tt.length ? tt.reduce((a,b)=>a+b,0)/tt.length : null;
+  st.max = 2*n;
+  const des = ps.filter(p=>p.design); st.design = des.length; st.designHit = des.filter(hitTarget).length;
+  return st;
+}
+const pct = (a,b) => b ? Math.round(100*a/b) : 0;
+function renderStats(el, st){
+  const cells = [["Pitches",st.n],["Strikes",pct(st.strikes,st.n)+"%"],["Hit zone",pct(st.hit,st.n)+"%"],["Points",st.pts+" / "+st.max],["Offspeed",pct(st.os,st.n)+"%"]];
+  if (st.gatePct!=null) cells.push(["Through gate",Math.round(st.gatePct*100)+"%"]);
+  if (st.shapePct!=null) cells.push(["Shape match",Math.round(st.shapePct*100)+"%"]);
+  if (st.hitters) cells.push(["Hitters won",st.wins+"/"+st.hitters]);
+  el.innerHTML = cells.slice(0,8).map(([k,v])=>`<div class="stat"><b>${v}</b><span>${k}</span></div>`).join("");
+}
+function evaluate(r, st){
+  const k = r.penKey, tr = st.types, osTypes = Object.keys(tr).filter(OS);
+  const osRate = f => osTypes.every(t=>f(tr[t]));
+  switch(k){
+    case "control": return [pct(st.pts,st.max)>=60 && pct(st.strikes,st.n)>=65, "Target: 60%+ of max points and 65%+ strikes"];
+    case "cmd1": return [pct(st.strikes,st.n)>=65 && osRate(t=>pct(t.strikes,t.n)>=60), "Target: 65%+ strikes overall, 60%+ strikes with each offspeed pitch"];
+    case "cmd2": return [Object.values(tr).every(t=>pct(t.hit,t.n)>=60) && pct(st.strikes,st.n)>=65, "Target: 60%+ to the called half with each pitch type, 65%+ strikes"];
+    case "cmd3": return [pct(st.pts,st.max)>=60 && osRate(t=>pct(t.pts,2*t.n)>=60), "Target: 60%+ of max points overall and with each offspeed pitch"];
+    case "tun1": return [pct(st.groupsGate,st.groups)>=60 && osRate(t=>pct(t.strikes,t.n)>=60), "Target: 60%+ of pairs both through the gate, 60%+ strikes with each offspeed pitch"];
+    case "tun2": case "des4": return [pct(st.groupsExec,st.groups)>=60, "Target: 60%+ of pairs fully executed (gate and spot)"];
+    case "tun3": return [st.groupsExec>=7, "Target: 7 of 11 sequences fully executed"];
+    case "des1": return [null, "Goal: pick the grip with the best shape match (see the log)"];
+    case "des2": return [st.shapePct!=null && st.shapePct>=.7, "Target: 70%+ of design pitches match the goal shape"];
+    case "des3": return [pct(st.designHit,st.design)>=55 && st.shapePct!=null && st.shapePct>=.7, "Target: 55%+ design pitches to the spot with 70%+ shape match"];
+    case "cmd4": case "tun4": return [st.wins>=6 && st.walks<=1 && pct(st.os,st.n)>=40, "Target: win 6 of 8 hitters, max 1 walk, 40%+ offspeed"];
+    case "cmd5": case "tun5": return [st.wins>=6 && st.loadedWalks===0 && (st.ttp==null||st.ttp<1.5) && pct(st.os,st.n)>=40, "Target: win 6 of 8, no walks with bases loaded, time to plate under 1.5 s, 40%+ offspeed"];
+    case "des5": return [st.wins>=6 && st.loadedWalks===0 && pct(st.design,st.n)>=30, "Target: win 6 of 8, no walks with bases loaded, design pitch 30%+ of the pen"];
+    default: return [null, "No target for a custom pen"];
+  }
+}
+function missWords(t, hand){
+  if (!t.m) return "–";
+  const dx = t.dx/t.m, dy = t.dy/t.m, parts = [];
+  if (Math.abs(dy)>=12) parts.push(dy<0?"up":"down");
+  if (Math.abs(dx)>=12){ const armRight = hand!=="L"; parts.push((dx>0)===armRight ? "arm side" : "glove side"); }
+  return parts.length ? "Misses "+parts.join(" and ") : "On target";
+}
+
+// ---------- summary ----------
+const TYPE_COLORS = {FB:"#c0392b",SI:"#e07b39",CT:"#c2a00e",SL:"#8e44ad",SW:"#d0489a",CB:"#2f63c7",CH:"#1f8a5b",SPL:"#16839a"};
+function openSummary(r){
+  pen = r; show("v-sum");
+  const st = computeStats(r), [ok, txt] = evaluate(r, st);
+  $("s-title").textContent = r.athlete;
+  $("s-sub").textContent = r.penName+" · "+r.date+" · "+r.age+" · "+(r.hand==="L"?"LHP":"RHP")+" · mix "+mixOf(r).join(", ")+(r.status==="live"?" · in progress":"");
+  $("s-verdict").innerHTML = ok==null ? `<div class="pen-desc">${esc(txt)}</div>` :
+    `<div class="verdict ${ok?'pass':'fail'}"><b>${ok?"Target met":"Target not met"}</b><span class="pen-desc">${esc(txt)}</span></div>`;
+  renderStats($("s-stats"), st);
+  drawZone($("szone"), {dots: r.pitches.map((p,k)=>({z:p.actual,k,fill:TYPE_COLORS[p.p]||"#888",r:6,op:.9}))});
+  $("s-legend").innerHTML = ORDER.filter(t=>st.types[t]).map(t=>`<span><i style="background:${TYPE_COLORS[t]||'#888'}"></i>${PNAME[t]}</span>`).join("");
+  $("s-types").innerHTML = typeRows(st, r, true);
+  const showGate = r.pitches.some(p=>p.gate!=null), showShape = r.pitches.some(p=>p.shape!=null), showH = r.pitches.some(p=>p.hitter);
+  $("s-log").innerHTML = `<tr><th>#</th><th>Pitch</th><th>Intended</th><th>Actual</th><th>Pts</th>${showGate?"<th>Gate</th>":""}${showShape?"<th>Shape</th>":""}${showH?"<th>Hitter</th><th>Count</th>":""}<th>Note</th></tr>` +
+    r.pitches.map(p=>`<tr><td>${p.n}</td><td>${p.p}${p.set?" ("+p.set+")":""}</td><td>${p.intended}</td><td>${p.actual===0?"Off":p.actual}</td><td class="${p.pts===2?'pts2':p.pts===1?'pts1':p.pts<0?'ptsm':'pts0'}">${p.pts}</td>${showGate?`<td>${p.gate==null?"":p.gate?"Y":"N"}</td>`:""}${showShape?`<td>${p.shape==null?"":p.shape?"Y":"N"}</td>`:""}${showH?`<td>${p.hitter||""}</td><td>${p.count||""}</td>`:""}<td>${esc([p.note,p.event,p.swung?"swung":""].filter(Boolean).join(", "))}</td></tr>`).join("");
+  $("s-resume").hidden = r.status!=="live";
+  $("s-confirm").hidden = true; $("s-del").hidden = !db;
+}
+$("s-back").addEventListener("click", ()=>show("v-setup"));
+$("s-resume").addEventListener("click", ()=>{ pen.status="live"; openLive(); });
+$("s-again").addEventListener("click", ()=>{
+  Object.assign(setup,{age:pen.age,hand:pen.hand,mix:mixOf(pen).slice(),fw:pen.fw,lvl:pen.lvl||1,des:pen.design||setup.des});
+  $("f-ath").value = pen.athlete; saveSetup();
+  repaintAll(); show("v-setup");
+});
+function repaintAll(){
+  [["f-age","age"],["f-hand","hand"],["f-fw","fw"],["f-lvl","lvl"],["f-des","des"]].forEach(([id,k])=>$(id).querySelectorAll("button").forEach(b=>b.classList.toggle("on",String(setup[k])===b.dataset.v)));
+  paintMix();
+}
+$("s-del").addEventListener("click", ()=>{ $("s-confirm").hidden=false; });
+$("s-del-no").addEventListener("click", ()=>{ $("s-confirm").hidden=true; });
+$("s-del-yes").addEventListener("click", async ()=>{
+  if (!pensCol) return;
+  try{ await pensCol.doc(pen.id).delete(); }catch(e){}
+  show("v-setup");
+});
+
+// ---------- storage ----------
+function queueSave(){
+  if (!pensCol || !pen) return;
+  dirty = true;
+  if (saving) return;
+  saving = true;
+  writeChain = writeChain.then(async ()=>{
+    while (dirty){
+      dirty = false;
+      const body = JSON.parse(JSON.stringify(pen)); body.updatedAt = Date.now();
+      try{ await pensCol.doc(pen.id).set(body); }
+      catch(e){
+        if (e && e.code==="unavailable"){ await new Promise(r=>setTimeout(r,800+Math.random()*800)); try{ await pensCol.doc(pen.id).set(body);}catch(_){} }
+        else if (e && e.code==="quota_exceeded"){ $("db-note").textContent="Storage is full. Delete some old pens to keep saving new ones."; $("db-note").hidden=false; }
+      }
+    }
+  }).finally(()=>{ saving=false; });
+}
+async function saveAthlete(name){
+  if (!athletesCol) return;
+  const id = slug(name), body = {name, age:setup.age, hand:setup.hand, mix:setup.mix.slice(), updatedAt:Date.now()};
+  const prev = athleteDocs[id];
+  if (prev && prev.age===body.age && prev.hand===body.hand && JSON.stringify(prev.mix)===JSON.stringify(body.mix) && prev.name===name) return;
+  try{ await athletesCol.doc(id).set(body); }catch(e){}
+}
+function renderHist(){
+  const el = $("hist");
+  const names = [...new Set([...Object.values(athleteDocs).map(a=>a.name), ...histDocs.map(r=>r.athlete)])];
+  $("athletes").innerHTML = names.map(n=>`<option value="${esc(n)}"></option>`).join("");
+  if (!histDocs.length){ el.innerHTML = `<div class="empty">Saved pens show here. Start a pen above and every pitch is saved as you log it.</div>`; return; }
+  el.innerHTML = histDocs.map((r,i)=>{
+    const st = computeStats(r), [ok] = evaluate(r, st);
+    const pill = r.status==="live" ? `<span class="pill">In progress</span>` : ok==null ? "" : `<span class="pill ${ok?'pass':'fail'}">${ok?"Target met":"Not met"}</span>`;
+    return `<button data-i="${i}"><span class="n">${esc(r.athlete)} ${pill}</span><span class="s">${st.n? st.pts+" / "+st.max+" pts":"–"}</span><span class="m">${esc(r.penName)} · ${r.date} · ${st.n} pitches</span></button>`;
+  }).join("");
+}
+$("hist").addEventListener("click", e=>{ const b=e.target.closest("button[data-i]"); if(!b) return; openSummary(JSON.parse(JSON.stringify(histDocs[+b.dataset.i]))); });
+
+(async ()=>{
+  try{ db = window.claude && window.claude.use ? await window.claude.use("db") : null; }catch(e){ db = null; }
+  if (!db){ $("db-note").hidden = false; return; }
+  pensCol = db.collection("pens");
+  athletesCol = db.collection("athletes");
+  athletesCol.limit(500).onSnapshot(snap=>{
+    athleteDocs = {}; snap.docs.forEach(d=>{ athleteDocs[d.id] = d.data(); });
+    renderHist();
+  }, ()=>{});
+  histUnsub = pensCol.orderBy("createdAt","desc").limit(60).onSnapshot(snap=>{
+    histDocs = snap.docs.map(d=>d.data());
+    renderHist();
+  }, err=>{ $("db-note").hidden = false; });
+})();
+})();
+</script>
+
+</body></html>
