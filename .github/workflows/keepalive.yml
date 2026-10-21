@@ -1,0 +1,25 @@
+# Free Supabase projects pause after about a week with little use (e.g. the off-season).
+# This sends one harmless request a day so the database stays awake.
+# It calls public.keepalive(), which reads no data; the key below is the public
+# publishable key already in index.html.
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: "17 21 * * *"   # daily, 7:17am Brisbane time
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping database
+        run: |
+          curl --fail --silent --show-error --retry 3 --retry-delay 20 \
+            -X POST "https://icczlruovqfhqllnkohh.supabase.co/rest/v1/rpc/keepalive" \
+            -H "apikey: sb_publishable_wcCYY8iA-1odDWGP2MxgIw_t9DEyy1X" \
+            -H "Content-Type: application/json" \
+            -d '{}'

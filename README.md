@@ -28,14 +28,18 @@ Coaches sign in with email and password. Only signed-in coaches whose email is o
 
 1. Authentication → Sign In / Providers → Email: keep it on with **Confirm email** on, and set the minimum password length to 10.
 2. Authentication → URL Configuration: set **Site URL** to the app's hosted URL and add it under **Redirect URLs**, so confirmation and reset links open the app.
-3. Supabase's built-in email sender only allows a few emails an hour. For a whole team, add your own sender under Authentication → Emails → SMTP Settings.
+3. Emails use Supabase's built-in sender for now. It only delivers to members of the Supabase team and only a few an hour, so confirmation and reset emails won't reach players or other coaches yet. Until an email sender is set up, create their accounts yourself: Authentication → Users → **Add user** → **Create new user**, enter their email and a temporary password, tick **Auto Confirm User**, and give them the password privately.
+
+## Staying awake on the free plan
+
+Free Supabase projects pause after about a week with little use. `.github/workflows/keepalive.yml` sends one harmless request a day (it calls `public.keepalive()`, which reads no data) so that doesn't happen. You can run it by hand from the repo's **Actions** tab → *Keep Supabase awake* → **Run workflow**. GitHub turns off scheduled jobs in a repo with no activity for 60 days; if that happens, re-enable it from the same page.
 
 ## Player accounts
 
 Players can sign in to log their own before/after arm check-ins and see their own pens (read-only). They never see other players, coaches or emails.
 
 1. A coach opens Bullpens → **Player accounts**, enters the player's name (exactly as used for their pens) and email, and taps **Link player**.
-2. The player opens the app, taps **Create account** with that email, confirms it from the email, and signs in.
+2. The player opens the app, taps **Create account** with that email, confirms it from the email, and signs in. (Until an email sender is set up, create the account for them instead; see Supabase settings above.)
 
 Removing a player there cuts off their access straight away.
 
