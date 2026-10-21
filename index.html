@@ -135,6 +135,14 @@ button:disabled{opacity:.35;cursor:default}
 .notice{font-size:15px;color:var(--warn)}
 
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:15px}
+.scale{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px}
+.scale button{min-height:40px;padding:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:600;font-size:15px;border-radius:8px;font-variant-numeric:tabular-nums}
+.scale button.on{background:var(--maroon);border-color:var(--maroon);color:var(--maroon-ink)}
+.ends{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:3px}
+.armq{border-top:.5px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:4px}
+.armq .label{margin:6px 0 2px}
+.armq .q{font-weight:600;font-size:15px}
+.delta{font-size:14px;color:var(--muted)}.delta b{font-variant-numeric:tabular-nums}.delta .down{color:var(--miss)}.delta .up{color:var(--hit)}
 .ttp{display:flex;gap:8px;align-items:center;justify-content:center}
 .ttp .label{margin:0}
 .ttp input{width:110px}
@@ -180,6 +188,7 @@ details.plist .dose{color:var(--muted)}
   <!-- SCHEDULE -->
   <section id="v-sched" class="wrap" style="gap:12px">
     <div class="card">
+      <div><div class="label">Athlete</div><input id="w-ath" list="athletes" placeholder="Athlete name, for arm check-ins" autocomplete="off"></div>
       <div class="row">
         <div><div class="label">Age group</div><div class="seg" id="w-age"><button data-v="U16">U16</button><button data-v="U18">U18</button><button data-v="AYWC">AYWC</button><button data-v="AWC">AWC</button></div></div>
       </div>
@@ -229,6 +238,7 @@ details.plist .dose{color:var(--muted)}
       <div id="lvl-wrap"><div class="label">Level</div><div class="seg" id="f-lvl"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button></div></div>
       <div id="des-wrap" hidden><div class="label">Design pitch</div><div class="checklist" id="f-des"></div></div>
       <div class="pen-desc" id="pen-desc"></div>
+      <div><div class="label">Arm before the pen <span>· how does your arm feel?</span></div><div id="f-armb"></div></div>
       <div class="notice" id="setup-err" hidden></div>
       <button class="primary" id="start">Start pen</button>
     </div>
@@ -281,6 +291,7 @@ details.plist .dose{color:var(--muted)}
         <button class="small ghost" id="s-back">Back</button>
       </div>
       <div id="s-verdict"></div>
+      <div id="s-arm"></div>
       <div class="stats" id="s-stats"></div>
     </div>
     <div class="card">
@@ -454,6 +465,8 @@ let setup = {age:"U16",hand:"R",mix:["FB","CH","CB"],fw:"control",lvl:1,des:"CH"
 try { const s = JSON.parse(localStorage.getItem("bqpen.setup")||"null"); if (s) Object.assign(setup,s); } catch(e){}
 if (!Array.isArray(setup.mix) || !setup.mix.length) setup.mix = ["FB","CH","CB"];
 let athleteDocs = {};
+let checkinDocs = {};     // arm check-ins by id: athlete slug + "_" + date
+let armBefore = null;     // arm score picked on the New pen form
 let pen = null;           // current pen record
 let live = null;          // runtime extras: {def, called:{p,z}, swung, gate, shape}
 
@@ -523,6 +536,33 @@ function jitter(d){
   return [x+Math.cos(a)*r, y+Math.sin(a)*r];
 }
 
+// ---------- arm check-ins ----------
+const localDate = (d=new Date()) => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function weekDates(){
+  const now = new Date(), mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (now.getDay()+6)%7), out = {};
+  DAYS.forEach(([d],i)=>{ out[d] = localDate(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate()+i)); });
+  return out;
+}
+const checkinId = (athlete, date) => slug(athlete)+"_"+date;
+function getCheckin(athlete, date){ const id = checkinId(athlete, date); return outbox().checkins[id] || checkinDocs[id] || null; }
+function setCheckin(athlete, date, field, val){
+  const id = checkinId(athlete, date), prev = getCheckin(athlete, date) || {id, athlete:athlete.trim(), date, before:null, after:null};
+  const body = Object.assign({}, prev, {[field]:val, updatedAt:Date.now()});
+  checkinDocs[id] = body;
+  const ob = outbox(); ob.checkins[id] = body; saveOutbox(ob); flush();
+}
+function scaleHtml(key, val){
+  let h = `<div class="scale" data-k="${key}" role="group">`;
+  for (let i=1; i<=10; i++) h += `<button type="button" data-v="${i}" class="${val===i?'on':''}" aria-pressed="${val===i}">${i}</button>`;
+  return h + `</div><div class="ends"><span>1 very sore / pain</span><span>10 feels great</span></div>`;
+}
+function deltaHtml(b, a){
+  if (b==null || a==null) return "";
+  const d = a-b, cls = d<0 ? "down" : d>0 ? "up" : "";
+  return `<div class="delta">Before <b>${b}</b> → after <b>${a}</b> · <span class="${cls}">${d===0?"no change":(d>0?"+":"")+d}</span>${d<=-3?" · check in with the athlete":""}</div>`;
+}
+function curAthlete(){ return $("w-ath").value.trim(); }
+
 // ---------- schedule view ----------
 let weekKey = "sat";
 try{ weekKey = localStorage.getItem("bqpen.week") || "sat"; }catch(e){}
@@ -534,6 +574,7 @@ function renderWeek(){
   const w = WEEKS.find(x=>x.k===weekKey) || WEEKS[1];
   const bq = BQ_DAYS[setup.age] || [];
   const today = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
+  const dates = weekDates(), todayDate = localDate(), ath = curAthlete();
   $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+". Tissue prep, bands and recovery every day except the no-throw day.";
   $("w-days").innerHTML = DAYS.map(([d,full])=>{
     const t = w.d[d], T = DAYTYPES[t];
@@ -542,11 +583,22 @@ function renderWeek(){
     const arm = t==="pen" ? progList("Arm care A", ARM_A) : t==="lt" ? progList("Arm care B", ARM_B) : "";
     const recov = t==="rec" ? progList("Recovery / mobility program (before or after throwing)", RECOVERY) : "";
     const btn = T.pen ? `<button class="small" data-pen="${d}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
+    let check = "";
+    if (on && dates[d] <= todayDate){
+      if (!ath) check = d===today ? `<div class="armq"><div class="pen-desc">Enter the athlete's name at the top to log how their arm feels before and after throwing.</div></div>` : "";
+      else {
+        const c = getCheckin(ath, dates[d]) || {};
+        check = `<div class="armq"><div class="q">How does ${esc(ath)}'s arm feel?</div>
+          <div class="label">Before throwing</div>${scaleHtml("w:before:"+dates[d], c.before)}
+          <div class="label">After throwing</div>${scaleHtml("w:after:"+dates[d], c.after)}
+          ${deltaHtml(c.before, c.after)}</div>`;
+      }
+    }
     return `<div class="day ${d===today?'today':''}">
       <div class="dayhead"><div class="dayname">${full}${d===today?"<small>Today</small>":""}</div>${label}</div>
       <div class="dtype"><span class="int">${T.i}</span><span class="tag ${T.cls}">${T.n}</span></div>
       ${on ? `<dl class="items"><dt>Prep</dt><dd>Tissue prep, bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${t==="pen"||t==="lt"?`<dt>Arm care</dt><dd>${t==="pen"?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${t==="rec"?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
-      ${arm}${recov}${btn}
+      ${arm}${recov}${btn}${check}
     </div>`;
   }).join("");
 }
@@ -607,7 +659,28 @@ function loadAthlete(){
   Object.assign(setup, {age:a.age||setup.age, hand:a.hand||setup.hand, mix:(a.mix&&a.mix.length)?a.mix:setup.mix});
   saveSetup(); repaintAll(); paintMix();
 }
-try{ $("f-ath").value = localStorage.getItem("bqpen.ath")||""; }catch(e){}
+try{ $("f-ath").value = $("w-ath").value = localStorage.getItem("bqpen.ath")||""; }catch(e){}
+$("w-ath").addEventListener("change", ()=>{
+  const v = $("w-ath").value.trim(); $("w-ath").value = v;
+  try{ localStorage.setItem("bqpen.ath", v); }catch(e){}
+  if (v && $("f-ath").value.trim()!==v){ $("f-ath").value = v; loadAthlete(); }
+  renderWeek();
+});
+$("f-ath").addEventListener("change", ()=>{ const v = $("f-ath").value.trim(); if (v){ $("w-ath").value = v; try{ localStorage.setItem("bqpen.ath", v); }catch(e){} } });
+function paintArmBefore(){ $("f-armb").innerHTML = scaleHtml("f:before", armBefore); }
+paintArmBefore();
+// one handler for every 1-10 scale; tapping the chosen number again clears it
+document.addEventListener("click", e=>{
+  const b = e.target.closest(".scale button"); if (!b) return;
+  const [where, field, date] = b.parentElement.dataset.k.split(":"), v = +b.dataset.v;
+  if (where==="w"){ const ath = curAthlete(), cur = (getCheckin(ath, date)||{})[field]; setCheckin(ath, date, field, cur===v ? null : v); renderWeek(); }
+  else if (where==="f"){ armBefore = armBefore===v ? null : v; paintArmBefore(); }
+  else if (where==="s" && pen){
+    pen.armAfter = pen.armAfter===v ? null : v; queueSave();
+    setCheckin(pen.athlete, pen.date, "after", pen.armAfter);
+    paintSummaryArm(pen);
+  }
+});
 
 $("start").addEventListener("click", ()=>{
   const ath = $("f-ath").value.trim();
@@ -621,8 +694,10 @@ $("start").addEventListener("click", ()=>{
   const now = new Date();
   pen = { id:"p"+now.getTime().toString(36)+Math.random().toString(36).slice(2,6), athlete:ath, age:setup.age, hand:setup.hand, mix:setup.mix.slice(),
           design: setup.fw==="des" ? setup.des : null, fw:setup.fw, lvl:(setup.fw==="control"||setup.fw==="custom")?null:setup.lvl,
-          penKey:def.key, penName:def.name, mode:def.mode, date:now.toISOString().slice(0,10), createdAt:now.getTime(),
-          status:"live", pitches:[], hitters:[] };
+          penKey:def.key, penName:def.name, mode:def.mode, date:localDate(now), createdAt:now.getTime(),
+          status:"live", pitches:[], hitters:[], armBefore, armAfter:null };
+  if (armBefore!=null) setCheckin(ath, pen.date, "before", armBefore);
+  armBefore = null; paintArmBefore();
   if (def.mode==="counts") newHitter();
   openLive();
   queueSave();
@@ -892,6 +967,7 @@ function openSummary(r){
   $("s-sub").textContent = r.penName+" · "+r.date+" · "+r.age+" · "+(r.hand==="L"?"LHP":"RHP")+" · mix "+mixOf(r).join(", ")+(r.status==="live"?" · in progress":"");
   $("s-verdict").innerHTML = ok==null ? `<div class="pen-desc">${esc(txt)}</div>` :
     `<div class="verdict ${ok?'pass':'fail'}"><b>${ok?"Target met":"Target not met"}</b><span class="pen-desc">${esc(txt)}</span></div>`;
+  paintSummaryArm(r);
   renderStats($("s-stats"), st);
   drawZone($("szone"), {dots: r.pitches.map((p,k)=>({z:p.actual,k,fill:TYPE_COLORS[p.p]||"#888",r:6,op:.9}))});
   $("s-legend").innerHTML = ORDER.filter(t=>st.types[t]).map(t=>`<span><i style="background:${TYPE_COLORS[t]||'#888'}"></i>${PNAME[t]}</span>`).join("");
@@ -901,6 +977,11 @@ function openSummary(r){
     r.pitches.map(p=>`<tr><td>${p.n}</td><td>${p.p}${p.set?" ("+p.set+")":""}</td><td>${p.intended}</td><td>${p.actual===0?"Off":p.actual}</td><td class="${p.pts===2?'pts2':p.pts===1?'pts1':p.pts<0?'ptsm':'pts0'}">${p.pts}</td>${showGate?`<td>${p.gate==null?"":p.gate?"Y":"N"}</td>`:""}${showShape?`<td>${p.shape==null?"":p.shape?"Y":"N"}</td>`:""}${showH?`<td>${p.hitter||""}</td><td>${p.count||""}</td>`:""}<td>${esc([p.note,p.event,p.swung?"swung":""].filter(Boolean).join(", "))}</td></tr>`).join("");
   $("s-resume").hidden = r.status!=="live";
   $("s-confirm").hidden = true; $("s-del").hidden = !isCoach;
+}
+function paintSummaryArm(r){
+  const b = r.armBefore ?? null, a = r.armAfter ?? null;
+  $("s-arm").innerHTML = `<div class="armq"><div class="q">How does the arm feel now, after the pen?</div>${scaleHtml("s:after", a)}
+    ${b==null ? `<div class="delta">No arm score was logged before this pen.</div>` : a==null ? `<div class="delta">Before the pen: <b>${b}</b></div>` : deltaHtml(b, a)}</div>`;
 }
 $("s-back").addEventListener("click", ()=>show("v-setup"));
 $("s-resume").addEventListener("click", ()=>{ pen.status="live"; openLive(); });
@@ -930,9 +1011,9 @@ const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, {auth:
 let session = null, isCoach = false, chan = null, serverPens = [], flushing = false, again = false, syncErr = "";
 function lsGet(k, d){ try{ const v = JSON.parse(localStorage.getItem(k)||"null"); return v==null ? d : v; }catch(e){ return d; } }
 function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
-function outbox(){ const o = lsGet("bqpen.outbox", {}); return {pens:o.pens||{}, athletes:o.athletes||{}, del:o.del||[]}; }
+function outbox(){ const o = lsGet("bqpen.outbox", {}); return {pens:o.pens||{}, athletes:o.athletes||{}, checkins:o.checkins||{}, del:o.del||[]}; }
 function saveOutbox(o){ lsSet("bqpen.outbox", o); }
-function pendingCount(o){ o = o||outbox(); return Object.keys(o.pens).length + Object.keys(o.athletes).length + o.del.length; }
+function pendingCount(o){ o = o||outbox(); return Object.keys(o.pens).length + Object.keys(o.athletes).length + Object.keys(o.checkins).length + o.del.length; }
 serverPens = lsGet("bqpen.cache", []);
 
 function queueSave(){
@@ -965,13 +1046,17 @@ async function flush(){
     do {
       again = false;
       const ob = outbox();
-      const pens = Object.values(ob.pens), aths = Object.entries(ob.athletes), del = ob.del.slice();
+      const pens = Object.values(ob.pens), aths = Object.entries(ob.athletes), chks = Object.values(ob.checkins), del = ob.del.slice();
       if (pens.length){
         const {error} = await sb.from("pens").upsert(pens.map(b=>({id:b.id, data:b, created_at:b.createdAt})));
         if (error) throw error;
       }
       if (aths.length){
         const {error} = await sb.from("athletes").upsert(aths.map(([id,b])=>({id, data:b})));
+        if (error) throw error;
+      }
+      if (chks.length){
+        const {error} = await sb.from("checkins").upsert(chks.map(b=>({id:b.id, data:b, day:b.date})));
         if (error) throw error;
       }
       if (del.length){
@@ -982,6 +1067,7 @@ async function flush(){
       const now = outbox();
       pens.forEach(b=>{ const cur = now.pens[b.id]; if (cur && cur.updatedAt===b.updatedAt) delete now.pens[b.id]; });
       aths.forEach(([id,b])=>{ const cur = now.athletes[id]; if (cur && cur.updatedAt===b.updatedAt) delete now.athletes[id]; });
+      chks.forEach(b=>{ const cur = now.checkins[b.id]; if (cur && cur.updatedAt===b.updatedAt) delete now.checkins[b.id]; });
       now.del = now.del.filter(id=>!del.includes(id));
       saveOutbox(now);
       pens.forEach(b=>{ const i = serverPens.findIndex(r=>r.id===b.id); if (i>=0) serverPens[i]=b; else serverPens.push(b); });
@@ -994,14 +1080,19 @@ async function flush(){
 }
 async function loadAll(){
   if (!sb || !isCoach) return;
-  const [p, a] = await Promise.all([
+  const since = new Date(); since.setDate(since.getDate()-14);
+  const [p, a, c] = await Promise.all([
     sb.from("pens").select("data").order("created_at",{ascending:false}).limit(60),
-    sb.from("athletes").select("id,data").limit(500)]);
+    sb.from("athletes").select("id,data").limit(500),
+    sb.from("checkins").select("data").gte("day", localDate(since)).limit(2000)]);
   if (!p.error){ serverPens = p.data.map(r=>r.data); lsSet("bqpen.cache", serverPens); }
   if (!a.error){ athleteDocs = {}; a.data.forEach(r=>{ athleteDocs[r.id] = r.data; }); lsSet("bqpen.athletes", athleteDocs); }
-  rebuildHist();
+  if (!c.error){ checkinDocs = {}; c.data.forEach(r=>{ checkinDocs[r.data.id] = r.data; }); lsSet("bqpen.checkins", checkinDocs); }
+  rebuildHist(); renderWeek();
 }
 athleteDocs = lsGet("bqpen.athletes", {});
+checkinDocs = lsGet("bqpen.checkins", {});
+renderWeek();
 let reloadT = null;
 function scheduleReload(){ clearTimeout(reloadT); reloadT = setTimeout(loadAll, 400); }
 async function afterAuth(){
@@ -1015,6 +1106,7 @@ async function afterAuth(){
     chan = sb.channel("bqpen")
       .on("postgres_changes",{event:"*",schema:"public",table:"pens"}, scheduleReload)
       .on("postgres_changes",{event:"*",schema:"public",table:"athletes"}, scheduleReload)
+      .on("postgres_changes",{event:"*",schema:"public",table:"checkins"}, scheduleReload)
       .subscribe();
     await flush(); await loadAll();
   }
