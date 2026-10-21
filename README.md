@@ -39,6 +39,8 @@ Players can sign in to log their own before/after arm check-ins and see their ow
 
 Removing a player there cuts off their access straight away.
 
+Coaches see every player's scores in **Team arm check-ins** at the top of the Throwing week tab (this week or last week). Scores of 4 or lower, or a drop of 3 or more, are flagged in red and listed under "to follow up".
+
 ## Adding a coach
 
 In the Supabase dashboard → SQL editor:
