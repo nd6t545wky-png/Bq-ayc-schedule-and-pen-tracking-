@@ -30,6 +30,15 @@ Coaches sign in with email and password. Only signed-in coaches whose email is o
 2. Authentication → URL Configuration: set **Site URL** to the app's hosted URL and add it under **Redirect URLs**, so confirmation and reset links open the app.
 3. Supabase's built-in email sender only allows a few emails an hour. For a whole team, add your own sender under Authentication → Emails → SMTP Settings.
 
+## Player accounts
+
+Players can sign in to log their own before/after arm check-ins and see their own pens (read-only). They never see other players, coaches or emails.
+
+1. A coach opens Bullpens → **Player accounts**, enters the player's name (exactly as used for their pens) and email, and taps **Link player**.
+2. The player opens the app, taps **Create account** with that email, confirms it from the email, and signs in.
+
+Removing a player there cuts off their access straight away.
+
 ## Adding a coach
 
 In the Supabase dashboard → SQL editor:

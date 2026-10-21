@@ -72,6 +72,7 @@ button:disabled{opacity:.35;cursor:default}
 .hist button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;text-align:left;border-radius:0;background:transparent;color:var(--ink);padding:11px 16px;position:relative}
 .hist button+button::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:.5px solid var(--line)}
 .hist .n{font-weight:600}
+.prow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-top:.5px solid var(--line)}.prow .m{color:var(--muted);font-size:14px;overflow-wrap:anywhere}
 .hist .m{color:var(--muted);font-size:15px}
 .hist .s{grid-row:span 2;align-self:center;font-size:17px;color:var(--muted);font-variant-numeric:tabular-nums}
 .pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--fill);color:var(--muted);vertical-align:2px}
@@ -202,8 +203,8 @@ details.plist .dose{color:var(--muted)}
   <section id="v-setup" class="wrap" style="gap:16px" hidden>
     <div class="card" id="acct">
       <div id="acct-out">
-        <h2>Coach sign in</h2>
-        <div class="pen-desc">Sign in to sync pens across every coach's phone. You can run a pen without signing in; it uploads once you sign in.</div>
+        <h2>Sign in</h2>
+        <div class="pen-desc">Coaches: sign in to sync pens across every coach's phone. Players: sign in to log your arm check-ins and see your own pens.</div>
         <form id="a-form" autocomplete="on">
           <div class="row" style="margin-top:12px"><input id="a-email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" inputmode="email" required><input id="a-pass" type="password" placeholder="Password" autocomplete="current-password" minlength="10" required></div>
           <div class="row" style="margin-top:10px"><button class="primary" id="a-in" type="submit">Sign in</button><button id="a-up" type="button">Create account</button></div>
@@ -217,7 +218,7 @@ details.plist .dose{color:var(--muted)}
       <div id="acct-in" class="livehead" hidden><div><div class="who" id="a-who"></div><div class="pen" id="a-sync"></div></div><button class="small ghost" id="a-out">Sign out</button></div>
       <div class="notice" id="a-msg" hidden></div>
     </div>
-    <div class="card">
+    <div class="card" id="newpen">
       <h2>New pen</h2>
       <div class="row">
         <div><div class="label">Athlete</div><input id="f-ath" list="athletes" placeholder="Athlete name" autocomplete="off"><datalist id="athletes"></datalist></div>
@@ -243,8 +244,16 @@ details.plist .dose{color:var(--muted)}
       <button class="primary" id="start">Start pen</button>
     </div>
     <div class="card">
-      <h2>Recent pens</h2>
+      <h2 id="hist-title">Recent pens</h2>
       <div class="hist" id="hist"><div class="empty">Saved pens show here. Start a pen above and every pitch is saved as you log it.</div></div>
+    </div>
+    <div class="card" id="players-card" hidden>
+      <h2>Player accounts</h2>
+      <div class="pen-desc">Link a player's sign-in email to their name. Once they create an account with that email and confirm it, they can log their own arm check-ins and see their own pens. They never see anyone else's.</div>
+      <div class="row"><input id="p-name" list="athletes" placeholder="Player name" autocomplete="off"><input id="p-email" type="email" placeholder="Player's email" autocapitalize="off" autocomplete="off"></div>
+      <button id="p-add">Link player</button>
+      <div class="notice" id="p-msg" hidden></div>
+      <div class="hist" id="p-list"></div>
     </div>
   </section>
 
@@ -465,6 +474,7 @@ let setup = {age:"U16",hand:"R",mix:["FB","CH","CB"],fw:"control",lvl:1,des:"CH"
 try { const s = JSON.parse(localStorage.getItem("bqpen.setup")||"null"); if (s) Object.assign(setup,s); } catch(e){}
 if (!Array.isArray(setup.mix) || !setup.mix.length) setup.mix = ["FB","CH","CB"];
 let athleteDocs = {};
+let role = null, playerName = null; // "coach", "player" or null (signed out / not linked)
 let checkinDocs = {};     // arm check-ins by id: athlete slug + "_" + date
 let armBefore = null;     // arm score picked on the New pen form
 let pen = null;           // current pen record
@@ -561,7 +571,7 @@ function deltaHtml(b, a){
   const d = a-b, cls = d<0 ? "down" : d>0 ? "up" : "";
   return `<div class="delta">Before <b>${b}</b> → after <b>${a}</b> · <span class="${cls}">${d===0?"no change":(d>0?"+":"")+d}</span>${d<=-3?" · check in with the athlete":""}</div>`;
 }
-function curAthlete(){ return $("w-ath").value.trim(); }
+function curAthlete(){ return role==="player" ? playerName : $("w-ath").value.trim(); }
 
 // ---------- schedule view ----------
 let weekKey = "sat";
@@ -582,7 +592,7 @@ function renderWeek(){
     const on = t!=="off";
     const arm = t==="pen" ? progList("Arm care A", ARM_A) : t==="lt" ? progList("Arm care B", ARM_B) : "";
     const recov = t==="rec" ? progList("Recovery / mobility program (before or after throwing)", RECOVERY) : "";
-    const btn = T.pen ? `<button class="small" data-pen="${d}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
+    const btn = T.pen && role!=="player" ? `<button class="small" data-pen="${d}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
     let check = "";
     if (on && dates[d] <= todayDate){
       if (!ath) check = d===today ? `<div class="armq"><div class="pen-desc">Enter the athlete's name at the top to log how their arm feels before and after throwing.</div></div>` : "";
@@ -675,7 +685,7 @@ document.addEventListener("click", e=>{
   const [where, field, date] = b.parentElement.dataset.k.split(":"), v = +b.dataset.v;
   if (where==="w"){ const ath = curAthlete(), cur = (getCheckin(ath, date)||{})[field]; setCheckin(ath, date, field, cur===v ? null : v); renderWeek(); }
   else if (where==="f"){ armBefore = armBefore===v ? null : v; paintArmBefore(); }
-  else if (where==="s" && pen){
+  else if (where==="s" && pen && role!=="player"){
     pen.armAfter = pen.armAfter===v ? null : v; queueSave();
     setCheckin(pen.athlete, pen.date, "after", pen.armAfter);
     paintSummaryArm(pen);
@@ -977,9 +987,11 @@ function openSummary(r){
     r.pitches.map(p=>`<tr><td>${p.n}</td><td>${p.p}${p.set?" ("+p.set+")":""}</td><td>${p.intended}</td><td>${p.actual===0?"Off":p.actual}</td><td class="${p.pts===2?'pts2':p.pts===1?'pts1':p.pts<0?'ptsm':'pts0'}">${p.pts}</td>${showGate?`<td>${p.gate==null?"":p.gate?"Y":"N"}</td>`:""}${showShape?`<td>${p.shape==null?"":p.shape?"Y":"N"}</td>`:""}${showH?`<td>${p.hitter||""}</td><td>${p.count||""}</td>`:""}<td>${esc([p.note,p.event,p.swung?"swung":""].filter(Boolean).join(", "))}</td></tr>`).join("");
   $("s-resume").hidden = r.status!=="live";
   $("s-confirm").hidden = true; $("s-del").hidden = !isCoach;
+  $("s-again").hidden = role==="player"; if (role==="player") $("s-resume").hidden = true;
 }
 function paintSummaryArm(r){
   const b = r.armBefore ?? null, a = r.armAfter ?? null;
+  if (role==="player"){ $("s-arm").innerHTML = `<div class="armq"><div class="q">Arm before and after this pen</div>${b!=null&&a!=null ? deltaHtml(b,a) : `<div class="delta">Before: <b>${b ?? "–"}</b> · After: <b>${a ?? "–"}</b></div>`}</div>`; return; }
   $("s-arm").innerHTML = `<div class="armq"><div class="q">How does the arm feel now, after the pen?</div>${scaleHtml("s:after", a)}
     ${b==null ? `<div class="delta">No arm score was logged before this pen.</div>` : a==null ? `<div class="delta">Before the pen: <b>${b}</b></div>` : deltaHtml(b, a)}</div>`;
 }
@@ -1039,14 +1051,16 @@ function rebuildHist(){
   renderHist(); renderAcct();
 }
 async function flush(){
-  if (!sb || !isCoach) { renderAcct(); return; }
+  if (!sb || !role) { renderAcct(); return; }
   if (flushing){ again = true; return; }
   flushing = true;
   try{
     do {
       again = false;
       const ob = outbox();
-      const pens = Object.values(ob.pens), aths = Object.entries(ob.athletes), chks = Object.values(ob.checkins), del = ob.del.slice();
+      const coach = role==="coach";
+      const pens = coach ? Object.values(ob.pens) : [], aths = coach ? Object.entries(ob.athletes) : [], del = coach ? ob.del.slice() : [];
+      const chks = Object.values(ob.checkins).filter(b=>coach || slug(b.athlete)===slug(playerName));
       if (pens.length){
         const {error} = await sb.from("pens").upsert(pens.map(b=>({id:b.id, data:b, created_at:b.createdAt})));
         if (error) throw error;
@@ -1079,7 +1093,7 @@ async function flush(){
   renderAcct();
 }
 async function loadAll(){
-  if (!sb || !isCoach) return;
+  if (!sb || !role) return;
   const since = new Date(); since.setDate(since.getDate()-14);
   const [p, a, c] = await Promise.all([
     sb.from("pens").select("data").order("created_at",{ascending:false}).limit(60),
@@ -1088,7 +1102,7 @@ async function loadAll(){
   if (!p.error){ serverPens = p.data.map(r=>r.data); lsSet("bqpen.cache", serverPens); }
   if (!a.error){ athleteDocs = {}; a.data.forEach(r=>{ athleteDocs[r.id] = r.data; }); lsSet("bqpen.athletes", athleteDocs); }
   if (!c.error){ checkinDocs = {}; c.data.forEach(r=>{ checkinDocs[r.data.id] = r.data; }); lsSet("bqpen.checkins", checkinDocs); }
-  rebuildHist(); renderWeek();
+  rebuildHist(); if (role==="player") applyRole(); else renderWeek();
 }
 athleteDocs = lsGet("bqpen.athletes", {});
 checkinDocs = lsGet("bqpen.checkins", {});
@@ -1096,13 +1110,19 @@ renderWeek();
 let reloadT = null;
 function scheduleReload(){ clearTimeout(reloadT); reloadT = setTimeout(loadAll, 400); }
 async function afterAuth(){
-  isCoach = false;
+  isCoach = false; role = null; playerName = null;
   if (session){
     const {data, error} = await sb.rpc("is_coach");
     isCoach = !error && data===true;
+    if (isCoach) role = "coach";
+    else {
+      const r = await sb.rpc("my_athlete");
+      if (!r.error && r.data){ role = "player"; playerName = r.data; }
+    }
   }
+  applyRole();
   if (chan){ sb.removeChannel(chan); chan = null; }
-  if (isCoach){
+  if (role){
     chan = sb.channel("bqpen")
       .on("postgres_changes",{event:"*",schema:"public",table:"pens"}, scheduleReload)
       .on("postgres_changes",{event:"*",schema:"public",table:"athletes"}, scheduleReload)
@@ -1112,6 +1132,21 @@ async function afterAuth(){
   }
   renderAcct();
   if (pen && $("v-sum").hidden===false) $("s-del").hidden = !isCoach;
+  if (role==="coach") loadPlayers();
+}
+function applyRole(){
+  const player = role==="player";
+  $("newpen").hidden = player;
+  $("players-card").hidden = role!=="coach";
+  $("hist-title").textContent = player ? "Your pens" : "Recent pens";
+  $("w-ath").readOnly = player;
+  if (player){
+    $("w-ath").value = playerName;
+    const prof = athleteDocs[slug(playerName)];
+    if (prof && prof.age){ setup.age = prof.age; }
+    if (!$("v-live").hidden) show("v-setup");
+  }
+  renderWeek();
 }
 function msg(t, warn){ const el = $("a-msg"); el.textContent = t; el.hidden = !t; el.className = warn===false ? "pen-desc" : "notice"; }
 function renderAcct(){
@@ -1120,12 +1155,41 @@ function renderAcct(){
   if (!sb){ msg("Sync isn't available. Pens are kept on this phone."); return; }
   if (!session) return;
   $("a-who").textContent = session.user.email;
-  $("a-sync").textContent = !isCoach ? "Not on the coach list yet"
-    : n ? n+" change"+(n===1?"":"s")+" waiting to upload"+(syncErr?" (no connection)":"")
-    : "All pens synced";
-  if (!isCoach) msg("Ask the team admin to add "+session.user.email+" to the coach list, then sign out and back in. Pens you log stay on this phone until then.");
+  const wait = n ? n+" change"+(n===1?"":"s")+" waiting to upload"+(syncErr?" (no connection)":"") : "";
+  $("a-sync").textContent = role==="coach" ? (wait || "Coach · all synced")
+    : role==="player" ? "Player: "+playerName+(wait ? " · "+wait : "")
+    : "Not linked to the team yet";
+  if (!role) msg("Coaches: ask the team admin to add "+session.user.email+" to the coach list. Players: ask your coach to link "+session.user.email+" to your name. Then sign out and back in.");
   else if (!$("a-msg").classList.contains("pen-desc")) msg("");
 }
+// ---------- player accounts (coaches only) ----------
+async function loadPlayers(){
+  const {data, error} = await sb.from("players").select("email,athlete").order("athlete");
+  if (error){ $("p-list").innerHTML = `<div class="empty">Couldn't load players. Check your connection.</div>`; return; }
+  $("p-list").innerHTML = data.length ? data.map(r=>`<div class="prow"><div><div class="n">${esc(r.athlete)}</div><div class="m">${esc(r.email)}</div></div><button class="small ghost" data-rm="${esc(r.email)}">Remove</button></div>`).join("")
+    : `<div class="empty">No players linked yet.</div>`;
+}
+function pmsg(t, warn){ const el = $("p-msg"); el.textContent = t; el.hidden = !t; el.className = warn===false ? "pen-desc" : "notice"; }
+$("p-add").addEventListener("click", async ()=>{
+  const athlete = $("p-name").value.trim(), email = $("p-email").value.trim().toLowerCase();
+  if (!athlete){ pmsg("Enter the player's name exactly as it's used for their pens."); return; }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ pmsg("Enter a valid email address."); return; }
+  $("p-add").disabled = true;
+  const {error} = await sb.from("players").upsert({email, athlete});
+  $("p-add").disabled = false;
+  if (error){ pmsg(/fetch|network/i.test(error.message) ? "No connection. Try again when you have signal." : error.message); return; }
+  $("p-name").value = ""; $("p-email").value = "";
+  pmsg(athlete+" is linked. They can now create an account with "+email+" and sign in.", false);
+  loadPlayers();
+});
+$("p-list").addEventListener("click", async e=>{
+  const b = e.target.closest("button[data-rm]"); if (!b) return;
+  if (b.dataset.armed!=="1"){ b.dataset.armed = "1"; b.textContent = "Tap again to remove"; return; }
+  const {error} = await sb.from("players").delete().eq("email", b.dataset.rm);
+  if (error){ pmsg("Couldn't remove. Check your connection."); return; }
+  pmsg("Removed. That account can no longer see any data.", false); loadPlayers();
+});
+
 // Passwords go straight to Supabase over HTTPS, where they are stored only as bcrypt hashes.
 // This page never saves them, and every field is cleared as soon as a request is sent.
 // Messages are deliberately the same whether or not an account exists, so the form
@@ -1180,7 +1244,12 @@ $("acct-reset").addEventListener("submit", async e=>{
   const err = q.get("error_description");
   if (err){ setTimeout(()=>msg("That link didn't work: "+err.replace(/\+/g," ")+". Request a new one."), 0); history.replaceState(null, "", location.pathname); }
 }
-$("a-out").addEventListener("click", async ()=>{ recovering = false; await sb.auth.signOut(); msg(""); });
+$("a-out").addEventListener("click", async ()=>{
+  recovering = false; await sb.auth.signOut(); msg("");
+  // shared phones: drop the signed-in person's synced data from this device
+  ["bqpen.cache","bqpen.checkins","bqpen.athletes"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+  serverPens = []; checkinDocs = {}; athleteDocs = {}; rebuildHist(); renderWeek();
+});
 if (sb){
   // supabase-js warns against awaiting its own calls inside this callback
   sb.auth.onAuthStateChange((ev, s)=>{ session = s; if (ev==="PASSWORD_RECOVERY") recovering = true; setTimeout(afterAuth, 0); });
