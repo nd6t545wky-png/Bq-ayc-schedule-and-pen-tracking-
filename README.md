@@ -43,6 +43,8 @@ People sign themselves up:
 
 Coaches find the codes in Bullpens → **Team codes**: a player code and a separate coach code. Share them privately. **New code** replaces a code; people already on the team stay. Each player name can only be claimed by one account, 10 wrong codes in an hour locks that account out for the hour, and players only ever see their own data. Coaches can remove any player or other coach from the same card. A player can still be linked by email by hand under "Link a player by email instead".
 
+**Game logs.** Each game day on the Throwing week tab has **Log this game** for the selected athlete (players log their own): opponent, innings (4.2 = 4⅔), batters faced, pitches, strikes, balls (filled in from pitches − strikes if left blank), first-pitch strikes, K, BB, HBP, hits, runs, earned runs, home runs, wild pitches and notes. The summary works out strike %, first-pitch strike %, WHIP, pitches per inning and K/BB, and for U16/U18 shows Pitch Smart rest days and flags pitch counts over the daily max (95 for U16, 105 for U18). Use **Last week** at the top of the tab to log a weekend game (or arm check-ins) after the week has rolled over. Coaches see a **Games** table under Team arm check-ins.
+
 Coaches see every player's scores in **Team arm check-ins** at the top of the Throwing week tab (this week or last week). Scores of 4 or lower, or a drop of 3 or more, are flagged in red and listed under "to follow up".
 
 ## Adding a coach by hand

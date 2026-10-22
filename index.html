@@ -145,6 +145,17 @@ button:disabled{opacity:.35;cursor:default}
 .scale button{min-height:40px;padding:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:600;font-size:15px;border-radius:8px;font-variant-numeric:tabular-nums}
 .scale button.on{background:var(--maroon);border-color:var(--maroon);color:var(--maroon-ink)}
 .ends{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:3px}
+.glog{border-top:.5px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px}
+.glog .q{font-weight:600;font-size:15px}
+.gform{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.gform label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
+.gform label.wide{grid-column:1/-1}
+.gform input{padding:9px 10px}
+.gstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.gstats div{background:var(--fill);border-radius:8px;padding:6px 8px}
+.gstats b{display:block;font-family:var(--display);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.gstats span{font-size:12px;color:var(--muted)}
+.gnote{font-size:14px;color:var(--muted)}.gwarn{font-size:14px;color:var(--warn);font-weight:600}
 .armq{border-top:.5px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:4px}
 .armq .label{margin:6px 0 2px}
 .armq .q{font-weight:600;font-size:15px}
@@ -158,6 +169,7 @@ button:disabled{opacity:.35;cursor:default}
 .day.today{box-shadow:inset 0 0 0 2px var(--gold)}
 .dayhead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .dayname{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:.01em}
+.dayname .ddate{font-family:var(--font);font-size:14px;font-weight:500;color:var(--muted);margin-left:8px}
 .dayname small{font-size:13px;font-weight:600;color:var(--gold);margin-left:8px;text-transform:uppercase}
 .dtype{display:flex;align-items:center;gap:10px}
 .int{font-family:var(--display);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
@@ -199,12 +211,14 @@ details.plist .dose{color:var(--muted)}
         <div><div class="label">Age group</div><div class="seg" id="w-age"><button data-v="U16">U16</button><button data-v="U18">U18</button><button data-v="AYWC">AYWC</button><button data-v="AWC">AWC</button></div></div>
       </div>
       <div><div class="label">This week's games</div><select id="w-type"></select></div>
+      <div class="seg" id="w-wk"><button type="button" data-v="0" class="on">This week</button><button type="button" data-v="-1">Last week</button></div>
       <div class="pen-desc" id="w-note"></div>
     </div>
     <div class="card" id="team" hidden>
       <div class="livehead"><h2>Team arm check-ins</h2></div>
       <div class="seg" id="team-wk"><button data-v="0" class="on">This week</button><button data-v="-1">Last week</button></div>
       <div id="team-flags"></div>
+      <div id="team-games"></div>
       <div class="scroll"><table class="log team" id="team-tbl"></table></div>
       <div class="pen-desc">Before → after for each day. Red: arm score 4 or lower, or a drop of 3 or more. Tap a player to open their week below.</div>
     </div>
@@ -508,6 +522,7 @@ try { const s = JSON.parse(localStorage.getItem("bqpen.setup")||"null"); if (s) 
 if (!Array.isArray(setup.mix) || !setup.mix.length) setup.mix = ["FB","CH","CB"];
 let athleteDocs = {};
 let role = null, playerName = null; // "coach", "player" or null (signed out / not linked)
+let gameDocs = {}, gameEdit = null; // game logs by id (athlete slug + "_" + date); the date being edited
 let checkinDocs = {};     // arm check-ins by id: athlete slug + "_" + date
 let armBefore = null;     // arm score picked on the New pen form
 let pen = null;           // current pen record
@@ -604,6 +619,94 @@ function deltaHtml(b, a){
   const d = a-b, cls = d<0 ? "down" : d>0 ? "up" : "";
   return `<div class="delta">Before <b>${b}</b> → after <b>${a}</b> · <span class="${cls}">${d===0?"no change":(d>0?"+":"")+d}</span>${d<=-3?" · check in with the athlete":""}</div>`;
 }
+// ---------- game logs ----------
+const GAME_FIELDS = [
+  ["ip","Innings","text","e.g. 4.2"],["bf","Batters faced"],["pitches","Pitches"],
+  ["strikes","Strikes"],["balls","Balls"],["fps","1st-pitch strikes"],
+  ["k","Strikeouts (K)"],["bb","Walks (BB)"],["hbp","Hit by pitch"],
+  ["h","Hits"],["r","Runs"],["er","Earned runs"],
+  ["hr","Home runs"],["wp","Wild pitches"],
+];
+// Pitch Smart guidelines for 15-18 year olds (daily max by age; rest days by pitch count)
+const PITCH_MAX = {U16:95, U18:105};
+const restDays = n => n>=76 ? 4 : n>=61 ? 3 : n>=46 ? 2 : n>=31 ? 1 : 0;
+function getGame(athlete, date){ const id = checkinId(athlete, date); return outbox().games[id] || gameDocs[id] || null; }
+function ipOuts(ip){ const m = /^(\d+)(?:\.([012]))?$/.exec(String(ip||"").trim()); return m ? (+m[1])*3 + (+(m[2]||0)) : null; }
+function athleteAge(athlete){ const a = athleteDocs[slug(athlete)]; return (a && a.age) || setup.age; }
+function gameSummaryHtml(g, athlete){
+  const outs = ipOuts(g.ip), inn = outs ? outs/3 : null, n = v => v==null ? null : +v;
+  const P = n(g.pitches), S = n(g.strikes), B = g.balls!=null ? n(g.balls) : (P!=null && S!=null ? P-S : null);
+  const pct = (a,b) => a!=null && b ? Math.round(100*a/b)+"%" : "–";
+  const cells = [
+    ["IP", g.ip || "–"], ["Pitches", P ?? "–"], ["Strike %", pct(S,P)], ["1st-pitch strike %", pct(n(g.fps), n(g.bf))],
+    ["K", g.k ?? "–"], ["BB", g.bb ?? "–"], ["H", g.h ?? "–"], ["R / ER", (g.r ?? "–")+" / "+(g.er ?? "–")],
+    ["HBP", g.hbp ?? "–"], ["HR", g.hr ?? "–"], ["WHIP", inn && (g.bb!=null || g.h!=null) ? ((n(g.bb)||0)+(n(g.h)||0)) / inn : null],
+    ["P / inning", inn && P!=null ? P/inn : null],
+  ].map(([k,v])=>[k, typeof v==="number" && (k==="WHIP" || k==="P / inning") ? v.toFixed(k==="WHIP"?2:1) : (v ?? "–")]);
+  const max = PITCH_MAX[athleteAge(athlete)];
+  let notes = [];
+  if (S!=null && B!=null) notes.push(`${S} strikes, ${B} balls`);
+  if (g.fps!=null && g.bf) notes.push(`${g.fps} of ${g.bf} first pitches for strikes`);
+  if (g.k!=null && g.bb) notes.push(`K/BB ${(g.k/g.bb).toFixed(1)}`);
+  if (g.wp) notes.push(`${g.wp} wild pitch${g.wp==1?"":"es"}`);
+  let warn = "";
+  if (P!=null && max){
+    if (P>max) warn = `Over the Pitch Smart daily max (${max} for ${athleteAge(athlete)})`;
+    notes.push(`Pitch Smart rest: ${restDays(P)} day${restDays(P)===1?"":"s"}`);
+  }
+  return `${g.opp?`<div class="gnote">vs ${esc(g.opp)}</div>`:""}<div class="gstats">${cells.map(([k,v])=>`<div><b>${esc(v)}</b><span>${k}</span></div>`).join("")}</div>
+    ${notes.length?`<div class="gnote">${esc(notes.join(" · "))}</div>`:""}${warn?`<div class="gwarn">${esc(warn)}</div>`:""}${g.notes?`<div class="gnote">${esc(g.notes)}</div>`:""}`;
+}
+function gameFormHtml(g){
+  g = g || {};
+  return `<div class="gform">
+    <label class="wide">Opponent<input data-f="opp" maxlength="60" value="${esc(g.opp||"")}" placeholder="e.g. Brisbane North"></label>
+    ${GAME_FIELDS.map(([k,l,type,ph])=>`<label>${l}<input data-f="${k}" ${type==="text"?'inputmode="decimal"':'type="number" min="0" step="1" inputmode="numeric"'} value="${g[k]??""}" ${ph?`placeholder="${ph}"`:""}></label>`).join("")}
+    <label class="wide">Notes<input data-f="notes" maxlength="300" value="${esc(g.notes||"")}" placeholder="Velo, what worked, anything to follow up"></label>
+  </div>
+  <div class="notice gmsg" hidden></div>
+  <div class="row"><button class="small primary" data-gsave>Save game</button><button class="small ghost" data-gcancel>Cancel</button></div>`;
+}
+function gameHtml(athlete, date){
+  const g = getGame(athlete, date);
+  if (gameEdit===date) return `<div class="glog" data-game="${date}"><div class="q">Game log · ${esc(athlete)}</div>${gameFormHtml(g)}</div>`;
+  if (g) return `<div class="glog" data-game="${date}"><div class="q">Game log · ${esc(athlete)}</div>${gameSummaryHtml(g, athlete)}<button class="small ghost" data-gopen>Edit game log</button></div>`;
+  return `<div class="glog" data-game="${date}"><button class="small" data-gopen>Log this game (${esc(athlete)})</button></div>`;
+}
+function readGameForm(box, athlete, date){
+  const val = f => (box.querySelector(`[data-f="${f}"]`).value || "").trim();
+  const out = {id: checkinId(athlete, date), athlete: athlete.trim(), date, opp: val("opp") || null, notes: val("notes") || null};
+  for (const [k] of GAME_FIELDS){
+    const v = val(k);
+    if (k==="ip"){ if (v && ipOuts(v)==null) return {err:"Innings like 4, 4.1 or 4.2 (.1 and .2 are outs)."}; out.ip = v || null; continue; }
+    if (v===""){ out[k] = null; continue; }
+    const n = Number(v);
+    if (!Number.isInteger(n) || n<0 || n>500) return {err:"Use whole numbers for "+GAME_FIELDS.find(f=>f[0]===k)[1].toLowerCase()+"."};
+    out[k] = n;
+  }
+  if (out.pitches!=null && out.strikes!=null){
+    if (out.strikes>out.pitches) return {err:"Strikes can't be more than pitches."};
+    if (out.balls==null) out.balls = out.pitches - out.strikes;
+    else if (out.strikes + out.balls !== out.pitches) return {err:`Strikes + balls (${out.strikes+out.balls}) should equal pitches (${out.pitches}).`};
+  }
+  if (out.er!=null && out.r!=null && out.er>out.r) return {err:"Earned runs can't be more than runs."};
+  if (out.fps!=null && out.bf!=null && out.fps>out.bf) return {err:"First-pitch strikes can't be more than batters faced."};
+  out.updatedAt = Date.now();
+  return {game: out};
+}
+function saveGame(body){
+  gameDocs[body.id] = body;
+  const ob = outbox(); ob.games[body.id] = body; saveOutbox(ob); flush();
+}
+function renderTeamGames(dates){
+  const all = Object.values(Object.assign({}, gameDocs, outbox().games)).filter(g=>g && Object.values(dates).includes(g.date))
+    .sort((a,b)=>a.date.localeCompare(b.date) || a.athlete.localeCompare(b.athlete));
+  const dayOf = d => (DAYS.find(([k])=>dates[k]===d)||["",""])[0];
+  $("team-games").innerHTML = all.length ? `<div class="label" style="margin-top:6px">Games ${teamWeek?"last":"this"} week</div><div class="scroll"><table class="log team"><tr><th>Player</th><th>Day</th><th>IP</th><th>P</th><th>S%</th><th>K</th><th>BB</th><th>H</th><th>ER</th></tr>${all.map(g=>{
+      const max = PITCH_MAX[athleteAge(g.athlete)], over = max && g.pitches>max;
+      return `<tr data-ath="${esc(g.athlete)}"><td><b>${esc(g.athlete)}</b></td><td>${dayOf(g.date)}</td><td>${esc(g.ip||"–")}</td><td class="${over?'flag':''}">${g.pitches ?? "–"}</td><td>${g.pitches&&g.strikes!=null?Math.round(100*g.strikes/g.pitches)+"%":"–"}</td><td>${g.k ?? "–"}</td><td>${g.bb ?? "–"}</td><td>${g.h ?? "–"}</td><td>${g.er ?? "–"}</td></tr>`;
+    }).join("")}</table></div>` : "";
+}
 let teamWeek = 0, playerNames = [];
 const isFlag = c => c && ((c.before!=null && c.before<=4) || (c.after!=null && c.after<=4) || (c.before!=null && c.after!=null && c.after-c.before<=-3));
 function renderTeam(){
@@ -624,9 +727,14 @@ function renderTeam(){
       return `<td class="${isFlag(c)?'flag':''}">${c.before ?? "–"}→${c.after ?? "–"}</td>`;
     }).join("")}</tr>`).join("")
     : `<tr><td colspan="8" class="na">No check-ins ${teamWeek?"last":"this"} week yet.</td></tr>`);
+  renderTeamGames(dates);
   $("team-flags").innerHTML = flags.length ? `<div class="flags"><b>${flags.length} to follow up</b><ul>${flags.map(f=>`<li>${f}</li>`).join("")}</ul></div>` : "";
 }
 $("team-wk").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; teamWeek = +b.dataset.v; renderTeam(); });
+$("team-games").addEventListener("click", e=>{
+  const tr = e.target.closest("tr[data-ath]"); if (!tr) return;
+  $("w-ath").value = tr.dataset.ath; $("w-ath").dispatchEvent(new Event("change"));
+});
 $("team-tbl").addEventListener("click", e=>{
   const tr = e.target.closest("tr[data-ath]"); if (!tr) return;
   $("w-ath").value = tr.dataset.ath; $("w-ath").dispatchEvent(new Event("change"));
@@ -635,7 +743,7 @@ $("team-tbl").addEventListener("click", e=>{
 function curAthlete(){ return role==="player" ? playerName : $("w-ath").value.trim(); }
 
 // ---------- schedule view ----------
-let weekKey = "sat";
+let weekKey = "sat", schedWeek = 0; // 0 = this week, -1 = last week (to fill in weekend games and check-ins afterwards)
 try{ weekKey = localStorage.getItem("bqpen.week") || "sat"; }catch(e){}
 $("w-type").innerHTML = WEEKS.map(w=>`<option value="${w.k}">${w.n}</option>`).join("");
 $("w-type").value = weekKey;
@@ -644,8 +752,9 @@ function renderWeek(){
   $("w-age").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===setup.age));
   const w = WEEKS.find(x=>x.k===weekKey) || WEEKS[1];
   const bq = BQ_DAYS[setup.age] || [];
-  const today = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
-  const dates = weekDates(), todayDate = localDate(), ath = curAthlete();
+  const today = schedWeek ? "" : ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
+  const dates = weekDates(schedWeek), todayDate = localDate(), ath = curAthlete();
+  $("w-wk").querySelectorAll("button").forEach(b=>b.classList.toggle("on", +b.dataset.v===schedWeek));
   $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+". Tissue prep, bands and recovery every day except the no-throw day.";
   $("w-days").innerHTML = DAYS.map(([d,full])=>{
     const t = w.d[d], T = DAYTYPES[t];
@@ -654,7 +763,8 @@ function renderWeek(){
     const arm = t==="pen" ? progList("Arm care A", ARM_A) : t==="lt" ? progList("Arm care B", ARM_B) : "";
     const recov = t==="rec" ? progList("Recovery / mobility program (before or after throwing)", RECOVERY) : "";
     const btn = T.pen && role!=="player" ? `<button class="small" data-pen="${d}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
-    let check = "";
+    let check = "", game = "";
+    if ((t==="game" || t==="game2") && dates[d] <= todayDate && ath) game = gameHtml(ath, dates[d]);
     if (on && dates[d] <= todayDate){
       if (!ath) check = d===today ? `<div class="armq"><div class="pen-desc">Enter the athlete's name at the top to log how their arm feels before and after throwing.</div></div>` : "";
       else {
@@ -666,16 +776,29 @@ function renderWeek(){
       }
     }
     return `<div class="day ${d===today?'today':''}">
-      <div class="dayhead"><div class="dayname">${full}${d===today?"<small>Today</small>":""}</div>${label}</div>
+      <div class="dayhead"><div class="dayname">${full}${d===today?"<small>Today</small>":""}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>${label}</div>
       <div class="dtype"><span class="int">${T.i}</span><span class="tag ${T.cls}">${T.n}</span></div>
       ${on ? `<dl class="items"><dt>Prep</dt><dd>Tissue prep, bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${t==="pen"||t==="lt"?`<dt>Arm care</dt><dd>${t==="pen"?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${t==="rec"?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
-      ${arm}${recov}${btn}${check}
+      ${arm}${recov}${btn}${game}${check}
     </div>`;
   }).join("");
   renderTeam();
 }
+$("w-wk").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; schedWeek = teamWeek = +b.dataset.v; gameEdit = null; renderWeek(); });
 $("w-age").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; setup.age=b.dataset.v; saveSetup(); repaintAll(); renderWeek();});
-$("w-days").addEventListener("click", e=>{const b=e.target.closest("button[data-pen]"); if(!b) return; setTab("pens"); show("v-setup"); $("f-ath").focus();});
+$("w-days").addEventListener("click", e=>{
+  const pb = e.target.closest("button[data-pen]");
+  if (pb){ setTab("pens"); show("v-setup"); $("f-ath").focus(); return; }
+  const box = e.target.closest("[data-game]"); if (!box) return;
+  const date = box.dataset.game, ath = curAthlete();
+  if (e.target.closest("[data-gopen]")){ gameEdit = date; renderWeek(); document.querySelector(`[data-game="${date}"] input`)?.focus(); return; }
+  if (e.target.closest("[data-gcancel]")){ gameEdit = null; renderWeek(); return; }
+  if (e.target.closest("[data-gsave]")){
+    const r = readGameForm(box, ath, date);
+    if (r.err){ const m = box.querySelector(".gmsg"); m.textContent = r.err; m.hidden = false; return; }
+    saveGame(r.game); gameEdit = null; renderWeek();
+  }
+});
 let tab = "sched";
 function setTab(t){
   tab = t;
@@ -1085,9 +1208,9 @@ const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, {auth:
 let session = null, isCoach = false, chan = null, serverPens = [], flushing = false, again = false, syncErr = "";
 function lsGet(k, d){ try{ const v = JSON.parse(localStorage.getItem(k)||"null"); return v==null ? d : v; }catch(e){ return d; } }
 function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
-function outbox(){ const o = lsGet("bqpen.outbox", {}); return {pens:o.pens||{}, athletes:o.athletes||{}, checkins:o.checkins||{}, del:o.del||[]}; }
+function outbox(){ const o = lsGet("bqpen.outbox", {}); return {pens:o.pens||{}, athletes:o.athletes||{}, checkins:o.checkins||{}, games:o.games||{}, del:o.del||[]}; }
 function saveOutbox(o){ lsSet("bqpen.outbox", o); }
-function pendingCount(o){ o = o||outbox(); return Object.keys(o.pens).length + Object.keys(o.athletes).length + Object.keys(o.checkins).length + o.del.length; }
+function pendingCount(o){ o = o||outbox(); return Object.keys(o.pens).length + Object.keys(o.athletes).length + Object.keys(o.checkins).length + Object.keys(o.games).length + o.del.length; }
 serverPens = lsGet("bqpen.cache", []);
 
 function queueSave(){
@@ -1123,6 +1246,7 @@ async function flush(){
       const coach = role==="coach";
       const pens = coach ? Object.values(ob.pens) : [], aths = coach ? Object.entries(ob.athletes) : [], del = coach ? ob.del.slice() : [];
       const chks = Object.values(ob.checkins).filter(b=>coach || slug(b.athlete)===slug(playerName));
+      const gms = Object.values(ob.games).filter(b=>coach || slug(b.athlete)===slug(playerName));
       if (pens.length){
         const {error} = await sb.from("pens").upsert(pens.map(b=>({id:b.id, data:b, created_at:b.createdAt})));
         if (error) throw error;
@@ -1135,6 +1259,10 @@ async function flush(){
         const {error} = await sb.from("checkins").upsert(chks.map(b=>({id:b.id, data:b, day:b.date})));
         if (error) throw error;
       }
+      if (gms.length){
+        const {error} = await sb.from("games").upsert(gms.map(b=>({id:b.id, data:b, day:b.date})));
+        if (error) throw error;
+      }
       if (del.length){
         const {error} = await sb.from("pens").delete().in("id", del);
         if (error) throw error;
@@ -1144,6 +1272,7 @@ async function flush(){
       pens.forEach(b=>{ const cur = now.pens[b.id]; if (cur && cur.updatedAt===b.updatedAt) delete now.pens[b.id]; });
       aths.forEach(([id,b])=>{ const cur = now.athletes[id]; if (cur && cur.updatedAt===b.updatedAt) delete now.athletes[id]; });
       chks.forEach(b=>{ const cur = now.checkins[b.id]; if (cur && cur.updatedAt===b.updatedAt) delete now.checkins[b.id]; });
+      gms.forEach(b=>{ const cur = now.games[b.id]; if (cur && cur.updatedAt===b.updatedAt) delete now.games[b.id]; });
       now.del = now.del.filter(id=>!del.includes(id));
       saveOutbox(now);
       pens.forEach(b=>{ const i = serverPens.findIndex(r=>r.id===b.id); if (i>=0) serverPens[i]=b; else serverPens.push(b); });
@@ -1157,17 +1286,20 @@ async function flush(){
 async function loadAll(){
   if (!sb || !role) return;
   const since = new Date(weekDates(-1).Mon+"T00:00:00");
-  const [p, a, c] = await Promise.all([
+  const [p, a, c, g] = await Promise.all([
     sb.from("pens").select("data").order("created_at",{ascending:false}).limit(60),
     sb.from("athletes").select("id,data").limit(500),
-    sb.from("checkins").select("data").gte("day", localDate(since)).limit(2000)]);
+    sb.from("checkins").select("data").gte("day", localDate(since)).limit(2000),
+    sb.from("games").select("data").gte("day", localDate(since)).limit(1000)]);
   if (!p.error){ serverPens = p.data.map(r=>r.data); lsSet("bqpen.cache", serverPens); }
   if (!a.error){ athleteDocs = {}; a.data.forEach(r=>{ athleteDocs[r.id] = r.data; }); lsSet("bqpen.athletes", athleteDocs); }
   if (!c.error){ checkinDocs = {}; c.data.forEach(r=>{ checkinDocs[r.data.id] = r.data; }); lsSet("bqpen.checkins", checkinDocs); }
+  if (!g.error){ gameDocs = {}; g.data.forEach(r=>{ gameDocs[r.data.id] = r.data; }); lsSet("bqpen.games", gameDocs); }
   rebuildHist(); if (role==="player") applyRole(); else renderWeek();
 }
 athleteDocs = lsGet("bqpen.athletes", {});
 checkinDocs = lsGet("bqpen.checkins", {});
+gameDocs = lsGet("bqpen.games", {});
 renderWeek();
 let reloadT = null;
 function scheduleReload(){ clearTimeout(reloadT); reloadT = setTimeout(loadAll, 400); }
@@ -1190,6 +1322,7 @@ async function afterAuth(){
       .on("postgres_changes",{event:"*",schema:"public",table:"pens"}, scheduleReload)
       .on("postgres_changes",{event:"*",schema:"public",table:"athletes"}, scheduleReload)
       .on("postgres_changes",{event:"*",schema:"public",table:"checkins"}, scheduleReload)
+      .on("postgres_changes",{event:"*",schema:"public",table:"games"}, scheduleReload)
       .subscribe();
     await flush(); await loadAll();
   }
@@ -1403,8 +1536,8 @@ $("acct-reset").addEventListener("submit", async e=>{
 $("a-out").addEventListener("click", async ()=>{
   recovering = false; autoJoinTried = false; await sb.auth.signOut(); msg("");
   // shared phones: drop the signed-in person's synced data from this device
-  ["bqpen.cache","bqpen.checkins","bqpen.athletes"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
-  serverPens = []; checkinDocs = {}; athleteDocs = {}; rebuildHist(); renderWeek();
+  ["bqpen.cache","bqpen.checkins","bqpen.athletes","bqpen.games"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+  serverPens = []; checkinDocs = {}; athleteDocs = {}; gameDocs = {}; rebuildHist(); renderWeek();
 });
 if (sb){
   // supabase-js warns against awaiting its own calls inside this callback
