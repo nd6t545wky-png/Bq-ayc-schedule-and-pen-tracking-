@@ -766,8 +766,9 @@ function renderWeek(){
     let check = "", game = "";
     if (t==="game" || t==="game2") game = ath ? gameHtml(ath, dates[d])
       : `<div class="glog"><button class="small" data-gneedath>Log this game</button></div>`;
-    if (on && dates[d] <= todayDate){
-      if (!ath) check = d===today ? `<div class="armq"><div class="pen-desc">Enter the athlete's name at the top to log how their arm feels before and after throwing.</div></div>` : "";
+    // the 1-10 scales only on today's card; earlier days just show what was logged
+    if (on && dates[d] === todayDate){
+      if (!ath) check = `<div class="armq"><div class="pen-desc">Enter the athlete's name at the top to log how their arm feels before and after throwing.</div></div>`;
       else {
         const c = getCheckin(ath, dates[d]) || {};
         check = `<div class="armq"><div class="q">How does ${esc(ath)}'s arm feel?</div>
@@ -775,6 +776,9 @@ function renderWeek(){
           <div class="label">After throwing</div>${scaleHtml("w:after:"+dates[d], c.after)}
           ${deltaHtml(c.before, c.after)}</div>`;
       }
+    } else if (on && ath && dates[d] < todayDate){
+      const c = getCheckin(ath, dates[d]);
+      if (c && (c.before!=null || c.after!=null)) check = `<div class="armq">${deltaHtml(c.before, c.after) || `<div class="delta">Arm: before <b>${c.before ?? "–"}</b> · after <b>${c.after ?? "–"}</b></div>`}</div>`;
     }
     return `<div class="day ${d===today?'today':''}">
       <div class="dayhead"><div class="dayname">${full}${d===today?"<small>Today</small>":""}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>${label}</div>
