@@ -1553,7 +1553,14 @@ if (sb){
   setInterval(()=>{ if (pendingCount()) flush(); }, 30000);
 }
 rebuildHist();
-if ("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
+if ("serviceWorker" in navigator && location.protocol==="https:"){
+  // when a new version takes over, reload once so it shows straight away (not mid-pen)
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", ()=>{
+    if (hadController && !(pen && pen.status==="live" && !$("v-live").hidden)) location.reload();
+  });
+  navigator.serviceWorker.register("sw.js", {updateViaCache: "none"}).then(r=>r.update()).catch(()=>{});
+}
 
 function renderHist(){
   const el = $("hist");
