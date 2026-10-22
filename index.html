@@ -671,7 +671,7 @@ function gameHtml(athlete, date){
   const g = getGame(athlete, date);
   if (gameEdit===date) return `<div class="glog" data-game="${date}"><div class="q">Game log · ${esc(athlete)}</div>${gameFormHtml(g)}</div>`;
   if (g) return `<div class="glog" data-game="${date}"><div class="q">Game log · ${esc(athlete)}</div>${gameSummaryHtml(g, athlete)}<button class="small ghost" data-gopen>Edit game log</button></div>`;
-  return `<div class="glog" data-game="${date}"><button class="small" data-gopen>Log this game (${esc(athlete)})</button></div>`;
+  return `<div class="glog" data-game="${date}"><button class="small" data-gopen>Log this game · ${esc(athlete)}</button></div>`;
 }
 function readGameForm(box, athlete, date){
   const val = f => (box.querySelector(`[data-f="${f}"]`).value || "").trim();
@@ -764,7 +764,8 @@ function renderWeek(){
     const recov = t==="rec" ? progList("Recovery / mobility program (before or after throwing)", RECOVERY) : "";
     const btn = T.pen && role!=="player" ? `<button class="small" data-pen="${d}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
     let check = "", game = "";
-    if ((t==="game" || t==="game2") && dates[d] <= todayDate && ath) game = gameHtml(ath, dates[d]);
+    if (t==="game" || t==="game2") game = ath ? gameHtml(ath, dates[d])
+      : `<div class="glog"><button class="small" data-gneedath>Log this game</button></div>`;
     if (on && dates[d] <= todayDate){
       if (!ath) check = d===today ? `<div class="armq"><div class="pen-desc">Enter the athlete's name at the top to log how their arm feels before and after throwing.</div></div>` : "";
       else {
@@ -789,6 +790,11 @@ $("w-age").addEventListener("click", e=>{const b=e.target.closest("button"); if(
 $("w-days").addEventListener("click", e=>{
   const pb = e.target.closest("button[data-pen]");
   if (pb){ setTab("pens"); show("v-setup"); $("f-ath").focus(); return; }
+  if (e.target.closest("[data-gneedath]")){
+    window.scrollTo({top:0, behavior:"smooth"}); $("w-ath").focus();
+    $("w-ath").placeholder = "Enter the athlete's name first";
+    return;
+  }
   const box = e.target.closest("[data-game]"); if (!box) return;
   const date = box.dataset.game, ath = curAthlete();
   if (e.target.closest("[data-gopen]")){ gameEdit = date; renderWeek(); document.querySelector(`[data-game="${date}"] input`)?.focus(); return; }

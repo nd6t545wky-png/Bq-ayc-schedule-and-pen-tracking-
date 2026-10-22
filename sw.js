@@ -1,6 +1,6 @@
 // App shell cache so the tracker opens at the field with no signal.
 // Bump VERSION whenever a shell file changes.
-const VERSION = "bqpen-v12";
+const VERSION = "bqpen-v13";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./vendor/supabase-2.117.3.js",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 
