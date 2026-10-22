@@ -216,10 +216,15 @@ details.plist .dose{color:var(--muted)}
     <div class="card" id="acct">
       <div id="acct-out">
         <h2>Sign in</h2>
-        <div class="pen-desc">Coaches: sign in to sync pens across every coach's phone. Players: sign in to log your arm check-ins and see your own pens.</div>
+        <div class="pen-desc">Coaches and players: new here? Tap <b>New account</b> and enter your team code.</div>
+        <div class="seg" id="a-mode" style="margin-top:12px"><button type="button" data-v="in" class="on">I have an account</button><button type="button" data-v="up">New account</button></div>
         <form id="a-form" autocomplete="on">
+          <div id="up-fields" hidden>
+            <div class="pen-desc" style="margin-top:12px">Enter the team code from your coach. Players, also enter your full name.</div>
+            <div class="wrap" style="gap:10px;margin-top:8px"><input id="a-code" placeholder="Team code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20"><input id="a-name" placeholder="Your full name (players only)" autocomplete="name" maxlength="60"></div>
+          </div>
           <div class="row" style="margin-top:12px"><input id="a-email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" inputmode="email" required><input id="a-pass" type="password" placeholder="Password" autocomplete="current-password" minlength="10" required></div>
-          <div class="row" style="margin-top:10px"><button class="primary" id="a-in" type="submit">Sign in</button><button id="a-up" type="button">Create account</button></div>
+          <button class="primary" id="a-in" type="submit" style="margin-top:12px;width:100%">Sign in</button>
           <button class="small ghost" id="a-forgot" type="button">Forgot password?</button>
         </form>
       </div>
@@ -1176,6 +1181,7 @@ async function afterAuth(){
       const r = await sb.rpc("my_athlete");
       if (!r.error && r.data){ role = "player"; playerName = r.data; }
     }
+    if (!role && await autoJoin()) return afterAuth();
   }
   applyRole();
   if (chan){ sb.removeChannel(chan); chan = null; }
@@ -1230,6 +1236,26 @@ const JOIN_MSG = {
   email_not_confirmed: "Confirm your email first: open the link we sent you, then sign in again.",
   not_signed_in: "Sign in first.",
 };
+// Join with the code given at sign-up, once per page load. True if it worked.
+let autoJoinTried = false;
+async function autoJoin(){
+  if (autoJoinTried || !session) return false;
+  autoJoinTried = true;
+  const meta = session.user.user_metadata || {}, local = lsGet("bqpen.join", {});
+  const code = meta.join_code || local.code, name = meta.join_name || local.name || "";
+  if (!code) return false;
+  const {data, error} = await sb.rpc("join_team", {p_code: code, p_name: name || null});
+  if (!error && (data==="coach" || data==="player")){
+    try{ localStorage.removeItem("bqpen.join"); }catch(e){}
+    sb.auth.updateUser({data:{join_code:null, join_name:null}}).catch(()=>{});
+    setTimeout(()=>msg(data==="coach" ? "You're on the team as a coach." : "You're on the team. Log your arm check-ins on the Throwing week tab.", false), 0);
+    return true;
+  }
+  // show what went wrong in the join form, with their details filled in to fix
+  $("j-code").value = code; $("j-name").value = name;
+  setTimeout(()=>{ const el = $("j-msg"); el.textContent = error ? "Couldn't join yet. Check your connection and tap Join team." : (JOIN_MSG[data] || "Couldn't join. Check the code and try again."); el.hidden = false; el.className = "notice"; }, 0);
+  return false;
+}
 $("join-form").addEventListener("submit", async e=>{
   e.preventDefault();
   const code = $("j-code").value.trim(), name = $("j-name").value.trim();
@@ -1241,6 +1267,8 @@ $("join-form").addEventListener("submit", async e=>{
   if (error){ jm(/fetch|network/i.test(error.message) ? "No connection. Try again when you have signal." : "Couldn't join. Try again."); return; }
   if (data!=="coach" && data!=="player"){ jm(JOIN_MSG[data] || "Couldn't join. Try again."); return; }
   $("j-code").value = ""; $("j-name").value = ""; jm("");
+  try{ localStorage.removeItem("bqpen.join"); }catch(_){}
+  sb.auth.updateUser({data:{join_code:null, join_name:null}}).catch(()=>{});
   await afterAuth();
   msg(data==="coach" ? "You're on the team as a coach." : "You're on the team. Log your arm check-ins on the Throwing week tab.", false);
 });
@@ -1314,9 +1342,21 @@ function readCreds(){
   $("a-pass").value = "";
   return {email, password};
 }
-function busy(on){ ["a-in","a-up","a-forgot"].forEach(id=>$(id).disabled = on); }
+function busy(on){ ["a-in","a-forgot"].forEach(id=>$(id).disabled = on); }
+let authMode = "in";
+function setAuthMode(m){
+  authMode = m;
+  $("a-mode").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===m));
+  $("up-fields").hidden = m!=="up"; $("a-forgot").hidden = m==="up";
+  $("a-in").textContent = m==="up" ? "Create account" : "Sign in";
+  $("a-pass").autocomplete = m==="up" ? "new-password" : "current-password";
+  $("a-pass").placeholder = m==="up" ? "New password" : "Password";
+  msg("");
+}
+$("a-mode").addEventListener("click", e=>{ const b = e.target.closest("button"); if (b) setAuthMode(b.dataset.v); });
 $("a-form").addEventListener("submit", async e=>{
   e.preventDefault();
+  if (authMode==="up") return createAccount();
   const c = readCreds(); if (!c) return;
   busy(true);
   const {error} = await sb.auth.signInWithPassword(c);
@@ -1325,14 +1365,19 @@ $("a-form").addEventListener("submit", async e=>{
     : "Email or password is incorrect, or the email hasn't been confirmed yet.");
   else msg("");
 });
-$("a-up").addEventListener("click", async ()=>{
+async function createAccount(){
+  const code = $("a-code").value.trim(), name = $("a-name").value.trim();
+  if (!code){ msg("Enter the team code from your coach."); $("a-code").focus(); return; }
   const c = readCreds(); if (!c) return;
+  // the code rides along with the account, so joining works even if the confirmation
+  // link opens in a different browser; join_team() checks it once the email is confirmed
+  lsSet("bqpen.join", {code, name});
   busy(true);
-  const {data, error} = await sb.auth.signUp({...c, options:{emailRedirectTo: BACK}});
+  const {data, error} = await sb.auth.signUp({...c, options:{emailRedirectTo: BACK, data:{join_code: code, join_name: name || null}}});
   busy(false);
   if (error && !/registered|exists/i.test(error.message)){ msg(/weak|password/i.test(error.message) ? error.message : "Couldn't create the account. Try again in a few minutes."); return; }
-  if (!data || !data.session) msg("If this email can be used, a confirmation link is on its way. Open it, then sign in here.", false);
-});
+  if (!data || !data.session){ setAuthMode("in"); msg("Check your email for a confirmation link. Open it, then come back and sign in. You'll be added to the team automatically.", false); }
+}
 $("a-forgot").addEventListener("click", async ()=>{
   const email = $("a-email").value.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg("Enter your email above first."); return; }
@@ -1356,7 +1401,7 @@ $("acct-reset").addEventListener("submit", async e=>{
   if (err){ setTimeout(()=>msg("That link didn't work: "+err.replace(/\+/g," ")+". Request a new one."), 0); history.replaceState(null, "", location.pathname); }
 }
 $("a-out").addEventListener("click", async ()=>{
-  recovering = false; await sb.auth.signOut(); msg("");
+  recovering = false; autoJoinTried = false; await sb.auth.signOut(); msg("");
   // shared phones: drop the signed-in person's synced data from this device
   ["bqpen.cache","bqpen.checkins","bqpen.athletes"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
   serverPens = []; checkinDocs = {}; athleteDocs = {}; rebuildHist(); renderWeek();

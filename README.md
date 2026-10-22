@@ -38,8 +38,8 @@ Free Supabase projects pause after about a week with little use. `.github/workfl
 
 People sign themselves up:
 
-1. Open the app → Bullpens → **Create account** with their email and a password, then open the confirmation email.
-2. Sign in, then enter the **team code** (players also enter their full name) under **Join your team**.
+1. Open the app → Bullpens → **New account**, enter the **team code** (players also enter their full name), email and a password, and tap **Create account**.
+2. Open the confirmation email, come back and **Sign in**. They're added to the team automatically. If the code was wrong, the app shows **Join your team** with the reason so they can fix it.
 
 Coaches find the codes in Bullpens → **Team codes**: a player code and a separate coach code. Share them privately. **New code** replaces a code; people already on the team stay. Each player name can only be claimed by one account, 10 wrong codes in an hour locks that account out for the hour, and players only ever see their own data. Coaches can remove any player or other coach from the same card. A player can still be linked by email by hand under "Link a player by email instead".
 
