@@ -28,26 +28,26 @@ Coaches sign in with email and password. Only signed-in coaches whose email is o
 
 1. Authentication → Sign In / Providers → Email: keep it on with **Confirm email** on, and set the minimum password length to 10.
 2. Authentication → URL Configuration: set **Site URL** to the app's hosted URL and add it under **Redirect URLs**, so confirmation and reset links open the app.
-3. Emails use Supabase's built-in sender for now. It only delivers to members of the Supabase team and only a few an hour, so confirmation and reset emails won't reach players or other coaches yet. Until an email sender is set up, create their accounts yourself: Authentication → Users → **Add user** → **Create new user**, enter their email and a temporary password, tick **Auto Confirm User**, and give them the password privately.
+3. Confirmation and password-reset emails are sent through Brevo (free, 300 emails a day); see [docs/brevo-setup.md](docs/brevo-setup.md). Until that's set up, Supabase's built-in sender only reaches members of the Supabase team, so create accounts by hand: Authentication → Users → **Add user** → **Create new user**, tick **Auto Confirm User**.
 
 ## Staying awake on the free plan
 
 Free Supabase projects pause after about a week with little use. `.github/workflows/keepalive.yml` sends one harmless request a day (it calls `public.keepalive()`, which reads no data) so that doesn't happen. You can run it by hand from the repo's **Actions** tab → *Keep Supabase awake* → **Run workflow**. GitHub turns off scheduled jobs in a repo with no activity for 60 days; if that happens, re-enable it from the same page.
 
-## Player accounts
+## Joining the team (no admin work)
 
-Players can sign in to log their own before/after arm check-ins and see their own pens (read-only). They never see other players, coaches or emails.
+People sign themselves up:
 
-1. A coach opens Bullpens → **Player accounts**, enters the player's name (exactly as used for their pens) and email, and taps **Link player**.
-2. The player opens the app, taps **Create account** with that email, confirms it from the email, and signs in. (Until an email sender is set up, create the account for them instead; see Supabase settings above.)
+1. Open the app → Bullpens → **Create account** with their email and a password, then open the confirmation email.
+2. Sign in, then enter the **team code** (players also enter their full name) under **Join your team**.
 
-Removing a player there cuts off their access straight away.
+Coaches find the codes in Bullpens → **Team codes**: a player code and a separate coach code. Share them privately. **New code** replaces a code; people already on the team stay. Each player name can only be claimed by one account, 10 wrong codes in an hour locks that account out for the hour, and players only ever see their own data. Coaches can remove any player or other coach from the same card. A player can still be linked by email by hand under "Link a player by email instead".
 
 Coaches see every player's scores in **Team arm check-ins** at the top of the Throwing week tab (this week or last week). Scores of 4 or lower, or a drop of 3 or more, are flagged in red and listed under "to follow up".
 
-## Adding a coach
+## Adding a coach by hand
 
-In the Supabase dashboard → SQL editor:
+Usually coaches just join with the coach code. To add one directly, in the Supabase dashboard → SQL editor:
 
 ```sql
 insert into public.coaches (email) values ('coach@example.com');
