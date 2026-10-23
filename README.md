@@ -1,6 +1,6 @@
-# BQ Pen Tracker
+# BQ Weekly Schedule and Tracking
 
-Throwing-week schedule and pitch-by-pitch bullpen tracker for Baseball Queensland U16/U18 pitchers.
+Weekly throwing schedule, bullpen, game and hitting tracking for Baseball Queensland players.
 It's an installable web app (PWA): open it on a phone, add it to the home screen, and it runs full-screen and works offline at the field.
 
 ## How it works

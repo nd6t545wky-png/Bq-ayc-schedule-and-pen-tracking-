@@ -8,7 +8,7 @@ Brevo's free plan sends up to 300 emails a day, which is far more than the team 
 
 Use an email inbox the team controls, such as a team Gmail (e.g. `bqpentracker@gmail.com`). Make a new one if you don't want to use your personal email. You'll need to open one verification email sent to it.
 
-Without your own website domain, Brevo can't send as a Gmail address directly. It sends from a Brevo address on your behalf, so the email shows your name ("BQ Pen Tracker") with a Brevo address underneath. That's normal. These emails are more likely to land in **junk**, so tell people to check there the first time. If you get a domain later, verifying it in Brevo fixes this.
+Without your own website domain, Brevo can't send as a Gmail address directly. It sends from a Brevo address on your behalf, so the email shows your name ("BQ Weekly Schedule and Tracking") with a Brevo address underneath. That's normal. These emails are more likely to land in **junk**, so tell people to check there the first time. If you get a domain later, verifying it in Brevo fixes this.
 
 ## 1. Create the Brevo account
 
@@ -18,7 +18,7 @@ Without your own website domain, Brevo can't send as a Gmail address directly. I
 ## 2. Add the sender
 
 1. In Brevo, open the menu with your name (top right) → **Senders, Domains & Dedicated IPs** → **Senders** → **Add sender**.
-2. From name: `BQ Pen Tracker`. From email: the inbox you picked above.
+2. From name: `BQ Weekly Schedule and Tracking`. From email: the inbox you picked above.
 3. Open the verification email Brevo sends to that inbox and confirm it.
 
 ## 3. Get the SMTP login and key
@@ -36,7 +36,7 @@ Open <https://supabase.com/dashboard/project/icczlruovqfhqllnkohh/auth/smtp>, tu
 | Field | Value |
 |---|---|
 | Sender email | the inbox you verified in step 2 |
-| Sender name | `BQ Pen Tracker` |
+| Sender name | `BQ Weekly Schedule and Tracking` |
 | Host | `smtp-relay.brevo.com` |
 | Port number | `587` |
 | Minimum interval between emails | leave as is |
@@ -53,12 +53,12 @@ Click **Save**.
    - Redirect URLs → **Add URL**: the same address
 3. **Sign-up day:** Supabase allows 30 auth emails an hour once custom SMTP is on. If the whole squad signs up at once and someone is told to wait, raise it at <https://supabase.com/dashboard/project/icczlruovqfhqllnkohh/auth/rate-limits> (e.g. to 100).
 
-Optional: make the email look friendlier at <https://supabase.com/dashboard/project/icczlruovqfhqllnkohh/auth/templates>. Under **Confirm signup**, set the subject to `Confirm your BQ Pen Tracker account`. Keep `{{ .ConfirmationURL }}` in the body; that's the link.
+Optional: make the email look friendlier at <https://supabase.com/dashboard/project/icczlruovqfhqllnkohh/auth/templates>. Under **Confirm signup**, set the subject to `Confirm your BQ Weekly Schedule and Tracking account`. Keep `{{ .ConfirmationURL }}` in the body; that's the link.
 
 ## 6. Test it
 
 1. Open the app on your phone, go to Bullpens, enter an email you can check (a different one from your own account) and a 10+ character password, and tap **Create account**.
-2. An email from **BQ Pen Tracker** should arrive within a minute. Check junk too. Open the link, then come back and **Sign in**.
+2. An email from **BQ Weekly Schedule and Tracking** should arrive within a minute. Check junk too. Open the link, then come back and **Sign in**.
 3. The app shows **Join your team**. Enter the player code from **Team codes**.
 4. Also try **Forgot password?** to check reset emails arrive.
 
