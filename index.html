@@ -181,6 +181,7 @@ button:disabled{opacity:.35;cursor:default}
 .days{display:flex;flex-direction:column;gap:12px}
 .day{background:var(--surface);border-radius:12px;padding:12px 16px;display:flex;flex-direction:column;gap:8px}
 .day.today{box-shadow:inset 0 0 0 2px var(--gold)}
+.day.pre{opacity:.55}
 .dayhead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .dayname{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:.01em}
 .dayname .ddate{font-family:var(--font);font-size:14px;font-weight:500;color:var(--muted);margin-left:8px}
@@ -925,6 +926,11 @@ function renderTeamGames(dates){
     }).join("")}</table></div>` : "";
 }
 let teamWeek = 0, playerNames = [];
+// The schedule starts the day an athlete's account joined the team (slug -> local YYYY-MM-DD).
+// Athletes without an account (entered by a coach) have no start date.
+let joinDates = lsGet("bqpen.joined", {});
+function setJoinDates(rows){ rows.forEach(r=>{ if (r.added_at) joinDates[r.athlete_slug] = localDate(new Date(r.added_at)); }); lsSet("bqpen.joined", joinDates); }
+const joinedOn = ath => (ath && joinDates[slug(ath)]) || "";
 const isFlag = c => c && ((c.before!=null && c.before<=4) || (c.after!=null && c.after<=4) || (c.before!=null && c.after!=null && c.after-c.before<=-3));
 function renderTeam(){
   $("team").hidden = role!=="coach";
@@ -933,13 +939,13 @@ function renderTeam(){
   const dates = weekDates(teamWeek), byAth = {}, ob = outbox();
   const all = Object.assign({}, checkinDocs, ob.checkins);
   Object.values(all).forEach(c=>{ if (c && Object.values(dates).includes(c.date) && (c.before!=null || c.after!=null)) (byAth[slug(c.athlete)] = byAth[slug(c.athlete)] || {name:c.athlete, days:{}}).days[c.date] = c; });
-  playerNames.forEach(n=>{ byAth[slug(n)] = byAth[slug(n)] || {name:n, days:{}}; });
+  playerNames.forEach(n=>{ if (!(joinedOn(n) > dates.Sun)) byAth[slug(n)] = byAth[slug(n)] || {name:n, days:{}}; });
   const rows = Object.values(byAth).sort((a,b)=>a.name.localeCompare(b.name));
   const sel = slug($("w-ath").value||"");
   const flags = [];
   $("team-tbl").innerHTML = `<tr><th>Player</th>${DAYS.map(([d])=>`<th>${d}</th>`).join("")}</tr>` + (rows.length ? rows.map(r=>`<tr data-ath="${esc(r.name)}" class="${slug(r.name)===sel?'sel':''}"><td><b>${esc(r.name)}</b></td>${DAYS.map(([d,full])=>{
       const c = r.days[dates[d]];
-      if (!c) return `<td class="na">–</td>`;
+      if (!c) return `<td class="na">${dates[d] < joinedOn(r.name) ? "" : "–"}</td>`;
       if (isFlag(c)) flags.push(`${esc(r.name)}, ${full}: ${c.before ?? "–"} → ${c.after ?? "–"}`);
       return `<td class="${isFlag(c)?'flag':''}">${c.before ?? "–"}→${c.after ?? "–"}</td>`;
     }).join("")}</tr>`).join("")
@@ -969,7 +975,12 @@ function renderWeek(){
   $("w-age").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===setup.age));
   const bq = BQ_DAYS[setup.age] || [];
   const today = schedWeek ? "" : ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
-  const dates = weekDates(schedWeek), todayDate = localDate(), ath = curAthlete();
+  const ath = curAthlete(), start = joinedOn(ath);
+  // nothing to fill in last week if they joined after it
+  const noLast = !!start && start > weekDates(-1).Sun;
+  if (noLast) schedWeek = 0;
+  $("w-wk").hidden = noLast;
+  const dates = weekDates(schedWeek), todayDate = localDate();
   const built = usesGameWeeks(setup.age, dates.Mon);
   const games = built && ath ? athleteGames(ath) : {};
   const plan = built ? buildGameWeek(dates, games) : null;
@@ -977,14 +988,15 @@ function renderWeek(){
   $("w-typewrap").hidden = built; $("w-gpick").hidden = !built;
   if (built){
     $("w-gseg").innerHTML = DAYS.map(([d])=>{ const g = games[dates[d]];
-      return `<button type="button" data-gday="${dates[d]}" class="${g?'on':''}" ${!ath || (g && !canRemoveGame(dates[d])) ? "disabled" : ""}>${d}</button>`; }).join("");
+      return `<button type="button" data-gday="${dates[d]}" class="${g?'on':''}" ${!ath || dates[d] < start || (g && !canRemoveGame(dates[d])) ? "disabled" : ""}>${d}</button>`; }).join("");
     $("w-gnote").textContent = !ath ? "Enter the athlete's name above to add their games."
       : "Pitched: the next two days are a tolerance throw then a light bullpen, and there's no full bullpen that week. Not used: the full bullpen stays, moved off the day before a game.";
   }
   $("w-wk").querySelectorAll("button").forEach(b=>b.classList.toggle("on", +b.dataset.v===schedWeek));
   $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+". Tissue prep, bands and recovery every day except the no-throw day.";
   $("w-days").innerHTML = DAYS.map(([d,full])=>{
-    const t = w.d[d], T = DAYTYPES[t];
+    const t = w.d[d], T = DAYTYPES[t], dayLabel = `<div class="dayname">${full}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>`;
+    if (dates[d] < start) return `<div class="day pre"><div class="dayhead">${dayLabel}<span class="tag off">Before joining</span></div><div class="pen-desc">${esc(ath)}'s schedule starts ${new Date(start+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long", day:"numeric", month:"short"})}, the day they joined.</div></div>`;
     const label = bq.includes(d) ? `<span class="tag bq">BQ training</span>` : t==="off" ? `<span class="tag off">Day off</span>` : `<span class="tag">On own</span>`;
     const on = t!=="off";
     const armA = t==="pen" || t==="light", recProg = t==="rec" || t==="tol";
@@ -1584,6 +1596,7 @@ async function loadAll(){
   if (!c.error){ checkinDocs = {}; c.data.forEach(r=>{ checkinDocs[r.data.id] = r.data; }); lsSet("bqpen.checkins", checkinDocs); }
   if (!g.error){ gameDocs = {}; g.data.forEach(r=>{ gameDocs[r.data.id] = r.data; }); lsSet("bqpen.games", gameDocs); }
   if (!h.error){ h.data.forEach(r=>{ hitDocs[r.data.id] = r.data; }); lsSet("bqpen.hits", hitDocs); hitSeasonFor = null; }
+  if (role==="player"){ const j = await sb.from("players").select("athlete_slug,added_at"); if (!j.error) setJoinDates(j.data); }
   rebuildHist(); if (role==="player") applyRole(); else renderWeek();
   renderHit();
 }
@@ -1783,9 +1796,9 @@ $("c-list").addEventListener("change", e=>{
 });
 async function loadPlayers(){
   loadCodes(); loadCoaches();
-  const {data, error} = await sb.from("players").select("athlete,athlete_slug").order("athlete");
+  const {data, error} = await sb.from("players").select("athlete,athlete_slug,added_at").order("athlete");
   if (error){ $("p-list").innerHTML = `<div class="empty">Couldn't load players. Check your connection.</div>`; return; }
-  playerNames = data.map(r=>r.athlete); renderTeam();
+  playerNames = data.map(r=>r.athlete); setJoinDates(data); renderWeek();
   $("p-title").textContent = isOwner() ? "Players" : "Players · "+(myAges().join(", ") || "no age group");
   $("p-list").innerHTML = data.length ? data.map(r=>{ const a = athleteDocs[r.athlete_slug];
       return `<div class="prow"><div><div class="n">${esc(r.athlete)}</div><div class="m">${esc((a && a.age) || "No age group")}</div></div><button class="small ghost" data-rm="${esc(r.athlete_slug)}">Remove</button></div>`; }).join("")
@@ -1891,8 +1904,8 @@ $("acct-reset").addEventListener("submit", async e=>{
 $("a-out").addEventListener("click", async ()=>{
   recovering = false; autoJoinTried = false; await sb.auth.signOut(); msg("");
   // shared phones: drop the signed-in person's synced data from this device
-  ["bqpen.cache","bqpen.checkins","bqpen.athletes","bqpen.games","bqpen.hits"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
-  serverPens = []; checkinDocs = {}; athleteDocs = {}; gameDocs = {}; hitDocs = {}; hitSeasonFor = null; rebuildHist(); renderWeek();
+  ["bqpen.cache","bqpen.checkins","bqpen.athletes","bqpen.games","bqpen.hits","bqpen.joined"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+  serverPens = []; checkinDocs = {}; athleteDocs = {}; joinDates = {}; gameDocs = {}; hitDocs = {}; hitSeasonFor = null; rebuildHist(); renderWeek();
 });
 if (sb){
   // supabase-js warns against awaiting its own calls inside this callback
