@@ -1,7 +1,7 @@
 {
-  "name": "BQ Pen Tracker",
-  "short_name": "BQ Pens",
-  "description": "Throwing week and bullpens, pitch by pitch",
+  "name": "BQ Weekly Schedule and Tracking",
+  "short_name": "BQ Weekly",
+  "description": "Throwing week, bullpens, games and hitting",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
