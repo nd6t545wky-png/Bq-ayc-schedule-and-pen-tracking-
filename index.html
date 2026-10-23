@@ -78,6 +78,19 @@ button:disabled{opacity:.35;cursor:default}
 .flags{background:color-mix(in srgb,var(--miss) 10%,transparent);border-radius:10px;padding:10px 12px;font-size:15px}.flags b{color:var(--miss)}.flags ul{margin:4px 0 0;padding-left:18px}
 .codebox{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--fill);border-radius:10px;padding:10px 12px;margin-top:8px}.codebox .code{font-family:ui-monospace,Menlo,monospace;font-size:22px;font-weight:700;letter-spacing:.12em}.codebox .lbl{font-size:13px;color:var(--muted)}
 #w-gseg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}#w-gseg button{padding:8px 0;font-size:15px}
+.hres{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.hres button{min-height:42px;padding:6px 4px;font-size:14px;font-weight:600;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;line-height:1.1}
+.hres button.on{background:var(--maroon);border-color:var(--maroon);color:var(--maroon-ink)}
+.hres .grp{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:4px}
+.field{width:100%;max-width:340px;display:block;margin:0 auto;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.field .grass{fill:color-mix(in srgb,var(--hit) 14%,var(--surface))}
+.field .dirt{fill:color-mix(in srgb,var(--gold) 22%,var(--surface))}
+.field .line{stroke:var(--muted);stroke-width:1.2;fill:none}
+.field .base{fill:var(--surface);stroke:var(--muted)}
+.field .lbl{fill:var(--muted);font-size:11px;font-family:var(--font)}
+.palist{display:flex;flex-direction:column;margin:0 -16px}
+.palist .prow b{font-variant-numeric:tabular-nums}
+.hitline{font-family:var(--display);font-size:22px;font-weight:700}
 .prow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-top:.5px solid var(--line)}.prow .m{color:var(--muted);font-size:14px;overflow-wrap:anywhere}
 .hist .m{color:var(--muted);font-size:15px}
 .hist .s{grid-row:span 2;align-self:center;font-size:17px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -202,7 +215,7 @@ details.plist .dose{color:var(--muted)}
     <div><h1>BQ Pen Tracker</h1><div class="sub">Throwing week and bullpens, pitch by pitch</div></div>
   </header>
 
-  <nav class="tabs" id="tabs"><button data-t="sched" class="on">Throwing week</button><button data-t="pens">Bullpens</button></nav>
+  <nav class="tabs" id="tabs"><button data-t="sched" class="on">Throwing week</button><button data-t="pens">Bullpens</button><button data-t="hit" id="tab-hit">Hitting</button></nav>
 
   <!-- SCHEDULE -->
   <section id="v-sched" class="wrap" style="gap:12px">
@@ -225,10 +238,27 @@ details.plist .dose{color:var(--muted)}
       <div class="seg" id="team-wk"><button data-v="0" class="on">This week</button><button data-v="-1">Last week</button></div>
       <div id="team-flags"></div>
       <div id="team-games"></div>
+      <div id="team-hits"></div>
       <div class="scroll"><table class="log team" id="team-tbl"></table></div>
       <div class="pen-desc">Before → after for each day. Red: arm score 4 or lower, or a drop of 3 or more. Tap a player to open their week below.</div>
     </div>
     <div class="days" id="w-days"></div>
+  </section>
+
+  <!-- HITTING -->
+  <section id="v-hit" class="wrap" style="gap:12px" hidden>
+    <div class="card">
+      <div class="row">
+        <div><div class="label">Hitter</div><input id="h-ath" list="athletes" placeholder="Player name" autocomplete="off"></div>
+        <div><div class="label">Game date</div><input id="h-date" type="date"></div>
+      </div>
+      <div id="h-typewrap" hidden><div class="label">Player type</div><div class="seg" id="h-type"><button type="button" data-v="P">Pitcher</button><button type="button" data-v="POS">Position</button><button type="button" data-v="TWO">Two-way</button></div></div>
+      <div id="h-oppwrap"><div class="label">Opponent</div><input id="h-opp" placeholder="e.g. Brisbane North" maxlength="60" autocomplete="off"></div>
+      <div class="pen-desc" id="h-note"></div>
+    </div>
+    <div class="card" id="h-game" hidden></div>
+    <div class="card" id="h-entry" hidden></div>
+    <div class="card" id="h-season" hidden></div>
   </section>
 
   <!-- SETUP -->
@@ -534,6 +564,7 @@ try { const s = JSON.parse(localStorage.getItem("bqpen.setup")||"null"); if (s) 
 if (!Array.isArray(setup.mix) || !setup.mix.length) setup.mix = ["FB","CH","CB"];
 let athleteDocs = {};
 let role = null, playerName = null; // "coach", "player" or null (signed out / not linked)
+let hitDocs = {}, hitDate = null, hitDraft = null, hitSeasonFor = null; // hitting rows by id (athlete slug + "_" + date)
 let gameDocs = {}, gameEdit = null; // game logs by id (athlete slug + "_" + date); the date being edited
 let checkinDocs = {};     // arm check-ins by id: athlete slug + "_" + date
 let armBefore = null;     // arm score picked on the New pen form
@@ -631,6 +662,120 @@ function deltaHtml(b, a){
   const d = a-b, cls = d<0 ? "down" : d>0 ? "up" : "";
   return `<div class="delta">Before <b>${b}</b> → after <b>${a}</b> · <span class="${cls}">${d===0?"no change":(d>0?"+":"")+d}</span>${d<=-3?" · check in with the athlete":""}</div>`;
 }
+// ---------- hitting (position players) ----------
+// result code, label, what it counts as
+const HRES = [
+  ["Hits"], ["1B","Single",{ab:1,h:1,tb:1,bip:1}], ["2B","Double",{ab:1,h:1,tb:2,bip:1}], ["3B","Triple",{ab:1,h:1,tb:3,bip:1}], ["HR","Home run",{ab:1,h:1,tb:4,bip:1}],
+  ["On base"], ["BB","Walk",{bb:1}], ["HBP","Hit by pitch",{hbp:1}], ["ROE","Reached on error",{ab:1,bip:1}], ["FC","Fielder's choice",{ab:1,bip:1}],
+  ["Outs"], ["KS","K swinging",{ab:1,k:1}], ["KL","K looking",{ab:1,k:1}], ["GO","Ground out",{ab:1,bip:1}], ["FO","Fly out",{ab:1,bip:1}],
+  ["LO","Line out",{ab:1,bip:1}], ["PO","Pop out",{ab:1,bip:1}], ["SF","Sac fly",{sf:1,bip:1}], ["SH","Sac bunt",{sh:1,bip:1}],
+];
+const HR_BY = Object.fromEntries(HRES.filter(r=>r[1]).map(r=>[r[0], r]));
+const isHitter = name => { const a = athleteDocs[slug(name||"")]; return !!a && (a.type==="POS" || a.type==="TWO"); };
+const hitId = (athlete, date) => slug(athlete)+"_"+date;
+function getHit(athlete, date){ const id = hitId(athlete, date); return outbox().hits[id] || hitDocs[id] || null; }
+function athleteHits(athlete){ const s = slug(athlete); return Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && slug(h.athlete)===s).sort((a,b)=>b.date.localeCompare(a.date)); }
+function saveHit(body){ body.updatedAt = Date.now(); hitDocs[body.id] = body; const ob = outbox(); ob.hits[body.id] = body; saveOutbox(ob); flush(); }
+function hitStats(pas){
+  const t = {pa:0,ab:0,h:0,tb:0,bb:0,hbp:0,k:0,sf:0,sh:0,bip:0,hard:0,rbi:0,xbh:0,ab2:0,h2:0};
+  pas.forEach(p=>{ const c = (HR_BY[p.res]||[])[2] || {}; t.pa++; for (const k in c) t[k] += c[k];
+    if (p.qual==="H" && c.bip) t.hard++; t.rbi += p.rbi||0; if (["2B","3B","HR"].includes(p.res)) t.xbh++;
+    if (p.s===2 && c.ab){ t.ab2++; if (c.h) t.h2++; } });
+  const r = (a,b) => b ? a/b : null;
+  t.avg = r(t.h,t.ab); t.obp = r(t.h+t.bb+t.hbp, t.ab+t.bb+t.hbp+t.sf); t.slg = r(t.tb,t.ab);
+  t.ops = t.obp!=null && t.slg!=null ? t.obp+t.slg : null; t.kp = r(t.k,t.pa); t.bbp = r(t.bb,t.pa); t.hardp = r(t.hard,t.bip);
+  return t;
+}
+const avgFmt = v => v==null ? "–" : (v>=1 ? v.toFixed(3) : v.toFixed(3).replace(/^0/,""));
+const pctFmt = v => v==null ? "–" : Math.round(v*100)+"%";
+function gameLine(pas){
+  const t = hitStats(pas), extras = [];
+  ["2B","3B","HR"].forEach(c=>{ const n = pas.filter(p=>p.res===c).length; if (n) extras.push((n>1?n:"")+c); });
+  if (t.bb) extras.push((t.bb>1?t.bb:"")+"BB"); if (t.hbp) extras.push((t.hbp>1?t.hbp:"")+"HBP"); if (t.k) extras.push((t.k>1?t.k:"")+"K");
+  return `${t.h}-for-${t.ab}${extras.length?", "+extras.join(", "):""}${t.rbi?` · ${t.rbi} RBI`:""}`;
+}
+// Field from the hitter's view: home at the bottom, left field on the left. Points are stored 0-1.
+const FIELD = {w:300, h:262, hx:150, hy:248, r:205};
+function fieldZone(x, y){
+  const dx = x*FIELD.w - FIELD.hx, dy = FIELD.hy - y*FIELD.h, ang = Math.atan2(dx, dy)*180/Math.PI, dist = Math.hypot(dx, dy);
+  if (Math.abs(ang) > 45) return "Foul";
+  if (dist < 92) return ang < -27 ? "3B" : ang < -6 ? "SS" : ang <= 6 ? "Up the middle" : ang <= 27 ? "2B" : "1B";
+  return ang < -27 ? "LF" : ang < -9 ? "LC" : ang <= 9 ? "CF" : ang <= 27 ? "RC" : "RF";
+}
+function fieldSvg(id, dots){
+  const {w,h,hx,hy,r} = FIELD, a = Math.PI/4, lx = hx - r*Math.sin(a), ly = hy - r*Math.cos(a), rx = hx + r*Math.sin(a);
+  const base = (x,y)=>`<rect class="base" x="${x-4}" y="${y-4}" width="8" height="8" transform="rotate(45 ${x} ${y})"/>`, d = 63;
+  let g = `<path class="grass" d="M${hx},${hy} L${lx},${ly} A${r},${r} 0 0 1 ${rx},${ly} Z"/>`;
+  g += `<path class="dirt" d="M${hx},${hy} L${hx-d*0.95},${hy-d*0.95} A${d*1.4},${d*1.4} 0 0 1 ${hx+d*0.95},${hy-d*0.95} Z"/>`;
+  g += `<path class="line" d="M${lx},${ly} L${hx},${hy} L${rx},${ly}"/>`;
+  g += base(hx+d*0.707, hy-d*0.707) + base(hx, hy-d*1.414) + base(hx-d*0.707, hy-d*0.707) + base(hx, hy);
+  g += [["LF",-36,170],["LC",-18,182],["CF",0,188],["RC",18,182],["RF",36,170]].map(([t,ang,dist])=>`<text class="lbl" text-anchor="middle" x="${hx+dist*Math.sin(ang*Math.PI/180)}" y="${hy-dist*Math.cos(ang*Math.PI/180)}">${t}</text>`).join("");
+  g += (dots||[]).map(p=>`<circle cx="${p.x*w}" cy="${p.y*h}" r="${p.r||6}" fill="${p.c}" stroke="var(--surface)" stroke-width="1.5"/>`).join("");
+  return `<svg class="field" id="${id}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Baseball field">${g}</svg>`;
+}
+const dotColour = res => ["1B","2B","3B","HR"].includes(res) ? "var(--hit)" : res==="ROE" ? "var(--gold)" : "var(--muted)";
+function hitAthlete(){ return role==="player" ? playerName : $("h-ath").value.trim(); }
+function renderHit(){
+  if ($("v-hit").hidden) return;
+  const ath = hitAthlete(), date = hitDate || localDate(), coach = role!=="player";
+  $("h-ath").readOnly = !coach; if (!coach) $("h-ath").value = playerName || "";
+  $("h-date").value = date;
+  const prof = ath ? athleteDocs[slug(ath)] : null, hitter = isHitter(ath);
+  $("h-typewrap").hidden = !coach || !ath;
+  $("h-type").querySelectorAll("button").forEach(b=>b.classList.toggle("on", !!prof && prof.type===b.dataset.v));
+  $("h-note").textContent = !ath ? "Enter the player's name to track their at-bats."
+    : !hitter ? (coach ? `Mark ${ath} as a position player or two-way to track hitting.` : "Hitting is tracked for position players. Ask your coach to set you up.") : "";
+  ["h-game","h-entry","h-season"].forEach(id=>$(id).hidden = !hitter);
+  $("h-oppwrap").hidden = !hitter;
+  if (!hitter) return;
+  const doc = getHit(ath, date), pas = doc ? doc.pas : [];
+  $("h-opp").value = (doc && doc.opp) || "";
+  // this game
+  $("h-game").innerHTML = `<div class="livehead"><div><div class="label" style="margin:0">${new Date(date+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"short"})}</div><div class="hitline">${pas.length ? gameLine(pas) : "No at-bats yet"}</div></div></div>
+    ${pas.length ? `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${esc(HR_BY[p.res][1])}${p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}<div class="m">Count ${p.b}-${p.s}${p.rbi?` · ${p.rbi} RBI`:""}</div></div><button class="small ghost" data-parm="${i}">Remove</button></div>`).join("")}</div>` : ""}`;
+  // new plate appearance
+  const d = hitDraft = hitDraft || {b:0, s:0, res:null, qual:null, x:null, y:null, zone:null, rbi:0};
+  const bip = d.res && (HR_BY[d.res][2].bip);
+  const segBtns = (key, n, label) => `<div><div class="label">${label}</div><div class="seg" data-hk="${key}">${Array.from({length:n},(_,i)=>`<button type="button" data-v="${i}" class="${d[key]===i?'on':''}">${i}</button>`).join("")}</div></div>`;
+  $("h-entry").innerHTML = `<h2>At-bat ${pas.length+1}</h2>
+    <div class="row">${segBtns("b",4,"Balls")}${segBtns("s",3,"Strikes")}</div>
+    <div><div class="label">Result</div><div class="hres">${HRES.map(r=>r[1] ? `<button type="button" data-hres="${r[0]}" class="${d.res===r[0]?'on':''}">${r[1]}</button>` : `<div class="grp">${r[0]}</div>`).join("")}</div></div>
+    ${bip ? `<div><div class="label">Contact</div><div class="seg" data-hk="qual">${[["H","Hard"],["M","Medium"],["W","Weak"]].map(([v,l])=>`<button type="button" data-v="${v}" class="${d.qual===v?'on':''}">${l}</button>`).join("")}</div></div>
+      <div><div class="label">Where it went <span>· tap the field${d.zone?` · ${esc(d.zone)}`:""}</span></div>${fieldSvg("h-field", d.x!=null ? [{x:d.x, y:d.y, c:dotColour(d.res), r:8}] : [])}</div>` : ""}
+    ${segBtns("rbi",5,"RBI")}
+    <div class="notice" id="h-msg" hidden></div>
+    <button class="primary" id="h-save" ${d.res?"":"disabled"}>Save at-bat</button>`;
+  // season
+  const all = athleteHits(ath), seasonPas = all.flatMap(h=>h.pas||[]), t = hitStats(seasonPas);
+  const tiles = [["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)],["Hard-hit",pctFmt(t.hardp)]];
+  const dots = seasonPas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:5}));
+  $("h-season").innerHTML = `<h2>${esc(ath)} · season</h2>
+    <div class="gstats">${tiles.map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
+    <div class="gnote">${t.h} H · ${t.xbh} XBH · ${t.rbi} RBI · with 2 strikes ${t.h2}-for-${t.ab2}</div>
+    ${dots.length ? `<div class="label" style="margin-top:6px">Spray chart</div>${fieldSvg("h-spray", dots)}<div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--muted)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
+    ${all.length ? `<div class="label" style="margin-top:6px">Games</div><div class="palist">${all.map(h=>`<div class="prow" data-hdate="${h.date}" style="cursor:pointer"><div>${new Date(h.date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>`).join("")}</div>` : ""}`;
+  if (hitSeasonFor !== slug(ath)) loadHitSeason(ath);
+}
+async function loadHitSeason(ath){
+  hitSeasonFor = slug(ath);
+  if (!sb || !role) return;
+  const {data, error} = await sb.from("hitting").select("data").eq("athlete_slug", slug(ath)).order("day",{ascending:false}).limit(200);
+  if (error) return;
+  data.forEach(r=>{ hitDocs[r.data.id] = r.data; }); lsSet("bqpen.hits", hitDocs); renderHit();
+}
+function setAthleteType(name, type){
+  const id = slug(name), body = Object.assign({name}, athleteDocs[id] || {age:setup.age}, {type, updatedAt:Date.now()});
+  athleteDocs[id] = body; const ob = outbox(); ob.athletes[id] = body; saveOutbox(ob); flush();
+}
+function renderTeamHits(dates){
+  const rows = Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && Object.values(dates).includes(h.date));
+  const by = {}; rows.forEach(h=>{ (by[h.athlete] = by[h.athlete] || []).push(h); });
+  const names = Object.keys(by).sort();
+  $("team-hits").innerHTML = names.length ? `<div class="label" style="margin-top:6px">Hitting ${teamWeek?"last":"this"} week</div><div class="scroll"><table class="log team"><tr><th>Player</th><th>G</th><th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th><th>OPS</th></tr>${names.map(n=>{
+    const t = hitStats(by[n].flatMap(h=>h.pas||[]));
+    return `<tr><td><b>${esc(n)}</b></td><td>${by[n].length}</td><td>${t.ab}</td><td>${t.h}</td><td>${t.bb}</td><td>${t.k}</td><td>${avgFmt(t.avg)}</td><td>${avgFmt(t.ops)}</td></tr>`; }).join("")}</table></div>` : "";
+}
+
 // ---------- reliever weeks ----------
 const addDays = (date, n) => { const d = new Date(date+"T00:00:00"); d.setDate(d.getDate()+n); return localDate(d); };
 const usesGameWeeks = (age, monday) => GAME_WEEK_AGES.includes(age) && monday >= GAME_WEEK_FROM;
@@ -788,7 +933,7 @@ function renderTeam(){
       return `<td class="${isFlag(c)?'flag':''}">${c.before ?? "–"}→${c.after ?? "–"}</td>`;
     }).join("")}</tr>`).join("")
     : `<tr><td colspan="8" class="na">No check-ins ${teamWeek?"last":"this"} week yet.</td></tr>`);
-  renderTeamGames(dates);
+  renderTeamGames(dates); renderTeamHits(dates);
   $("team-flags").innerHTML = flags.length ? `<div class="flags"><b>${flags.length} to follow up</b><ul>${flags.map(f=>`<li>${f}</li>`).join("")}</ul></div>` : "";
 }
 $("team-wk").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; teamWeek = +b.dataset.v; renderTeam(); });
@@ -903,13 +1048,49 @@ let tab = "sched";
 function setTab(t){
   tab = t;
   $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t===t));
-  $("v-sched").hidden = t!=="sched";
-  if (t==="sched"){ ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden=true); renderWeek(); }
+  $("v-sched").hidden = t!=="sched"; $("v-hit").hidden = t!=="hit";
+  if (t==="sched" || t==="hit"){ ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden=true); }
+  if (t==="sched") renderWeek();
+  if (t==="hit"){ if (role!=="player" && !$("h-ath").value) $("h-ath").value = $("w-ath").value; renderHit(); }
   else if ($("v-live").hidden && $("v-sum").hidden) $("v-setup").hidden = false;
 }
 $("tabs").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return;
   if (b.dataset.t==="pens" && pen && pen.status==="live" && live){ setTab("pens"); show("v-live"); return; }
   setTab(b.dataset.t);});
+
+// ---------- hitting events ----------
+$("h-ath").addEventListener("change", ()=>{ hitDraft = null; hitSeasonFor = null; renderHit(); });
+$("h-date").addEventListener("change", ()=>{ hitDate = $("h-date").value || null; hitDraft = null; renderHit(); });
+$("h-type").addEventListener("click", e=>{ const b = e.target.closest("button"); const ath = hitAthlete(); if (!b || !ath) return; setAthleteType(ath, b.dataset.v); renderHit(); });
+$("h-opp").addEventListener("change", ()=>{
+  const ath = hitAthlete(), date = hitDate || localDate(); if (!isHitter(ath)) return;
+  const doc = getHit(ath, date) || {id: hitId(ath, date), athlete: ath, date, pas: []};
+  saveHit(Object.assign({}, doc, {opp: $("h-opp").value.trim() || null})); renderHit();
+});
+$("v-hit").addEventListener("click", e=>{
+  const ath = hitAthlete(), date = hitDate || localDate(), d = hitDraft;
+  const seg = e.target.closest("[data-hk] button");
+  if (seg){ const k = seg.parentElement.dataset.hk; d[k] = k==="qual" ? seg.dataset.v : +seg.dataset.v; renderHit(); return; }
+  const r = e.target.closest("[data-hres]");
+  if (r){ d.res = r.dataset.hres; if (!HR_BY[d.res][2].bip){ d.qual = null; d.x = d.y = d.zone = null; }
+    if (d.res==="KS" || d.res==="KL") d.s = 2; if (d.res==="BB") d.b = 3; renderHit(); return; }
+  const svg = e.target.closest("#h-field");
+  if (svg){ const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+    d.x = Math.min(1, Math.max(0, q.x/FIELD.w)); d.y = Math.min(1, Math.max(0, q.y/FIELD.h)); d.zone = fieldZone(d.x, d.y); renderHit(); return; }
+  if (e.target.closest("#h-save")){
+    if (!d.res) return;
+    const doc = getHit(ath, date) || {id: hitId(ath, date), athlete: ath, date, opp: $("h-opp").value.trim() || null, pas: []};
+    const pa = {b:d.b, s:d.s, res:d.res, rbi:d.rbi||0}; if (d.qual) pa.qual = d.qual; if (d.x!=null){ pa.x = +d.x.toFixed(3); pa.y = +d.y.toFixed(3); pa.zone = d.zone; }
+    saveHit(Object.assign({}, doc, {pas: (doc.pas||[]).concat([pa])})); hitDraft = null; renderHit();
+    $("h-game").scrollIntoView({behavior:"smooth", block:"start"}); return;
+  }
+  const rm = e.target.closest("[data-parm]");
+  if (rm){ if (rm.dataset.armed!=="1"){ rm.dataset.armed = "1"; rm.textContent = "Tap again"; return; }
+    const doc = getHit(ath, date); if (!doc) return; const pas = doc.pas.slice(); pas.splice(+rm.dataset.parm, 1);
+    saveHit(Object.assign({}, doc, {pas})); renderHit(); return; }
+  const g = e.target.closest("[data-hdate]");
+  if (g){ hitDate = g.dataset.hdate; hitDraft = null; renderHit(); window.scrollTo({top:0, behavior:"smooth"}); }
+});
 
 // ---------- setup view ----------
 function segBind(id, key, after){
@@ -1022,7 +1203,7 @@ function openLive(){
   live = {def:curDef(), called:{p:null,z:null}, swung:false, gate:true, shape:true};
   show("v-live"); renderLive();
 }
-function show(id){ $("v-sched").hidden = true; if (tab!=="pens"){ tab="pens"; $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t==="pens")); }
+function show(id){ $("v-sched").hidden = true; $("v-hit").hidden = true; if (tab!=="pens"){ tab="pens"; $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t==="pens")); }
   ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden = v!==id); window.scrollTo(0,0); }
 
 function pitchChoices(){
@@ -1308,9 +1489,9 @@ const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, {auth:
 let session = null, isCoach = false, chan = null, serverPens = [], flushing = false, again = false, syncErr = "";
 function lsGet(k, d){ try{ const v = JSON.parse(localStorage.getItem(k)||"null"); return v==null ? d : v; }catch(e){ return d; } }
 function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
-function outbox(){ const o = lsGet("bqpen.outbox", {}); return {pens:o.pens||{}, athletes:o.athletes||{}, checkins:o.checkins||{}, games:o.games||{}, gdel:o.gdel||[], del:o.del||[]}; }
+function outbox(){ const o = lsGet("bqpen.outbox", {}); return {pens:o.pens||{}, athletes:o.athletes||{}, checkins:o.checkins||{}, games:o.games||{}, gdel:o.gdel||[], hits:o.hits||{}, del:o.del||[]}; }
 function saveOutbox(o){ lsSet("bqpen.outbox", o); }
-function pendingCount(o){ o = o||outbox(); return Object.keys(o.pens).length + Object.keys(o.athletes).length + Object.keys(o.checkins).length + Object.keys(o.games).length + o.gdel.length + o.del.length; }
+function pendingCount(o){ o = o||outbox(); return Object.keys(o.pens).length + Object.keys(o.athletes).length + Object.keys(o.checkins).length + Object.keys(o.games).length + o.gdel.length + Object.keys(o.hits).length + o.del.length; }
 serverPens = lsGet("bqpen.cache", []);
 
 function queueSave(){
@@ -1320,8 +1501,8 @@ function queueSave(){
   rebuildHist(); flush();
 }
 function saveAthlete(name){
-  const id = slug(name), body = {name, age:setup.age, hand:setup.hand, mix:setup.mix.slice(), updatedAt:Date.now()};
-  const prev = athleteDocs[id];
+  const id = slug(name), prev = athleteDocs[id];
+  const body = Object.assign({}, prev, {name, age:setup.age, hand:setup.hand, mix:setup.mix.slice(), updatedAt:Date.now()});
   if (prev && prev.age===body.age && prev.hand===body.hand && JSON.stringify(prev.mix)===JSON.stringify(body.mix) && prev.name===name) return;
   athleteDocs[id] = body;
   const ob = outbox(); ob.athletes[id] = body; saveOutbox(ob); flush();
@@ -1348,6 +1529,7 @@ async function flush(){
       const chks = Object.values(ob.checkins).filter(b=>coach || slug(b.athlete)===slug(playerName));
       const gms = Object.values(ob.games).filter(b=>coach || slug(b.athlete)===slug(playerName));
       const gdel = ob.gdel.filter(id=>coach || id.startsWith(slug(playerName)+"_"));
+      const hts = Object.values(ob.hits).filter(b=>coach || slug(b.athlete)===slug(playerName));
       if (pens.length){
         const {error} = await sb.from("pens").upsert(pens.map(b=>({id:b.id, data:b, created_at:b.createdAt})));
         if (error) throw error;
@@ -1362,6 +1544,10 @@ async function flush(){
       }
       if (gms.length){
         const {error} = await sb.from("games").upsert(gms.map(b=>({id:b.id, data:b, day:b.date})));
+        if (error) throw error;
+      }
+      if (hts.length){
+        const {error} = await sb.from("hitting").upsert(hts.map(b=>({id:b.id, data:b, day:b.date})));
         if (error) throw error;
       }
       if (gdel.length){
@@ -1379,6 +1565,7 @@ async function flush(){
       chks.forEach(b=>{ const cur = now.checkins[b.id]; if (cur && cur.updatedAt===b.updatedAt) delete now.checkins[b.id]; });
       gms.forEach(b=>{ const cur = now.games[b.id]; if (cur && cur.updatedAt===b.updatedAt) delete now.games[b.id]; });
       now.gdel = now.gdel.filter(id=>!gdel.includes(id));
+      hts.forEach(b=>{ const cur = now.hits[b.id]; if (cur && cur.updatedAt===b.updatedAt) delete now.hits[b.id]; });
       now.del = now.del.filter(id=>!del.includes(id));
       saveOutbox(now);
       pens.forEach(b=>{ const i = serverPens.findIndex(r=>r.id===b.id); if (i>=0) serverPens[i]=b; else serverPens.push(b); });
@@ -1392,20 +1579,24 @@ async function flush(){
 async function loadAll(){
   if (!sb || !role) return;
   const since = new Date(weekDates(-2).Mon+"T00:00:00");
-  const [p, a, c, g] = await Promise.all([
+  const [p, a, c, g, h] = await Promise.all([
     sb.from("pens").select("data").order("created_at",{ascending:false}).limit(60),
     sb.from("athletes").select("id,data").limit(500),
     sb.from("checkins").select("data").gte("day", localDate(since)).limit(2000),
-    sb.from("games").select("data").gte("day", localDate(since)).limit(1000)]);
+    sb.from("games").select("data").gte("day", localDate(since)).limit(1000),
+    sb.from("hitting").select("data").gte("day", localDate(since)).limit(1000)]);
   if (!p.error){ serverPens = p.data.map(r=>r.data); lsSet("bqpen.cache", serverPens); }
   if (!a.error){ athleteDocs = {}; a.data.forEach(r=>{ athleteDocs[r.id] = r.data; }); lsSet("bqpen.athletes", athleteDocs); }
   if (!c.error){ checkinDocs = {}; c.data.forEach(r=>{ checkinDocs[r.data.id] = r.data; }); lsSet("bqpen.checkins", checkinDocs); }
   if (!g.error){ gameDocs = {}; g.data.forEach(r=>{ gameDocs[r.data.id] = r.data; }); lsSet("bqpen.games", gameDocs); }
+  if (!h.error){ h.data.forEach(r=>{ hitDocs[r.data.id] = r.data; }); lsSet("bqpen.hits", hitDocs); hitSeasonFor = null; }
   rebuildHist(); if (role==="player") applyRole(); else renderWeek();
+  renderHit();
 }
 athleteDocs = lsGet("bqpen.athletes", {});
 checkinDocs = lsGet("bqpen.checkins", {});
 gameDocs = lsGet("bqpen.games", {});
+hitDocs = lsGet("bqpen.hits", {});
 renderWeek();
 let reloadT = null;
 function scheduleReload(){ clearTimeout(reloadT); reloadT = setTimeout(loadAll, 400); }
@@ -1429,6 +1620,7 @@ async function afterAuth(){
       .on("postgres_changes",{event:"*",schema:"public",table:"athletes"}, scheduleReload)
       .on("postgres_changes",{event:"*",schema:"public",table:"checkins"}, scheduleReload)
       .on("postgres_changes",{event:"*",schema:"public",table:"games"}, scheduleReload)
+      .on("postgres_changes",{event:"*",schema:"public",table:"hitting"}, scheduleReload)
       .subscribe();
     await flush(); await loadAll();
   }
@@ -1443,6 +1635,7 @@ function applyRole(){
   $("join-card").hidden = !(session && !role);
   $("hist-title").textContent = player ? "Your pens" : "Recent pens";
   $("w-ath").readOnly = player;
+  $("tab-hit").hidden = player && !isHitter(playerName);
   if (player){
     $("w-ath").value = playerName;
     const prof = athleteDocs[slug(playerName)];
@@ -1642,8 +1835,8 @@ $("acct-reset").addEventListener("submit", async e=>{
 $("a-out").addEventListener("click", async ()=>{
   recovering = false; autoJoinTried = false; await sb.auth.signOut(); msg("");
   // shared phones: drop the signed-in person's synced data from this device
-  ["bqpen.cache","bqpen.checkins","bqpen.athletes","bqpen.games"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
-  serverPens = []; checkinDocs = {}; athleteDocs = {}; gameDocs = {}; rebuildHist(); renderWeek();
+  ["bqpen.cache","bqpen.checkins","bqpen.athletes","bqpen.games","bqpen.hits"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+  serverPens = []; checkinDocs = {}; athleteDocs = {}; gameDocs = {}; hitDocs = {}; hitSeasonFor = null; rebuildHist(); renderWeek();
 });
 if (sb){
   // supabase-js warns against awaiting its own calls inside this callback
