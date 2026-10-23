@@ -18,7 +18,8 @@ Coaches sign in with email and password. Only signed-in coaches whose email is o
 
 - Passwords go straight to Supabase over HTTPS and are stored only as bcrypt hashes. Nobody, including the admin, can read them.
 - The app never saves a password on the phone, and clears the password box as soon as it's sent.
-- The accounts table isn't reachable from the app. The coach list is locked so each coach can only see their own row, so no one can pull a list of emails.
+- The accounts table isn't reachable from the app, and the email columns of the coach and player lists aren't readable by anyone signed in, so no one can pull a list of emails. The app never shows an email address; people appear by name.
+- Coaches are assigned to age groups and only see athletes (pens, check-ins, games, hitting, player accounts) in those groups. The owner sees all groups and is the only one who sees the coach list and the coach code.
 - Pens store the athlete's name and an anonymous user id, not coach emails.
 - Sign-in, sign-up and password reset show the same message whether or not an account exists, so the form can't be used to find out which emails are registered.
 - Passwords must be at least 10 characters. Forgotten passwords are reset by an emailed link.
@@ -41,7 +42,7 @@ People sign themselves up:
 1. Open the app → Bullpens → **New account**, enter the **team code** (players also enter their full name), email and a password, and tap **Create account**.
 2. Open the confirmation email, come back and **Sign in**. They're added to the team automatically. If the code was wrong, the app shows **Join your team** with the reason so they can fix it.
 
-Coaches find the codes in Bullpens → **Team codes**: a player code and a separate coach code. Share them privately. **New code** replaces a code; people already on the team stay. Each player name can only be claimed by one account, 10 wrong codes in an hour locks that account out for the hour, and players only ever see their own data. Coaches can remove any player or other coach from the same card. A player can still be linked by email by hand under "Link a player by email instead".
+Coaches find the codes in Bullpens → **Team codes**: a player code and a separate coach code. Share them privately. **New code** replaces a code; people already on the team stay. Each player name can only be claimed by one account, 10 wrong codes in an hour locks that account out for the hour, and players only ever see their own data. Coaches can remove players in their age groups from the same card. The owner sees **Coaches** below it: tap U16/U18/AYWC/AWC to give or take away a coach's access, rename them, or remove them. New coaches start with no age group until the owner gives them one. New players pick their age group when they join. A player can still be linked by email by hand under "Link a player by email instead".
 
 **From 7 December 2026 (after the GBL break), U16 and U18 weeks build themselves.** The week starts as a no-games week: Mon recovery, Tue long toss, Wed full bullpen, Thu recovery, Fri light 15-pitch bullpen, Sat recovery, Sun no throw. Tap a day in the Mon–Sun row to add (or remove) a game for the selected athlete; each game has a **Not used / Pitched** switch, starting on Not used.
 - Pitched: the next two days become a tolerance throw then a light bullpen, and there's no full bullpen that week.
@@ -61,7 +62,7 @@ Coaches see every player's scores in **Team arm check-ins** at the top of the Th
 Usually coaches just join with the coach code. To add one directly, in the Supabase dashboard → SQL editor:
 
 ```sql
-insert into public.coaches (email) values ('coach@example.com');
+insert into public.coaches (email, name, age_groups) values ('coach@example.com', 'Coach Name', array['U16']);
 ```
 
 The coach then signs out and back in on the app.
