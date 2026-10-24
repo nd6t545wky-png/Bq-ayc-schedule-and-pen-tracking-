@@ -3,7 +3,8 @@
  *
  * Paste this into Extensions → Apps Script of a new Google Sheet (the "control" sheet), then
  * follow docs/sheets-setup.md. It makes one spreadsheet per age group (U16, U18, AYWC, AWC) and
- * keeps them up to date every 5 minutes.
+ * keeps them up to date every 5 minutes. Each one is shared (view only) with the coaches of
+ * that age group and nobody else: anyone else who has access, players included, is removed.
  *
  * This script never needs changing when the app changes: the database decides which tabs and
  * columns exist (public.sheet_group), and new players, tabs and columns appear on their own.
@@ -73,7 +74,9 @@ function sync() {
     Object.keys(data.groups).forEach(age => {
       const id = groupSheetId(age);
       writeGroup(id, age, data.groups[age]);
+      const share = shareGroup(id, age, (data.viewers || {})[age] || []);
       lines.push([age, "https://docs.google.com/spreadsheets/d/" + id]);
+      lines.push(["", share]);
     });
     status([["Last update", new Date()]].concat(lines));
   } catch (e) {
@@ -82,6 +85,37 @@ function sync() {
   } finally {
     lock.releaseLock();
   }
+}
+
+// Shares the spreadsheet (view only) with exactly this age group's coaches. Anyone else with
+// access (players, coaches who were removed or moved to another group) is taken off. Runs when
+// the coach list changes, and re-checks hourly in case someone shared it by hand.
+function shareGroup(id, age, viewers) {
+  const p = props(), sigKey = "SHARE_" + age, checkKey = "SHARECHECK_" + age, noteKey = "SHARENOTE_" + age;
+  const want = viewers.map(v => String(v.email).toLowerCase());
+  const sig = JSON.stringify(want);
+  if (p.getProperty(sigKey) === sig && Date.now() - Number(p.getProperty(checkKey) || 0) < 3600 * 1000) return p.getProperty(noteKey) || "";
+
+  const file = DriveApp.getFileById(id);
+  const owner = String((file.getOwner() && file.getOwner().getEmail()) || "").toLowerCase();
+  const email = u => String(u.getEmail() || "").toLowerCase();
+  try { file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE); } catch (e) { /* some Workspace domains don't allow it */ }
+  file.setShareableByEditors(false);
+  file.getEditors().forEach(u => { const e = email(u); if (e && e !== owner) file.removeEditor(u); });   // coaches only ever view
+  file.getViewers().forEach(u => { const e = email(u); if (e && e !== owner && want.indexOf(e) < 0) file.removeViewer(u); });
+
+  const have = file.getViewers().map(email), shared = [], failed = [];
+  viewers.forEach(v => {
+    const e = String(v.email).toLowerCase();
+    if (e === owner || have.indexOf(e) >= 0) { shared.push(v.name); return; }
+    try { file.addViewer(e); shared.push(v.name); } catch (err) { failed.push(v.name); }
+  });
+  const note = (shared.length ? "Shared with: " + shared.join(", ") : "Not shared with any coach yet")
+    + (failed.length ? " · Couldn't share with: " + failed.join(", ") + " (their app email needs a Google account)" : "");
+  p.setProperty(sigKey, failed.length ? "" : sig);   // keep retrying anyone who couldn't be added
+  p.setProperty(checkKey, String(Date.now()));
+  p.setProperty(noteKey, note);
+  return note;
 }
 
 // The spreadsheet for an age group, made the first time it's needed.
@@ -161,7 +195,7 @@ function status(lines) {
   if (!props().getProperty("CONTROL_ID")) props().setProperty("CONTROL_ID", ss.getId());
   const sh = ss.getSheetByName("Status") || ss.insertSheet("Status", 0);
   sh.clearContents();
-  sh.getRange(1, 1, lines.length, 2).setValues(lines);
+  sh.getRange(1, 1, lines.length, 2).setValues(lines.map(l => [l[0], l[1] == null ? "" : l[1]]));
   sh.getRange(1, 1, lines.length, 1).setFontWeight("bold");
   sh.autoResizeColumns(1, 2);
 }
