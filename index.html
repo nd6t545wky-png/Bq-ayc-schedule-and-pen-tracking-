@@ -225,7 +225,8 @@ details.plist .dose{color:var(--muted)}
       <div class="row">
         <div><div class="label">Age group</div><div class="seg" id="w-age"><button data-v="U16">U16</button><button data-v="U18">U18</button><button data-v="AYWC">AYWC</button><button data-v="AWC">AWC</button></div></div>
       </div>
-      <div id="w-typewrap"><div class="label">This week's games</div><select id="w-type"></select></div>
+      <div id="w-typewrap"><div class="label">This week's games</div><select id="w-type"></select>
+        <div id="w-pitchwrap" hidden><div class="label" style="margin-top:10px">Pitched</div><div class="seg" id="w-pitch"></div></div></div>
       <div id="w-gpick" hidden>
         <div class="label">Games this week <span>· tap a day to add or remove a game</span></div>
         <div class="seg" id="w-gseg"></div>
@@ -560,11 +561,43 @@ const WEEKS = [
  {k:"ss1",n:"Saturday + Sunday games - pitched Saturday",d:{Sat:"game",Sun:"pos",Mon:"off",Tue:"lt",Wed:"pen",Thu:"rec",Fri:"rec"}},
  {k:"ss2",n:"Saturday + Sunday games - pitched Sunday",d:{Sat:"pos",Sun:"game",Mon:"off",Tue:"lt",Wed:"pen",Thu:"rec",Fri:"rec"}},
  {k:"ss3",n:"Saturday + Sunday games - did not pitch",d:{Sat:"pos",Sun:"pos",Mon:"off",Tue:"lt",Wed:"pen",Thu:"rec",Fri:"rec"}},
+ {k:"fss1",n:"Friday, Saturday + Sunday games - pitched Friday",d:{Fri:"game",Sat:"pos",Sun:"pos",Mon:"lt",Tue:"pen",Wed:"rec",Thu:"rec"}},
+ {k:"fss2",n:"Friday, Saturday + Sunday games - pitched Saturday",d:{Fri:"pos",Sat:"game",Sun:"pos",Mon:"off",Tue:"lt",Wed:"pen",Thu:"rec"}},
+ {k:"fss3",n:"Friday, Saturday + Sunday games - pitched Sunday",d:{Fri:"pospen",Sat:"pos",Sun:"game",Mon:"off",Tue:"rec",Wed:"lt",Thu:"rec"}},
+ {k:"fss4",n:"Friday, Saturday + Sunday games - did not pitch",d:{Fri:"pospen",Sat:"pos",Sun:"pos",Mon:"off",Tue:"lt",Wed:"pen",Thu:"rec"}},
 ];
+// What the week picker offers: which days have games, then (for more than one) which one they pitched.
+const GAME_SETS = [
+  {k:"sat", n:"Saturday game", days:["Sat"]},
+  {k:"fs", n:"Friday + Sunday games", days:["Fri","Sun"]},
+  {k:"ss", n:"Saturday + Sunday games", days:["Sat","Sun"]},
+  {k:"fss", n:"Friday, Saturday + Sunday games", days:["Fri","Sat","Sun"]},
+];
+function weekPattern(set, pitch){
+  if (set==="sat") return "sat";
+  const g = GAME_SETS.find(x=>x.k===set), i = g.days.indexOf(pitch);
+  return set + (i>=0 ? i+1 : g.days.length+1);
+}
+// devices that picked one of the old options
+const OLD_WEEKS = {fri:["fs","Fri"], sun:["ss","Sun"], fs1:["fs","Fri"], fs2:["fs","Sun"], fs3:["fs","none"], ss1:["ss","Sat"], ss2:["ss","Sun"], ss3:["ss","none"]};
 // From 7 Dec 2026 (after the GBL break) U16/U18 weeks start as a no-games week and are
 // rebuilt around the games added for each player, depending on whether they pitched.
 const GAME_WEEK_FROM = "2026-12-07", GAME_WEEK_AGES = ["U16","U18"];
 const BASE_WEEK = {Mon:"rec", Tue:"lt", Wed:"pen", Thu:"rec", Fri:"light", Sat:"rec", Sun:"off"};
+// U16 throw their bullpen on Thursday (a BQ training day), with the low-intent day before it
+const BASE_WEEK_U16 = {Mon:"rec", Tue:"rec", Wed:"lt", Thu:"pen", Fri:"rec", Sat:"light", Sun:"off"};
+const baseWeek = age => age==="U16" ? BASE_WEEK_U16 : BASE_WEEK;
+// where a full bullpen goes when its usual day can't be used, best first
+const penOrder = age => age==="U16" ? ["Thu","Wed","Tue","Fri","Mon","Sat"] : ["Wed","Tue","Thu","Mon","Fri","Sat"];
+// Moves a single-game week's bullpen to Thursday for U16. Not when they pitch on Friday:
+// no bullpen the day before a start, so that week keeps its earlier bullpen.
+function u16Thursday(d){
+  if (d.Fri==="game" || d.Thu==="game") return d;
+  const out = Object.assign({}, d);
+  DAYS.forEach(([k])=>{ if (out[k]==="pen" || out[k]==="lt") out[k] = "rec"; if (out[k]==="pospen") out[k] = "pos"; });
+  out.Wed = "lt"; out.Thu = "pen";
+  return out;
+}
 const BQ_DAYS = {U16:["Mon","Thu"], U18:["Mon","Wed"], AYWC:[], AWC:[]};
 const DAYS = [["Mon","Monday"],["Tue","Tuesday"],["Wed","Wednesday"],["Thu","Thursday"],["Fri","Friday"],["Sat","Saturday"],["Sun","Sunday"]];
 const RECOVERY = [["T spine levered extension over foam roll","1-2 min"],["Thoracic spine windmills","15 each direction"],["Lat/triceps long head stretch at wall","45 s"],["Pec minor release w/ active ER","2 min"],["Single arm pec stretch","1 min"],["Infraspinatus/teres minor self mobilization","2 min"],["Biceps tack and pump","2 min"],["Levator scap elongation","3 s each direction"],["Foam roll levered 90/90 to Y's","12 slides"]];
@@ -801,7 +834,8 @@ function athleteGames(athlete){
   return out;
 }
 // -> {types:{Mon:"rec",...}, unavailable:{date:previousOutingDate}}
-function buildGameWeek(dates, games){
+function buildGameWeek(dates, games, age){
+  const BASE = baseWeek(age);
   // outings that count, oldest first, looking back far enough to catch down days that spill into Monday
   const counted = [], unavailable = {};
   Object.keys(games).filter(d=>d>=addDays(dates.Mon,-2) && d<=dates.Sun && games[d].pitched).sort().forEach(d=>{
@@ -814,7 +848,7 @@ function buildGameWeek(dates, games){
   DAYS.forEach(([k])=>{ const dt = dates[k];
     if (games[dt]){ types[k] = "game"; fixed[k] = true; }
     else if (down[dt]){ types[k] = down[dt]; fixed[k] = true; }
-    else types[k] = BASE_WEEK[k];
+    else types[k] = BASE[k];
   });
   const pitched = counted.some(d=>d>=dates.Mon && d<=dates.Sun);
   const penDay = DAYS.map(([k])=>k).find(k=>types[k]==="pen");
@@ -823,8 +857,18 @@ function buildGameWeek(dates, games){
     // keep the full bullpen, but never on a game day, a down day or the day before a game
     const ok = k => !fixed[k] && k!=="Sun" && !games[addDays(dates[k],1)];
     if (!penDay || !ok(penDay)){
-      const to = ["Wed","Tue","Thu","Mon","Fri","Sat"].find(ok);
-      if (to){ if (penDay) types[penDay] = types[to]==="pen" ? BASE_WEEK[penDay] : types[to]; types[to] = "pen"; }
+      const to = penOrder(age).find(ok);
+      if (to){
+        if (penDay) types[penDay] = types[to]==="pen" ? BASE[penDay] : types[to];
+        types[to] = "pen";
+        // U16: keep the order low intent → bullpen → recovery around the moved bullpen
+        if (age==="U16"){
+          const i = DAYS.findIndex(([k])=>k===to), prev = i>0 && DAYS[i-1][0], next = i<6 && DAYS[i+1][0];
+          DAYS.forEach(([k])=>{ if (!fixed[k] && types[k]==="lt") types[k] = "rec"; });
+          if (prev && !fixed[prev] && types[prev]==="rec") types[prev] = "lt";
+          if (next && !fixed[next] && types[next]==="lt") types[next] = "rec";
+        }
+      }
     }
   }
   return {types, unavailable};
@@ -971,11 +1015,15 @@ $("team-tbl").addEventListener("click", e=>{
 function curAthlete(){ return role==="player" ? playerName : $("w-ath").value.trim(); }
 
 // ---------- schedule view ----------
-let weekKey = "sat", schedWeek = 0; // 0 = this week, -1 = last week (to fill in weekend games and check-ins afterwards)
-try{ weekKey = localStorage.getItem("bqpen.week") || "sat"; }catch(e){}
-$("w-type").innerHTML = WEEKS.map(w=>`<option value="${w.k}">${w.n}</option>`).join("");
+let weekKey = "sat", pitchKey = "none", schedWeek = 0; // 0 = this week, -1 = last week (to fill in weekend games and check-ins afterwards)
+try{ weekKey = localStorage.getItem("bqpen.week") || "sat"; pitchKey = localStorage.getItem("bqpen.pitch") || "none"; }catch(e){}
+if (OLD_WEEKS[weekKey]) [weekKey, pitchKey] = OLD_WEEKS[weekKey];
+if (!GAME_SETS.some(x=>x.k===weekKey)) weekKey = "sat";
+function saveWeekPick(){ try{ localStorage.setItem("bqpen.week", weekKey); localStorage.setItem("bqpen.pitch", pitchKey); }catch(e){} }
+$("w-type").innerHTML = GAME_SETS.map(w=>`<option value="${w.k}">${w.n}</option>`).join("");
 $("w-type").value = weekKey;
-$("w-type").addEventListener("change", ()=>{ weekKey = $("w-type").value; try{ localStorage.setItem("bqpen.week", weekKey); }catch(e){} renderWeek(); });
+$("w-type").addEventListener("change", ()=>{ weekKey = $("w-type").value; saveWeekPick(); renderWeek(); });
+$("w-pitch").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; pitchKey = b.dataset.v; saveWeekPick(); renderWeek(); });
 function renderWeek(){
   $("w-age").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===setup.age));
   const bq = BQ_DAYS[setup.age] || [];
@@ -984,8 +1032,18 @@ function renderWeek(){
   const dates = weekDates(schedWeek), todayDate = localDate();
   const built = usesGameWeeks(setup.age, dates.Mon);
   const games = built && ath ? athleteGames(ath) : {};
-  const plan = built ? buildGameWeek(dates, games) : null;
-  const w = built ? {d: plan.types} : (WEEKS.find(x=>x.k===weekKey) || WEEKS[1]);
+  const plan = built ? buildGameWeek(dates, games, setup.age) : null;
+  const set = GAME_SETS.find(x=>x.k===weekKey) || GAME_SETS[0];
+  if (pitchKey!=="none" && !set.days.includes(pitchKey)) pitchKey = "none";
+  $("w-pitchwrap").hidden = built || set.days.length < 2;
+  $("w-pitch").innerHTML = set.days.map(d=>[d, d]).concat([["none","Didn't pitch"]])
+    .map(([v,l])=>`<button type="button" data-v="${v}" class="${pitchKey===v?'on':''}">${l}</button>`).join("");
+  const pattern = WEEKS.find(x=>x.k===weekPattern(set.k, pitchKey)) || WEEKS[1];
+  const w = built ? {d: plan.types} : {d: setup.age==="U16" ? u16Thursday(pattern.d) : pattern.d};
+  const penAt = DAYS.map(([k])=>k).find(k=>w.d[k]==="pen");
+  const penNote = setup.age!=="U16" || penAt==="Thu" ? (setup.age==="U16" ? " Bullpen on Thursday." : "")
+    : !penAt ? " No full bullpen this week because of pitching in a game."
+    : " Bullpen moved to "+DAYS.find(([k])=>k===penAt)[1]+" this week: "+(w.d.Fri==="game" ? "no bullpen the day before a game." : w.d.Thu==="game" ? "Thursday is a game day." : "Thursday is a recovery day after pitching.");
   $("w-typewrap").hidden = built; $("w-gpick").hidden = !built;
   if (built){
     $("w-gseg").innerHTML = DAYS.map(([d])=>{ const g = games[dates[d]];
@@ -994,7 +1052,7 @@ function renderWeek(){
       : "Pitched: the next two days are a tolerance throw then a light bullpen, and there's no full bullpen that week. Not used: the full bullpen stays, moved off the day before a game.";
   }
   $("w-wk").querySelectorAll("button").forEach(b=>b.classList.toggle("on", +b.dataset.v===schedWeek));
-  $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+". Tissue prep, bands and recovery every day except the no-throw day.";
+  $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+"."+penNote+" Tissue prep, bands and recovery every day except the no-throw day.";
   $("w-days").innerHTML = DAYS.map(([d,full])=>{
     const t = w.d[d], T = DAYTYPES[t], dayLabel = `<div class="dayname">${full}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>`;
     const label = bq.includes(d) ? `<span class="tag bq">BQ training</span>` : t==="off" ? `<span class="tag off">Day off</span>` : `<span class="tag">On own</span>`;

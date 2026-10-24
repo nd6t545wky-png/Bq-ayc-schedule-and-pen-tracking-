@@ -57,6 +57,8 @@ Games are saved per player and synced, so the player sees the week the coach set
 
 **Live spreadsheets.** One Google Sheet per age group (Players, Season, Arm check-ins, Bullpens, Pitches, Games, Hitting games, At-bats), players A to Z, updating every 5 minutes; new players and new data fields show up on their own. The owner makes an export key in the app (Bullpens → Coaches → Live spreadsheets) and sets it up once with [docs/sheets-setup.md](docs/sheets-setup.md). Each sheet is shared view-only with that age group's coaches and nobody else; no email addresses appear in the sheets.
 
+**Weekly games.** Pick this week's games (Saturday; Friday + Sunday; Saturday + Sunday; Friday, Saturday + Sunday) and, with more than one game, which one they pitched. **U16 throw their bullpen on Thursday** (a BQ training day) with a low-intent day on Wednesday; the one exception is a week they pitch on Friday, when the bullpen stays earlier in the week (no bullpen the day before a start), and the app says why. From 7 December the same Thursday rule applies to U16 game-built weeks.
+
 **Start date.** Each player's schedule starts the day their account joined the team: earlier days show as "Before joining" and the only thing that can be filled in on them is a game played that day (This week or Last week), and the team table leaves those days blank. Athletes a coach enters without an account have no start date.
 
 Coaches see every player's scores in **Team arm check-ins** at the top of the Throwing week tab (this week or last week). Scores of 4 or lower, or a drop of 3 or more, are flagged in red and listed under "to follow up".
