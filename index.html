@@ -348,6 +348,10 @@ details.plist .dose{color:var(--muted)}
         <h2 style="margin-top:8px">Coaches</h2>
         <div class="pen-desc">Only you see this list. Tap an age group to give or take away access; a coach only sees athletes in their groups. New coaches start with none.</div>
         <div class="hist" id="c-list"></div>
+        <h2 style="margin-top:8px">Live spreadsheets</h2>
+        <div class="pen-desc">One Google Sheet per age group (U16, U18, AYWC, AWC), players A to Z, updating every 5 minutes. Set up once with <a href="https://github.com/nd6t545wky-png/Bq-ayc-schedule-and-pen-tracking-/blob/main/docs/sheets-setup.md" target="_blank" rel="noopener">these steps</a>, using an export key from here. A new key stops the old one working.</div>
+        <div id="sk-box" class="codebox" hidden><div><div class="lbl">Export key · shown once, paste it into the sheet now</div><div class="code" id="sk-key" style="font-size:14px;letter-spacing:0;overflow-wrap:anywhere"></div></div><button class="small" id="sk-copy">Copy</button></div>
+        <button id="sk-new" style="margin-top:8px">Make export key</button>
       </div>
     </div>
   </section>
@@ -687,7 +691,7 @@ const isHitter = name => { const a = athleteDocs[slug(name||"")]; return !!a && 
 const hitId = (athlete, date) => slug(athlete)+"_"+date;
 function getHit(athlete, date){ const id = hitId(athlete, date); return outbox().hits[id] || hitDocs[id] || null; }
 function athleteHits(athlete){ const s = slug(athlete); return Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && slug(h.athlete)===s).sort((a,b)=>b.date.localeCompare(a.date)); }
-function saveHit(body){ body.updatedAt = Date.now(); hitDocs[body.id] = body; const ob = outbox(); ob.hits[body.id] = body; saveOutbox(ob); flush(); }
+function saveHit(body){ body.updatedAt = Date.now(); body.summary = hitSummary(body.pas||[]); hitDocs[body.id] = body; const ob = outbox(); ob.hits[body.id] = body; saveOutbox(ob); flush(); }
 function hitStats(pas){
   const t = {pa:0,ab:0,h:0,tb:0,bb:0,hbp:0,k:0,sf:0,sh:0,bip:0,hard:0,rbi:0,xbh:0,ab2:0,h2:0};
   pas.forEach(p=>{ const c = (HR_BY[p.res]||[])[2] || {}; t.pa++; for (const k in c) t[k] += c[k];
@@ -913,6 +917,7 @@ function readGameForm(box, athlete, date){
   return {game: out};
 }
 function saveGame(body){
+  body.summary = gameSummary(body);
   gameDocs[body.id] = body;
   const ob = outbox(); ob.games[body.id] = body; ob.gdel = ob.gdel.filter(id=>id!==body.id); saveOutbox(ob); flush();
 }
@@ -1514,9 +1519,30 @@ function saveOutbox(o){ lsSet("bqpen.outbox", o); }
 function pendingCount(o){ o = o||outbox(); return Object.keys(o.pens).length + Object.keys(o.athletes).length + Object.keys(o.checkins).length + Object.keys(o.games).length + o.gdel.length + Object.keys(o.hits).length + o.del.length; }
 serverPens = lsGet("bqpen.cache", []);
 
+// The live spreadsheets read these summaries, so they always match what the app shows.
+function penSummary(r){
+  try{
+    const st = computeStats(r), [ok, target] = evaluate(r, st), opt = v => v==null ? null : Math.round(v*100);
+    return {pitches:st.n, strikePct:pct(st.strikes,st.n), hitZonePct:pct(st.hit,st.n), points:st.pts, maxPoints:st.max, offspeedPct:pct(st.os,st.n),
+      gatePct:opt(st.gatePct), shapePct:opt(st.shapePct), hittersWon:st.hitters ? st.wins+"/"+st.hitters : null,
+      targetMet: ok==null ? null : ok ? "Yes" : "No", target};
+  }catch(e){ return null; }
+}
+function gameSummary(g){
+  const n = v => v==null || v==="" ? null : +v, P = n(g.pitches), S = n(g.strikes), outs = ipOuts(g.ip), max = PITCH_MAX[athleteAge(g.athlete)];
+  const r = (a,b,d) => a!=null && b ? +(a/b).toFixed(d) : null;
+  return {strikePct: P && S!=null ? Math.round(100*S/P) : null, fpsPct: n(g.bf) && n(g.fps)!=null ? Math.round(100*n(g.fps)/n(g.bf)) : null,
+    whip: outs && (g.bb!=null || g.h!=null) ? r(((n(g.bb)||0)+(n(g.h)||0))*3, outs, 2) : null, pitchesPerInning: P!=null ? r(P*3, outs, 1) : null,
+    restDays: max && P!=null ? restDays(P) : null, overMax: max && P!=null ? (P>max ? "Yes" : "No") : null};
+}
+function hitSummary(pas){
+  const t = hitStats(pas), c = code => pas.filter(p=>p.res===code).length, r3 = v => v==null ? null : +v.toFixed(3);
+  return {line: gameLine(pas), pa:t.pa, ab:t.ab, h:t.h, doubles:c("2B"), triples:c("3B"), hr:c("HR"), bb:t.bb, hbp:t.hbp, k:t.k, rbi:t.rbi,
+    avg:r3(t.avg), obp:r3(t.obp), slg:r3(t.slg), hardPct: t.hardp==null ? null : Math.round(t.hardp*100)};
+}
 function queueSave(){
   if (!pen) return;
-  const body = JSON.parse(JSON.stringify(pen)); body.updatedAt = Date.now();
+  const body = JSON.parse(JSON.stringify(pen)); body.updatedAt = Date.now(); body.summary = penSummary(body);
   const ob = outbox(); ob.pens[pen.id] = body; saveOutbox(ob);
   rebuildHist(); flush();
 }
@@ -1787,6 +1813,19 @@ $("c-list").addEventListener("click", async e=>{
   if (error){ pmsg("Couldn't remove. Check your connection."); return; }
   pmsg("Coach removed.", false); loadCoaches();
 });
+$("sk-new").addEventListener("click", async e=>{
+  const b = e.currentTarget;
+  if (b.dataset.armed!=="1"){ b.dataset.armed = "1"; b.textContent = "Tap again: any old key stops working"; return; }
+  b.dataset.armed = ""; b.textContent = "Make export key";
+  const {data, error} = await sb.rpc("new_sheet_key");
+  if (error || !data){ pmsg("Couldn't make a key. Check your connection."); return; }
+  $("sk-key").textContent = data; $("sk-box").hidden = false;
+});
+$("sk-copy").addEventListener("click", async e=>{
+  const c = e.currentTarget;
+  try{ await navigator.clipboard.writeText($("sk-key").textContent); c.textContent = "Copied"; }catch(_){ c.textContent = "Copy failed"; }
+  setTimeout(()=>{ c.textContent = "Copy"; }, 1500);
+});
 $("c-list").addEventListener("change", e=>{
   const i = e.target.closest("input[data-cn]"); if (!i) return;
   const name = i.value.trim(); if (name) saveCoach(i.dataset.cn, {name});
@@ -1900,6 +1939,7 @@ $("acct-reset").addEventListener("submit", async e=>{
 }
 $("a-out").addEventListener("click", async ()=>{
   recovering = false; autoJoinTried = false; await sb.auth.signOut(); msg("");
+  $("sk-key").textContent = ""; $("sk-box").hidden = true;
   // shared phones: drop the signed-in person's synced data from this device
   ["bqpen.cache","bqpen.checkins","bqpen.athletes","bqpen.games","bqpen.hits","bqpen.joined"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
   serverPens = []; checkinDocs = {}; athleteDocs = {}; joinDates = {}; gameDocs = {}; hitDocs = {}; hitSeasonFor = null; rebuildHist(); renderWeek();
