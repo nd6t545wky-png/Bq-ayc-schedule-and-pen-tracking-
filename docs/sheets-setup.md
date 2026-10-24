@@ -36,13 +36,22 @@ You set this up once, in about 10 minutes, on a computer.
 2. **BQ sync → 2. Start live sync**.
 3. The **Status** tab now lists a link for each age group's spreadsheet. They're in your Google Drive as `BQ Weekly – U16` and so on.
 
-## Sharing with coaches
+## Sharing (automatic)
 
-Share an age group's spreadsheet the usual way (**Share** button), as **Viewer**, with that group's coaches. Don't share the control sheet: its script holds the export key.
+Each age group's spreadsheet is shared **view only** with exactly the coaches you've given that age group in the app (Bullpens → Coaches), using the email they signed up with. Nobody else gets in:
+- Players are never given access.
+- Anyone else who has access is removed within the hour, including someone shared by hand, a coach you've removed, or a coach moved to a different age group.
+- Link sharing is kept off.
+
+When you change a coach's age groups in the app, their access changes on the next update.
+
+The **Status** tab shows who each spreadsheet is shared with, by name. A coach's email must be a Google account (Gmail, or a work email registered with Google) to open a Google Sheet. If it isn't, the Status tab says "Couldn't share with" that coach. Ask them to create a free Google account with that same email at <https://accounts.google.com/signup/v2/webcreateaccount?flowName=GlifWebSignIn&flowEntry=SignUp> (choose **Use my current email address instead**). It's retried automatically.
+
+Don't share the control sheet: its script holds the export key.
 
 ## Good to know
 
 - **Refresh now** (BQ sync menu) updates straight away and rewrites every tab.
 - **Stop live sync** pauses the updates. The data stays.
-- Editing cells in the age-group sheets is pointless: the next update replaces them. Build your own charts or notes in a separate tab. Tabs you add yourself are left alone.
+- Coaches can only view. Editing cells in the age-group sheets is pointless: the next update replaces them. Build your own charts or notes in a separate tab. Tabs you add yourself are left alone.
 - **If the Status tab says "Key not accepted"**: make a new key in the app, then **BQ sync → 1. Set export key** again.
