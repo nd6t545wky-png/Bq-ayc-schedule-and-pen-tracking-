@@ -123,6 +123,16 @@ button:disabled{opacity:.35;cursor:default}
 .zbadge b{display:block;font-family:var(--display);font-size:28px;text-transform:none}
 .zonebox{display:flex;justify-content:center}
 .zsvg{width:100%;max-width:380px;height:auto;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+/* iPad landscape and laptops: live pen in two columns (zone left, call and stats right) so nothing scrolls mid-pen */
+@media (min-width:900px) and (orientation:landscape){
+  #v-live:not([hidden]){display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-areas:"zone head" "zone stats" "zone types";align-items:start;max-width:1100px}
+  .wrap:has(>#v-live:not([hidden])){max-width:1100px}
+  #v-live>.card:first-child{grid-area:head}
+  #v-live>.card:nth-child(2){grid-area:zone;position:sticky;top:8px}
+  #v-live>#l-stats{grid-area:stats}
+  #v-live>#l-typecard{grid-area:types}
+  #v-live .zsvg{max-height:calc(100vh - 290px);min-height:300px}
+}
 .zsvg .cell{fill:var(--zone-fill);stroke:var(--ink);stroke-opacity:.35;stroke-width:1;cursor:pointer}
 .zsvg .chase{fill:var(--shadow);stroke:var(--muted);stroke-dasharray:4 4;stroke-width:1;cursor:pointer}
 .zsvg .off{fill:transparent;cursor:pointer}
