@@ -37,7 +37,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.35;letter-spacing:-.01em;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px 48px}
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px calc(96px + env(safe-area-inset-bottom,0px))}
 .wrap{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
 .wrap .wrap{width:100%;max-width:none;margin:0}
 header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding-top:8px;padding-bottom:12px;border-bottom:2px solid var(--gold)}
@@ -64,9 +64,18 @@ button:disabled{opacity:.35;cursor:default}
 .seg,.checklist{display:flex;flex-wrap:wrap;gap:6px}
 .seg button,.checklist button{flex:1 1 auto;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;min-height:44px;padding:9px 12px;font-weight:600;font-size:16px}
 .seg button.on,.checklist button.on{background:var(--maroon);border-color:var(--maroon);color:var(--maroon-ink)}
-.tabs{display:flex;gap:4px;background:var(--surface);border-radius:12px;padding:4px}
-.tabs button{flex:1 1 0;min-width:0;padding:6px 4px;background:transparent;color:var(--ink);min-height:40px;font-family:var(--display);font-size:16px;font-weight:600;letter-spacing:.02em;line-height:1.1}
+/* tab bar fixed to the bottom of the screen, icon above each label */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;gap:4px;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 14px var(--shadow);
+  padding:6px max(8px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
+.tabs button{flex:1 1 0;max-width:160px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 2px;background:transparent;color:var(--muted);min-height:54px;border-radius:12px;font-family:var(--display);font-size:13px;font-weight:600;letter-spacing:.03em;line-height:1.1}
+.tabs button svg{width:24px;height:24px;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .tabs button.on{background:var(--maroon);color:var(--maroon-ink)}
+.tabs button span{display:block;max-height:16px;overflow:hidden}
+/* scrolling down folds the labels away; scrolling up (or reaching the top) brings them back */
+.tabs.mini{padding-top:4px;padding-bottom:calc(4px + env(safe-area-inset-bottom,0px))}
+.tabs.mini button{min-height:40px;padding:4px 2px;gap:0}
+.tabs.mini button span{max-height:0;opacity:0}
+@media (prefers-reduced-motion:no-preference){.tabs,.tabs button{transition:padding .2s ease,min-height .2s ease,gap .2s ease,background .15s ease}.tabs button span{transition:max-height .2s ease,opacity .15s ease}}
 .pen-desc{font-size:15px;color:var(--muted)}
 .hist{display:flex;flex-direction:column;margin:0 -16px}
 .hist button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;text-align:left;border-radius:0;background:transparent;color:var(--ink);padding:11px 16px;position:relative}
@@ -218,7 +227,12 @@ details.plist .dose{color:var(--muted)}
     <div><h1>BQ Weekly Schedule and Tracking</h1><div class="sub">Throwing week, bullpens, games and hitting</div></div>
   </header>
 
-  <nav class="tabs" id="tabs"><button data-t="sched" class="on">Throwing week</button><button data-t="pens">Bullpens</button><button data-t="hit" id="tab-hit">Hitting</button><button data-t="acct" id="tab-acct">Account</button></nav>
+  <nav class="tabs" id="tabs">
+    <button data-t="sched" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M7.5 14h2M11 14h2M14.5 14h2M7.5 17.2h2M11 17.2h2"/></svg><span>Throwing week</span></button>
+    <button data-t="pens"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-25 12 12)"><circle cx="12" cy="12" r="9.2"/><path style="stroke-width:1.4" d="M6.6 4.9c2.3 2 3.2 4.4 3.2 7.1s-.9 5.1-3.2 7.1M17.4 4.9c-2.3 2-3.2 4.4-3.2 7.1s.9 5.1 3.2 7.1"/><path style="stroke-width:1.1;stroke-linecap:butt" d="M7.38 7.35L9.48 6.65M8.39 9.68L10.49 8.98M8.75 12.00L10.85 12.00M8.39 14.32L10.49 15.02M7.38 16.65L9.48 17.35M14.52 6.65L16.62 7.35M13.51 8.98L15.61 9.68M13.15 12.00L15.25 12.00M13.51 15.02L15.61 14.32M14.52 17.35L16.62 16.65"/></g></svg><span>Bullpens</span></button>
+    <button data-t="hit" id="tab-hit"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(3.95 20.05) rotate(-45)" style="fill:currentColor;stroke:none"><path d="M1.8-.62 9-.78c3-.12 4.6-1.05 7.2-1.15l4.6-.05a2 2 0 0 1 0 4l-4.6-.05c-2.6-.1-4.2-1.03-7.2-1.15L1.8.62z"/><circle cx="1.05" r="1.35"/></g></svg><span>Hitting</span></button>
+    <button data-t="acct" id="tab-acct"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="3.9"/><path d="M4.5 20.2c.6-3.9 3.8-6.4 7.5-6.4s6.9 2.5 7.5 6.4"/></svg><span>Account</span></button>
+  </nav>
   <div class="notice" id="acct-nudge" hidden><span id="acct-nudge-t"></span> <button class="small" id="acct-nudge-go">Open Account</button></div>
 
   <!-- SCHEDULE -->
@@ -1227,7 +1241,21 @@ function setTab(t){
   if (t==="acct") return;
   if (t==="sched") renderWeek();
   if (t==="hit"){ if (role!=="player" && !$("h-ath").value) $("h-ath").value = $("w-ath").value; renderHit(); }
-  else if ($("v-live").hidden && $("v-sum").hidden) $("v-setup").hidden = false;
+  else if (t==="pens" && $("v-live").hidden && $("v-sum").hidden) $("v-setup").hidden = false;
+}
+{
+  let lastY = window.scrollY, ticking = false;
+  window.addEventListener("scroll", ()=>{
+    if (ticking) return; ticking = true;
+    requestAnimationFrame(()=>{
+      const y = window.scrollY, d = y - lastY;
+      if (y < 40) $("tabs").classList.remove("mini");
+      else if (d > 6) $("tabs").classList.add("mini");
+      else if (d < -6) $("tabs").classList.remove("mini");
+      if (Math.abs(d) > 6 || y < 40) lastY = y;
+      ticking = false;
+    });
+  }, {passive:true});
 }
 $("tabs").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return;
   if (b.dataset.t==="pens" && pen && pen.status==="live" && live){ setTab("pens"); show("v-live"); return; }
