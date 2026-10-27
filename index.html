@@ -193,8 +193,7 @@ button:disabled{opacity:.35;cursor:default}
 .tag.pen{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn)}
 .tag.bq{background:var(--maroon);color:var(--gold)}
 .tag.ev{background:color-mix(in srgb,var(--gold) 22%,transparent);color:var(--ink)}
-.cal{display:flex;flex-direction:column;gap:2px;margin-top:8px}.cal .mo{font-weight:700;margin:8px 0 2px}
-.cal .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0}.cal .row.past{opacity:.45}.cal .row.now{font-weight:700}
+
 .items{display:grid;grid-template-columns:84px minmax(0,1fr);gap:0;font-size:15px;margin:0}
 .items dt,.items dd{padding:8px 0;border-top:.5px solid var(--line)}
 .items dt{color:var(--muted)}
@@ -248,7 +247,6 @@ details.plist .dose{color:var(--muted)}
       <div class="pen-desc">Before → after for each day. Red: arm score 4 or lower, or a drop of 3 or more. Tap a player to open their week below.</div>
     </div>
     <div class="days" id="w-days"></div>
-    <details class="card plist" id="w-cal"><summary id="w-calsum">Season calendar</summary><div class="cal" id="w-callist"></div></details>
   </section>
 
   <!-- HITTING -->
@@ -647,6 +645,29 @@ const CAL = {
 };
 const calEvent = (age, date) => { const e = (CAL[age]||[]).find(x=>x[0]===date); return e ? {label:e[1], kind:e[2]} : null; };
 const inCal = date => date >= CAL_FROM && date <= CAL_TO;
+// What a calendar day does to the throwing plan: play days are game days, off days are no-throw,
+// travel days are recovery. Training sessions and other events leave the plan as it is.
+const PLAY_KINDS = ["game","tour","camp"];
+const calType = ev => !ev ? null : PLAY_KINDS.includes(ev.kind) ? "game" : ev.kind==="off" ? "off" : ev.kind==="travel" ? "rec" : null;
+// Single-game-week patterns: put the week's calendar days in, then make sure the bullpen
+// isn't on (or the day before) a game. Returns the moved-to day, if the bullpen had to move.
+function applyCal(types, dates, age){
+  const fixed = {}; let touched = false;
+  const penWas = DAYS.map(([k])=>k).find(k=>types[k]==="pen");
+  DAYS.forEach(([k])=>{ const t = calType(calEvent(age, dates[k])); if (!t) return;
+    types[k] = t==="game" ? "game2" : t; fixed[k] = true; touched = true; });
+  if (!touched) return null;
+  const playing = k => ["game","game2","pos","pospen"].includes(types[k]);
+  const next = k => { const i = DAYS.findIndex(([x])=>x===k); return i<6 ? DAYS[i+1][0] : null; };
+  if (!penWas) return null;                       // this week had no full bullpen to begin with
+  const penDay = types[penWas]==="pen" ? penWas : null;
+  if (penDay && !playing(next(penDay))) return null;
+  const ok = k => !fixed[k] && k!=="Sun" && ["rec","lt"].includes(types[k]) && !(next(k) && playing(next(k)));
+  const to = penOrder(age).find(ok);
+  if (penDay) types[penDay] = "rec";
+  if (to) types[to] = "pen";
+  return to || "none";
+}
 function calTag(ev){
   const cls = {train:"bq", game:"game", tour:"game", camp:"pen", off:"off"}[ev.kind] || "ev";
   return `<span class="tag ${cls}">${esc(ev.kind==="train" ? "BQ training · "+(ev.label==="TBA" ? "venue TBA" : ev.label) : ev.label)}</span>`;
@@ -886,8 +907,8 @@ function athleteGames(athlete){
   return out;
 }
 // -> {types:{Mon:"rec",...}, unavailable:{date:previousOutingDate}}
-function buildGameWeek(dates, games, age){
-  const BASE = baseWeek(age);
+function buildGameWeek(dates, games, age, forced){
+  const BASE = baseWeek(age); forced = forced || {};
   // outings that count, oldest first, looking back far enough to catch down days that spill into Monday
   const counted = [], unavailable = {};
   Object.keys(games).filter(d=>d>=addDays(dates.Mon,-2) && d<=dates.Sun && games[d].pitched).sort().forEach(d=>{
@@ -899,6 +920,7 @@ function buildGameWeek(dates, games, age){
   const types = {}, fixed = {};
   DAYS.forEach(([k])=>{ const dt = dates[k];
     if (games[dt]){ types[k] = "game"; fixed[k] = true; }
+    else if (forced[k]){ types[k] = forced[k]; fixed[k] = true; }   // calendar off / travel days
     else if (down[dt]){ types[k] = down[dt]; fixed[k] = true; }
     else types[k] = BASE[k];
   });
@@ -923,7 +945,7 @@ function buildGameWeek(dates, games, age){
       }
     }
   }
-  return {types, unavailable};
+  return {types, unavailable, pitched};
 }
 function canRemoveGame(date){ return role!=="player" || date >= localDate(); }
 function toggleGameDay(athlete, date){
@@ -1084,22 +1106,30 @@ function renderWeek(){
   const dates = weekDates(schedWeek), todayDate = localDate();
   const built = usesGameWeeks(setup.age, dates.Mon);
   const games = built && ath ? athleteGames(ath) : {};
-  const plan = built ? buildGameWeek(dates, games, setup.age) : null;
+  // calendar play days count as games (not pitched until marked); off / travel days are fixed
+  const calGame = {}, forced = {};
+  if (built) DAYS.forEach(([k])=>{ const t = calType(calEvent(setup.age, dates[k]));
+    if (t==="game"){ calGame[dates[k]] = true; if (!games[dates[k]]) games[dates[k]] = {date:dates[k], pitched:false, cal:true}; }
+    else if (t) forced[k] = t; });
+  const plan = built ? buildGameWeek(dates, games, setup.age, forced) : null;
   const set = GAME_SETS.find(x=>x.k===weekKey) || GAME_SETS[0];
   if (pitchKey!=="none" && !set.days.includes(pitchKey)) pitchKey = "none";
   $("w-pitchwrap").hidden = built || set.days.length < 2;
   $("w-pitch").innerHTML = set.days.map(d=>[d, d]).concat([["none","Didn't pitch"]])
     .map(([v,l])=>`<button type="button" data-v="${v}" class="${pitchKey===v?'on':''}">${l}</button>`).join("");
   const pattern = WEEKS.find(x=>x.k===weekPattern(set.k, pitchKey)) || WEEKS[1];
-  const w = built ? {d: plan.types} : {d: setup.age==="U16" ? u16Thursday(pattern.d) : pattern.d};
+  const w = built ? {d: plan.types} : {d: Object.assign({}, setup.age==="U16" ? u16Thursday(pattern.d) : pattern.d)};
+  const calMoved = built ? null : applyCal(w.d, dates, setup.age);
   const penAt = DAYS.map(([k])=>k).find(k=>w.d[k]==="pen");
-  const penNote = setup.age!=="U16" || penAt==="Thu" ? (setup.age==="U16" ? " Bullpen on Thursday." : "")
-    : !penAt ? " No full bullpen this week because of pitching in a game."
+  const penNote = calMoved==="none" ? " No full bullpen this week: the BQ schedule leaves no safe day for one."
+    : calMoved ? " Bullpen on "+DAYS.find(([k])=>k===calMoved)[1]+" this week to fit the BQ schedule."
+    : setup.age!=="U16" || penAt==="Thu" ? (setup.age==="U16" ? " Bullpen on Thursday." : "")
+    : !penAt ? (built && !plan.pitched ? " No full bullpen this week: no safe day around this week's games." : " No full bullpen this week because of pitching in a game.")
     : " Bullpen moved to "+DAYS.find(([k])=>k===penAt)[1]+" this week: "+(w.d.Fri==="game" ? "no bullpen the day before a game." : w.d.Thu==="game" ? "Thursday is a game day." : "Thursday is a recovery day after pitching.");
   $("w-typewrap").hidden = built; $("w-gpick").hidden = !built;
   if (built){
     $("w-gseg").innerHTML = DAYS.map(([d])=>{ const g = games[dates[d]];
-      return `<button type="button" data-gday="${dates[d]}" class="${g?'on':''}" ${!ath || (g && !canRemoveGame(dates[d])) ? "disabled" : ""}>${d}</button>`; }).join("");
+      return `<button type="button" data-gday="${dates[d]}" class="${g?'on':''}" ${!ath || calGame[dates[d]] || (g && !canRemoveGame(dates[d])) ? "disabled" : ""}>${d}</button>`; }).join("");
     $("w-gnote").textContent = !ath ? "Enter the athlete's name above to add their games."
       : "Pitched: the next two days are a tolerance throw then a light bullpen, and there's no full bullpen that week. Not used: the full bullpen stays, moved off the day before a game.";
   }
@@ -1115,7 +1145,8 @@ function renderWeek(){
     const recov = recProg ? progList("Recovery / mobility program (before or after throwing)", RECOVERY) : "";
     const btn = T.pen && role!=="player" ? `<button class="small" data-pen="${d}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
     let check = "", game = "";
-    if (built && t==="game"){
+    if (built && t==="game" && !ath) game = `<div class="glog"><button class="small" data-gneedath>Log this game</button></div>`;
+    else if (built && t==="game"){
       const g = games[dates[d]], un = plan.unavailable[dates[d]];
       game = `<div class="glog"><div class="q">Did ${esc(ath)} pitch?</div>
         <div class="seg" data-gp="${dates[d]}"><button type="button" data-v="0" class="${g.pitched?'':'on'}">Not used</button><button type="button" data-v="1" class="${g.pitched?'on':''}">Pitched</button></div>
@@ -1147,21 +1178,7 @@ function renderWeek(){
       ${arm}${recov}${btn}${game}${check}
     </div>`;
   }).join("");
-  renderTeam(); renderCal();
-}
-// the whole season for the selected age group, by month, with today's place in it
-function renderCal(){
-  const list = (CAL[setup.age]||[]).slice().sort((a,b)=>a[0].localeCompare(b[0])), today = localDate();
-  $("w-cal").hidden = !list.length; if (!list.length) return;
-  const next = list.find(e=>e[0]>=today), fmt = (d,o) => new Date(d+"T00:00:00").toLocaleDateString("en-AU", o);
-  $("w-calsum").textContent = "Season calendar · "+setup.age+(next ? " · next: "+fmt(next[0],{weekday:"short",day:"numeric",month:"short"})+" "+(next[2]==="train" ? "BQ training" : next[1]) : "");
-  let mo = "", h = "";
-  list.forEach(([d, label, kind])=>{
-    const m = fmt(d,{month:"long",year:"numeric"});
-    if (m!==mo){ mo = m; h += `<div class="mo">${m}</div>`; }
-    h += `<div class="row ${d<today?'past':''} ${next && d===next[0]?'now':''}"><span>${fmt(d,{weekday:"short",day:"numeric",month:"short"})}</span>${calTag({label, kind})}</div>`;
-  });
-  $("w-callist").innerHTML = h;
+  renderTeam();
 }
 $("w-gseg").addEventListener("click", e=>{
   const b = e.target.closest("button[data-gday]"); if (!b || b.disabled) return;
@@ -1171,7 +1188,8 @@ $("w-gseg").addEventListener("click", e=>{
 });
 $("w-days").addEventListener("click", e=>{
   const b = e.target.closest("[data-gp] button"); if (!b) return;
-  const ath = curAthlete(), date = b.parentElement.dataset.gp, g = athleteGames(ath)[date]; if (!g) return;
+  const ath = curAthlete(), date = b.parentElement.dataset.gp; if (!ath) return;
+  const g = athleteGames(ath)[date] || {id: checkinId(ath, date), athlete: ath.trim(), date};   // a calendar game not saved yet
   saveGame(Object.assign({}, g, {pitched: b.dataset.v==="1", updatedAt: Date.now()})); renderWeek();
 });
 $("w-wk").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; schedWeek = teamWeek = +b.dataset.v; gameEdit = null; renderWeek(); });
