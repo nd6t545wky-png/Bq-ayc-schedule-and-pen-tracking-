@@ -26,7 +26,7 @@ You set this up once, in about 10 minutes, on a computer.
 
 ## 2. Get an export key
 
-1. In the app, sign in as the owner, then go to **Bullpens → Coaches → Live spreadsheets → Make export key** (tap twice).
+1. In the app, sign in as the owner, then go to **Account → Coaches → Live spreadsheets → Make export key** (tap twice).
 2. Copy the key. It's only shown once. Making a new key later stops the old one working.
 
 ## 3. Connect
@@ -38,7 +38,7 @@ You set this up once, in about 10 minutes, on a computer.
 
 ## Sharing (automatic)
 
-Each age group's spreadsheet is shared **view only** with exactly the coaches you've given that age group in the app (Bullpens → Coaches), using the email they signed up with. Nobody else gets in:
+Each age group's spreadsheet is shared **view only** with exactly the coaches you've given that age group in the app (Account → Coaches), using the email they signed up with. Nobody else gets in:
 - Players are never given access.
 - Anyone else who has access is removed within the hour, including someone shared by hand, a coach you've removed, or a coach moved to a different age group.
 - Link sharing is kept off.

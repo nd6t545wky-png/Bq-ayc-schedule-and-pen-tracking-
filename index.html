@@ -64,8 +64,8 @@ button:disabled{opacity:.35;cursor:default}
 .seg,.checklist{display:flex;flex-wrap:wrap;gap:6px}
 .seg button,.checklist button{flex:1 1 auto;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;min-height:44px;padding:9px 12px;font-weight:600;font-size:16px}
 .seg button.on,.checklist button.on{background:var(--maroon);border-color:var(--maroon);color:var(--maroon-ink)}
-.tabs{display:flex;gap:6px;background:var(--surface);border-radius:12px;padding:4px}
-.tabs button{flex:1;background:transparent;color:var(--ink);min-height:40px;font-family:var(--display);font-size:18px;font-weight:600;letter-spacing:.03em}
+.tabs{display:flex;gap:4px;background:var(--surface);border-radius:12px;padding:4px}
+.tabs button{flex:1 1 0;min-width:0;padding:6px 4px;background:transparent;color:var(--ink);min-height:40px;font-family:var(--display);font-size:16px;font-weight:600;letter-spacing:.02em;line-height:1.1}
 .tabs button.on{background:var(--maroon);color:var(--maroon-ink)}
 .pen-desc{font-size:15px;color:var(--muted)}
 .hist{display:flex;flex-direction:column;margin:0 -16px}
@@ -218,7 +218,8 @@ details.plist .dose{color:var(--muted)}
     <div><h1>BQ Weekly Schedule and Tracking</h1><div class="sub">Throwing week, bullpens, games and hitting</div></div>
   </header>
 
-  <nav class="tabs" id="tabs"><button data-t="sched" class="on">Throwing week</button><button data-t="pens">Bullpens</button><button data-t="hit" id="tab-hit">Hitting</button></nav>
+  <nav class="tabs" id="tabs"><button data-t="sched" class="on">Throwing week</button><button data-t="pens">Bullpens</button><button data-t="hit" id="tab-hit">Hitting</button><button data-t="acct" id="tab-acct">Account</button></nav>
+  <div class="notice" id="acct-nudge" hidden><span id="acct-nudge-t"></span> <button class="small" id="acct-nudge-go">Open Account</button></div>
 
   <!-- SCHEDULE -->
   <section id="v-sched" class="wrap" style="gap:12px">
@@ -267,6 +268,39 @@ details.plist .dose{color:var(--muted)}
 
   <!-- SETUP -->
   <section id="v-setup" class="wrap" style="gap:16px" hidden>
+    <div class="card" id="newpen">
+      <h2>New pen</h2>
+      <div class="row">
+        <div><div class="label">Athlete</div><input id="f-ath" list="athletes" placeholder="Athlete name" autocomplete="off"><datalist id="athletes"></datalist></div>
+        <div><div class="label">Age group</div><div class="seg" id="f-age"><button data-v="U16">U16</button><button data-v="U18">U18</button><button data-v="AYWC">AYWC</button><button data-v="AWC">AWC</button></div></div>
+      </div>
+      <div class="row">
+        <div><div class="label">Throws</div><div class="seg" id="f-hand"><button data-v="R">RHP</button><button data-v="L">LHP</button></div></div>
+      </div>
+      <div><div class="label">Pitch mix <span style="text-transform:none;letter-spacing:0;font-family:var(--body);font-weight:400">· tap every pitch the athlete throws</span></div>
+        <div class="checklist" id="f-mix"></div>
+        <div class="pen-desc" id="mix-note"></div>
+      </div>
+      <div><div class="label">Pen</div>
+        <div class="checklist" id="f-fw">
+          <button data-v="base">Base sequence</button><button data-v="control">Full control</button><button data-v="cmd">Command</button><button data-v="tun">Tunneling</button><button data-v="des">Pitch design</button><button data-v="custom">Custom</button>
+        </div>
+      </div>
+      <div id="lvl-wrap"><div class="label">Level</div><div class="seg" id="f-lvl"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button></div></div>
+      <div id="des-wrap" hidden><div class="label">Design pitch</div><div class="checklist" id="f-des"></div></div>
+      <div class="pen-desc" id="pen-desc"></div>
+      <div><div class="label">Arm before the pen <span>· how does your arm feel?</span></div><div id="f-armb"></div></div>
+      <div class="notice" id="setup-err" hidden></div>
+      <button class="primary" id="start">Start pen</button>
+    </div>
+    <div class="card">
+      <h2 id="hist-title">Recent pens</h2>
+      <div class="hist" id="hist"><div class="empty">Saved pens show here. Start a pen above and every pitch is saved as you log it.</div></div>
+    </div>
+  </section>
+
+  <!-- ACCOUNT -->
+  <section id="v-acct" class="wrap" style="gap:16px" hidden>
     <div class="card" id="acct">
       <div id="acct-out">
         <h2>Sign in</h2>
@@ -307,35 +341,6 @@ details.plist .dose{color:var(--muted)}
       <div class="notice" id="cn-msg" hidden></div>
     </div>
     <div class="notice" id="no-groups" hidden>You're on the team as a coach. The team owner hasn't given you an age group yet, so there are no athletes to show. Ask them to add you to one.</div>
-    <div class="card" id="newpen">
-      <h2>New pen</h2>
-      <div class="row">
-        <div><div class="label">Athlete</div><input id="f-ath" list="athletes" placeholder="Athlete name" autocomplete="off"><datalist id="athletes"></datalist></div>
-        <div><div class="label">Age group</div><div class="seg" id="f-age"><button data-v="U16">U16</button><button data-v="U18">U18</button><button data-v="AYWC">AYWC</button><button data-v="AWC">AWC</button></div></div>
-      </div>
-      <div class="row">
-        <div><div class="label">Throws</div><div class="seg" id="f-hand"><button data-v="R">RHP</button><button data-v="L">LHP</button></div></div>
-      </div>
-      <div><div class="label">Pitch mix <span style="text-transform:none;letter-spacing:0;font-family:var(--body);font-weight:400">· tap every pitch the athlete throws</span></div>
-        <div class="checklist" id="f-mix"></div>
-        <div class="pen-desc" id="mix-note"></div>
-      </div>
-      <div><div class="label">Pen</div>
-        <div class="checklist" id="f-fw">
-          <button data-v="base">Base sequence</button><button data-v="control">Full control</button><button data-v="cmd">Command</button><button data-v="tun">Tunneling</button><button data-v="des">Pitch design</button><button data-v="custom">Custom</button>
-        </div>
-      </div>
-      <div id="lvl-wrap"><div class="label">Level</div><div class="seg" id="f-lvl"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button></div></div>
-      <div id="des-wrap" hidden><div class="label">Design pitch</div><div class="checklist" id="f-des"></div></div>
-      <div class="pen-desc" id="pen-desc"></div>
-      <div><div class="label">Arm before the pen <span>· how does your arm feel?</span></div><div id="f-armb"></div></div>
-      <div class="notice" id="setup-err" hidden></div>
-      <button class="primary" id="start">Start pen</button>
-    </div>
-    <div class="card">
-      <h2 id="hist-title">Recent pens</h2>
-      <div class="hist" id="hist"><div class="empty">Saved pens show here. Start a pen above and every pitch is saved as you log it.</div></div>
-    </div>
     <div class="card" id="players-card" hidden>
       <h2>Team codes</h2>
       <div class="pen-desc">Share these privately (e.g. the team group chat). People create an account on this site, confirm their email, then enter a code to join. Players only ever see their own data, never other players or coaches. Changing a code stops new sign-ups with the old one; people already on the team stay.</div>
@@ -1216,8 +1221,10 @@ let tab = "sched";
 function setTab(t){
   tab = t;
   $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t===t));
-  $("v-sched").hidden = t!=="sched"; $("v-hit").hidden = t!=="hit";
-  if (t==="sched" || t==="hit"){ ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden=true); }
+  $("v-sched").hidden = t!=="sched"; $("v-hit").hidden = t!=="hit"; $("v-acct").hidden = t!=="acct";
+  if (t!=="pens"){ ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden=true); }
+  renderNudge();
+  if (t==="acct") return;
   if (t==="sched") renderWeek();
   if (t==="hit"){ if (role!=="player" && !$("h-ath").value) $("h-ath").value = $("w-ath").value; renderHit(); }
   else if ($("v-live").hidden && $("v-sum").hidden) $("v-setup").hidden = false;
@@ -1377,7 +1384,7 @@ function openLive(){
   live = {def:curDef(), called:{p:null,z:null}, swung:false, gate:true, shape:true};
   show("v-live"); renderLive();
 }
-function show(id){ $("v-sched").hidden = true; $("v-hit").hidden = true; if (tab!=="pens"){ tab="pens"; $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t==="pens")); }
+function show(id){ $("v-sched").hidden = true; $("v-hit").hidden = true; $("v-acct").hidden = true; if (tab!=="pens"){ tab="pens"; $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t==="pens")); }
   ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden = v!==id); window.scrollTo(0,0); }
 
 function pitchChoices(){
@@ -1834,11 +1841,22 @@ function applyRole(){
   }
   renderWeek();
 }
+// points people at the Account tab while they still need to sign in, join, or get an age group
+function renderNudge(){
+  const t = !sb ? "" : !session ? "Sign in or create an account to save and sync."
+    : !role ? "Join your team with your team code."
+    : role==="coach" && coachInfo && !coachInfo.owner && !(coachInfo.age_groups||[]).length ? "You don't have an age group yet."
+    : role==="coach" && coachInfo && !coachInfo.name ? "Add your name so the team owner knows who you are." : "";
+  $("acct-nudge-t").textContent = t;
+  $("acct-nudge").hidden = !t || tab==="acct";
+}
+$("acct-nudge-go").addEventListener("click", ()=>setTab("acct"));
 function msg(t, warn){ const el = $("a-msg"); el.textContent = t; el.hidden = !t; el.className = warn===false ? "pen-desc" : "notice"; }
 function renderAcct(){
   const n = pendingCount();
   $("acct-out").hidden = !!session; $("acct-in").hidden = !session; $("acct-reset").hidden = !(session && recovering);
   if (!sb){ msg("Sync isn't available. Pens are kept on this phone."); return; }
+  renderNudge();
   if (!session) return;
   // never show the email address, even to its owner (screens get shared and screenshotted)
   $("a-who").textContent = role==="coach" ? (coachInfo.name || "Coach") : role==="player" ? playerName : "Signed in";
@@ -2096,7 +2114,7 @@ $("a-out").addEventListener("click", async ()=>{
 });
 if (sb){
   // supabase-js warns against awaiting its own calls inside this callback
-  sb.auth.onAuthStateChange((ev, s)=>{ session = s; if (ev==="PASSWORD_RECOVERY") recovering = true; setTimeout(afterAuth, 0); });
+  sb.auth.onAuthStateChange((ev, s)=>{ session = s; if (ev==="PASSWORD_RECOVERY"){ recovering = true; setTimeout(()=>setTab("acct"), 0); } setTimeout(afterAuth, 0); });
   window.addEventListener("online", flush);
   document.addEventListener("visibilitychange", ()=>{ if (!document.hidden){ flush(); scheduleReload(); } });
   setInterval(()=>{ if (pendingCount()) flush(); }, 30000);

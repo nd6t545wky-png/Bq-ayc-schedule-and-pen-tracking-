@@ -27,7 +27,7 @@ function onOpen() {
 
 function setKey() {
   const ui = SpreadsheetApp.getUi();
-  const r = ui.prompt("Export key", "Paste the key from the app (Bullpens → Coaches → Live spreadsheets).", ui.ButtonSet.OK_CANCEL);
+  const r = ui.prompt("Export key", "Paste the key from the app (Account → Coaches → Live spreadsheets).", ui.ButtonSet.OK_CANCEL);
   if (r.getSelectedButton() !== ui.Button.OK) return;
   const key = r.getResponseText().trim();
   if (!/^bqx_[A-Za-z0-9_-]{20,}$/.test(key)) { ui.alert("That doesn't look like an export key. It starts with bqx_."); return; }
