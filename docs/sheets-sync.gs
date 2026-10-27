@@ -71,11 +71,17 @@ function sync() {
     if (!data) { status([["Key not accepted", "Make a new key in the app and set it again (BQ sync → 1. Set export key)"]]); return; }
 
     const lines = [];
+    // each age group on its own, so a problem with one (or with sharing) never stops the others
     Object.keys(data.groups).forEach(age => {
-      const id = groupSheetId(age);
-      writeGroup(id, age, data.groups[age]);
-      const share = shareGroup(id, age, (data.viewers || {})[age] || []);
+      let id = "";
+      try {
+        id = groupSheetId(age);
+        writeGroup(id, age, data.groups[age]);
+      } catch (e) { lines.push([age, "Couldn't update: " + (e && e.message || e)]); return; }
       lines.push([age, "https://docs.google.com/spreadsheets/d/" + id]);
+      let share;
+      try { share = shareGroup(id, age, (data.viewers || {})[age] || []); }
+      catch (e) { share = "Couldn't change sharing: " + (e && e.message || e); }
       lines.push(["", share]);
     });
     status([["Last update", new Date()]].concat(lines));
@@ -96,11 +102,11 @@ function shareGroup(id, age, viewers) {
   const sig = JSON.stringify(want);
   if (p.getProperty(sigKey) === sig && Date.now() - Number(p.getProperty(checkKey) || 0) < 3600 * 1000) return p.getProperty(noteKey) || "";
 
-  const file = DriveApp.getFileById(id);
+  // Sharing goes through the spreadsheet itself (not Google Drive), so the script only ever
+  // needs permission for spreadsheets. New spreadsheets start private (no link sharing).
+  const file = SpreadsheetApp.openById(id);
   const owner = String((file.getOwner() && file.getOwner().getEmail()) || "").toLowerCase();
   const email = u => String(u.getEmail() || "").toLowerCase();
-  try { file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE); } catch (e) { /* some Workspace domains don't allow it */ }
-  file.setShareableByEditors(false);
   file.getEditors().forEach(u => { const e = email(u); if (e && e !== owner) file.removeEditor(u); });   // coaches only ever view
   file.getViewers().forEach(u => { const e = email(u); if (e && e !== owner && want.indexOf(e) < 0) file.removeViewer(u); });
 
@@ -122,7 +128,7 @@ function shareGroup(id, age, viewers) {
 function groupSheetId(age) {
   const p = props(), k = "SHEET_" + age;
   let id = p.getProperty(k);
-  if (id) { try { DriveApp.getFileById(id); return id; } catch (e) { /* deleted: make a new one */ } }
+  if (id) { try { SpreadsheetApp.openById(id); return id; } catch (e) { /* deleted: make a new one */ } }
   id = SpreadsheetApp.create("BQ Weekly – " + age).getId();
   p.setProperty(k, id);
   return id;
