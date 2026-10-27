@@ -263,7 +263,7 @@ details.plist .dose{color:var(--muted)}
       <div class="pen-desc" id="w-note"></div>
     </div>
     <div class="card" id="team" hidden>
-      <div class="livehead"><h2>Team arm check-ins</h2></div>
+      <div class="livehead"><h2 id="team-title">Team arm check-ins</h2></div>
       <div class="seg" id="team-wk"><button data-v="0" class="on">This week</button><button data-v="-1">Last week</button></div>
       <div id="team-flags"></div>
       <div id="team-games"></div>
@@ -919,7 +919,7 @@ function setAthleteType(name, type){
   athleteDocs[id] = body; const ob = outbox(); ob.athletes[id] = body; saveOutbox(ob); flush();
 }
 function renderTeamHits(dates){
-  const rows = Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && Object.values(dates).includes(h.date));
+  const rows = Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && Object.values(dates).includes(h.date) && inGroup(h.athlete));
   const by = {}; rows.forEach(h=>{ (by[h.athlete] = by[h.athlete] || []).push(h); });
   const names = Object.keys(by).sort();
   $("team-hits").innerHTML = names.length ? `<div class="label" style="margin-top:6px">Hitting ${teamWeek?"last":"this"} week</div><div class="scroll"><table class="log team"><tr><th>Player</th><th>G</th><th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th><th>OPS</th></tr>${names.map(n=>{
@@ -1069,7 +1069,7 @@ function saveGame(body){
   const ob = outbox(); ob.games[body.id] = body; ob.gdel = ob.gdel.filter(id=>id!==body.id); saveOutbox(ob); flush();
 }
 function renderTeamGames(dates){
-  const all = Object.values(Object.assign({}, gameDocs, outbox().games)).filter(g=>g && Object.values(dates).includes(g.date) && (g.pitched!==false || hasStats(g)))
+  const all = Object.values(Object.assign({}, gameDocs, outbox().games)).filter(g=>g && Object.values(dates).includes(g.date) && (g.pitched!==false || hasStats(g)) && inGroup(g.athlete))
     .sort((a,b)=>a.date.localeCompare(b.date) || a.athlete.localeCompare(b.athlete));
   const dayOf = d => (DAYS.find(([k])=>dates[k]===d)||["",""])[0];
   $("team-games").innerHTML = all.length ? `<div class="label" style="margin-top:6px">Games ${teamWeek?"last":"this"} week</div><div class="scroll"><table class="log team"><tr><th>Player</th><th>Day</th><th>IP</th><th>P</th><th>S%</th><th>K</th><th>BB</th><th>H</th><th>ER</th></tr>${all.map(g=>{
@@ -1084,6 +1084,10 @@ let joinDates = lsGet("bqpen.joined", {});
 function setJoinDates(rows){ rows.forEach(r=>{ if (r.added_at) joinDates[r.athlete_slug] = localDate(new Date(r.added_at)); }); lsSet("bqpen.joined", joinDates); }
 const joinedOn = ath => (ath && joinDates[slug(ath)]) || "";
 const isFlag = c => c && ((c.before!=null && c.before<=4) || (c.after!=null && c.after<=4) || (c.before!=null && c.after!=null && c.after-c.before<=-3));
+// Coaches work one age group at a time: lists only show athletes in the selected age group
+// (players only ever see their own data, so nothing is filtered for them).
+function ageOfName(name){ const a = athleteDocs[slug(name||"")]; return (a && a.age) || ""; }
+const inGroup = (name, fallbackAge) => role==="player" || (ageOfName(name) || fallbackAge || setup.age)===setup.age;
 function renderTeam(){
   $("team").hidden = role!=="coach";
   if (role!=="coach") return;
@@ -1092,7 +1096,8 @@ function renderTeam(){
   const all = Object.assign({}, checkinDocs, ob.checkins);
   Object.values(all).forEach(c=>{ if (c && Object.values(dates).includes(c.date) && (c.before!=null || c.after!=null)) (byAth[slug(c.athlete)] = byAth[slug(c.athlete)] || {name:c.athlete, days:{}}).days[c.date] = c; });
   playerNames.forEach(n=>{ if (!(joinedOn(n) > dates.Sun)) byAth[slug(n)] = byAth[slug(n)] || {name:n, days:{}}; });
-  const rows = Object.values(byAth).sort((a,b)=>a.name.localeCompare(b.name));
+  $("team-title").textContent = "Team arm check-ins · "+setup.age;
+  const rows = Object.values(byAth).filter(r=>inGroup(r.name)).sort((a,b)=>a.name.localeCompare(b.name));
   const sel = slug($("w-ath").value||"");
   const flags = [];
   $("team-tbl").innerHTML = `<tr><th>Player</th>${DAYS.map(([d])=>`<th>${d}</th>`).join("")}</tr>` + (rows.length ? rows.map(r=>`<tr data-ath="${esc(r.name)}" class="${slug(r.name)===sel?'sel':''}"><td><b>${esc(r.name)}</b></td>${DAYS.map(([d,full])=>{
@@ -1222,7 +1227,9 @@ $("w-days").addEventListener("click", e=>{
   saveGame(Object.assign({}, g, {pitched: b.dataset.v==="1", updatedAt: Date.now()})); renderWeek();
 });
 $("w-wk").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; schedWeek = teamWeek = +b.dataset.v; gameEdit = null; renderWeek(); });
-$("w-age").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; setup.age=b.dataset.v; saveSetup(); repaintAll(); renderWeek();});
+$("w-age").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; setup.age=b.dataset.v; saveSetup();
+  if (role!=="player") ["w-ath","f-ath","h-ath"].forEach(id=>{ const v = $(id).value.trim(); if (v && !inGroup(v)) $(id).value = ""; });
+  repaintAll(); renderWeek(); renderHist(); renderHit();});
 $("w-days").addEventListener("click", e=>{
   const pb = e.target.closest("button[data-pen]");
   if (pb){ setTab("pens"); show("v-setup"); $("f-ath").focus(); return; }
@@ -1344,7 +1351,7 @@ function paintMix(){
 $("f-mix").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; const c=b.dataset.v;
   setup.mix = setup.mix.includes(c) ? setup.mix.filter(x=>x!==c) : ORDER.filter(x=>x===c||setup.mix.includes(x));
   paintMix(); saveSetup();});
-["f-age:age","f-hand:hand","f-des:des"].forEach(s=>{const [id,k]=s.split(":"); segBind(id,k,paintSetup);});
+["f-age:age","f-hand:hand","f-des:des"].forEach(s=>{const [id,k]=s.split(":"); segBind(id,k, id==="f-age" ? ()=>{ paintSetup(); renderWeek(); renderHist(); } : paintSetup);});
 segBind("f-fw","fw",paintSetup); segBind("f-lvl","lvl",paintSetup); paintMix();
 $("f-ath").addEventListener("change", loadAthlete);
 renderWeek();
@@ -2042,8 +2049,11 @@ async function loadPlayers(){
   if (error){ $("p-list").innerHTML = `<div class="empty">Couldn't load players. Check your connection.</div>`; return; }
   playerNames = data.map(r=>r.athlete); setJoinDates(data); renderWeek();
   $("p-title").textContent = isOwner() ? "Players" : "Players · "+(myAges().join(", ") || "no age group");
-  $("p-list").innerHTML = data.length ? data.map(r=>{ const a = athleteDocs[r.athlete_slug];
-      return `<div class="prow"><div><div class="n">${esc(r.athlete)}</div><div class="m">${esc((a && a.age) || "No age group")}</div></div><button class="small ghost" data-rm="${esc(r.athlete_slug)}">Remove</button></div>`; }).join("")
+  // one section per age group, players A to Z within it
+  const ageOf = r => (athleteDocs[r.athlete_slug] || {}).age || "No age group";
+  const groups = AGES.concat(["No age group"]).filter(g=>data.some(r=>ageOf(r)===g));
+  $("p-list").innerHTML = data.length ? groups.map(g=>`<div class="label" style="margin:10px 16px 2px">${esc(g)}</div>` + data.filter(r=>ageOf(r)===g).map(r=>
+      `<div class="prow"><div class="n">${esc(r.athlete)}</div><button class="small ghost" data-rm="${esc(r.athlete_slug)}">Remove</button></div>`).join("")).join("")
     : `<div class="empty">No players yet. Share the player code above.</div>`;
 }
 function pmsg(t, warn){ const el = $("p-msg"); el.textContent = t; el.hidden = !t; el.className = warn===false ? "pen-desc" : "notice"; }
@@ -2169,10 +2179,12 @@ if ("serviceWorker" in navigator && location.protocol==="https:"){
 
 function renderHist(){
   const el = $("hist");
-  const names = [...new Set([...Object.values(athleteDocs).map(a=>a.name), ...histDocs.map(r=>r.athlete)])];
+  const names = [...new Set([...Object.values(athleteDocs).filter(a=>a.name && inGroup(a.name, a.age)).map(a=>a.name), ...histDocs.filter(r=>inGroup(r.athlete, r.age)).map(r=>r.athlete)])].sort((a,b)=>a.localeCompare(b));
   $("athletes").innerHTML = names.map(n=>`<option value="${esc(n)}"></option>`).join("");
-  if (!histDocs.length){ el.innerHTML = `<div class="empty">Saved pens show here. Start a pen above and every pitch is saved as you log it.</div>`; return; }
+  if (role!=="player") $("hist-title").textContent = "Recent pens · "+setup.age;
+  if (!histDocs.some(r=>inGroup(r.athlete, r.age))){ el.innerHTML = `<div class="empty">${histDocs.length && role!=="player" ? "No "+setup.age+" pens yet." : "Saved pens show here. Start a pen above and every pitch is saved as you log it."}</div>`; return; }
   el.innerHTML = histDocs.map((r,i)=>{
+    if (!inGroup(r.athlete, r.age)) return "";
     const st = computeStats(r), [ok] = evaluate(r, st);
     const pill = r.status==="live" ? `<span class="pill">In progress</span>` : ok==null ? "" : `<span class="pill ${ok?'pass':'fail'}">${ok?"Target met":"Not met"}</span>`;
     return `<button data-i="${i}"><span class="n">${esc(r.athlete)} ${pill}</span><span class="s">${st.n? st.pts+" / "+st.max+" pts":"–"}</span><span class="m">${esc(r.penName)} · ${r.date} · ${st.n} pitches</span></button>`;
