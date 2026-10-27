@@ -192,6 +192,9 @@ button:disabled{opacity:.35;cursor:default}
 .tag.game{background:color-mix(in srgb,var(--miss) 13%,transparent);color:var(--miss)}
 .tag.pen{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn)}
 .tag.bq{background:var(--maroon);color:var(--gold)}
+.tag.ev{background:color-mix(in srgb,var(--gold) 22%,transparent);color:var(--ink)}
+.cal{display:flex;flex-direction:column;gap:2px;margin-top:8px}.cal .mo{font-weight:700;margin:8px 0 2px}
+.cal .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0}.cal .row.past{opacity:.45}.cal .row.now{font-weight:700}
 .items{display:grid;grid-template-columns:84px minmax(0,1fr);gap:0;font-size:15px;margin:0}
 .items dt,.items dd{padding:8px 0;border-top:.5px solid var(--line)}
 .items dt{color:var(--muted)}
@@ -245,6 +248,7 @@ details.plist .dose{color:var(--muted)}
       <div class="pen-desc">Before → after for each day. Red: arm score 4 or lower, or a drop of 3 or more. Tap a player to open their week below.</div>
     </div>
     <div class="days" id="w-days"></div>
+    <details class="card plist" id="w-cal"><summary id="w-calsum">Season calendar</summary><div class="cal" id="w-callist"></div></details>
   </section>
 
   <!-- HITTING -->
@@ -320,7 +324,7 @@ details.plist .dose{color:var(--muted)}
       </div>
       <div><div class="label">Pen</div>
         <div class="checklist" id="f-fw">
-          <button data-v="control">Full control</button><button data-v="cmd">Command</button><button data-v="tun">Tunneling</button><button data-v="des">Pitch design</button><button data-v="custom">Custom</button>
+          <button data-v="base">Base sequence</button><button data-v="control">Full control</button><button data-v="cmd">Command</button><button data-v="tun">Tunneling</button><button data-v="des">Pitch design</button><button data-v="custom">Custom</button>
         </div>
       </div>
       <div id="lvl-wrap"><div class="label">Level</div><div class="seg" id="f-lvl"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button></div></div>
@@ -461,6 +465,12 @@ const des3 = [...[4,6,4,6,4,6,4,6,8,8,8,8,13,14,13,14,8,8].map((z,i)=>P(i<9?"W":
 const D4 = [[["FB",2],["D",8]],[["D",8],["FB",3]],[["OS",9],["D",7]],[["D",4],["OS",9]]];
 const des4 = rep(16,i=>D4[i%4].map(([p,z])=>P(i<8?"W":"S",p,z,{grp:"d"+i,gate:1,shape:p==="D"?1:0}))).flat();
 
+// Base sequence: 8 FB glove side, then 2 FB + 2 CH and 2 FB + 2 breaking ball sets (2 of each = 24 pitches).
+// Volume goes up by adding sets. "C"/"B" are the changeup / breaking-ball family, not any offspeed.
+const baseSeq = sets => [...rep(8,()=>P("W","FB",4,{side:1})),
+  ...rep(sets,()=>[P("W","FB",5),P("W","FB",5),P("W","C",8),P("W","C",8)]).flat(),
+  ...rep(sets,()=>[P("W","FB",5),P("W","FB",5),P("W","B",8),P("W","B",8)]).flat()];
+
 const COUNTS4 = ["0-0","1-0","0-1","1-1","2-1","0-2","3-2"];
 const SITS = [
  {s:"Runner on 1st",c:["0-0","1-0","1-1"],r1:1},
@@ -477,6 +487,9 @@ const LV = {
  des:["Grip and feel","Shape consistency","Command the new shape","Tunnel with the arsenal","Counts + runners"],
 };
 const DESC = {
+ base1:"Base sequence, 24 pitches at 80% to max intent: 8 fastballs to the glove side, then 2 FB + 2 CH x 2 sets and 2 FB + 2 breaking balls x 2 sets.",
+ base2:"Base sequence plus a set of each (32 pitches): 8 FB glove side, 2 FB + 2 CH x 3 sets, 2 FB + 2 breaking balls x 3 sets. Intensity 80% to max.",
+ base3:"Base sequence plus two sets of each (40 pitches): 8 FB glove side, 2 FB + 2 CH x 4 sets, 2 FB + 2 breaking balls x 4 sets. Intensity 80% to max. To add hitters instead, use a Command L4 pen.",
  control:"35 planned pitches: fastball to every zone, changeups, breaking balls, then a mixed stretch block. Target: 60%+ of max points and 65%+ strikes.",
  cmd1:"32 pitches aimed at the middle, 12 FB / 10 CH / 10 BB. Target: 65%+ strikes, 60%+ strikes with each offspeed pitch.",
  cmd2:"32 pitches to called halves (arm side / glove side). Target: 60%+ to the called half with each pitch type.",
@@ -497,6 +510,8 @@ const DESC = {
 };
 
 function penDef(fw, lvl){
+  if (fw==="base"){ const l = Math.min(3, Math.max(1, lvl||1));
+    return {key:"base"+l, name:"Base sequence"+(l>1 ? " +"+(l-1)+" set"+(l>2?"s":"") : ""), mode:"plan", plan:baseSeq(l+1)}; }
   if (fw==="control") return {key:"control",name:"Full control pen",mode:"plan",plan:CONTROL};
   if (fw==="custom") return {key:"custom",name:"Custom pen",mode:"called",max:35};
   const k = fw+lvl, nm = {cmd:"Command",tun:"Tunneling",des:"Pitch design"}[fw]+" L"+lvl+" - "+LV[fw][lvl-1];
@@ -528,6 +543,8 @@ function offspeedList(rec){ const mix = mixOf(rec); return ORDER.filter(c=>mix.i
 function rolePitch(role, k, rec){
   const mix = mixOf(rec), f = families(mix);
   if (role==="D") return rec.design;
+  if (role==="C") return f.CH[k % f.CH.length];
+  if (role==="B") return f.BB[k % f.BB.length];
   if (OS_ROLES.includes(role)){ const os = offspeedList(rec); return os.length ? os[k % os.length] : f.FB[k % f.FB.length]; }
   return f.FB[k % f.FB.length];
 }
@@ -599,6 +616,41 @@ function u16Thursday(d){
   return out;
 }
 const BQ_DAYS = {U16:["Mon","Thu"], U18:["Mon","Wed"], AYWC:[], AWC:[]};
+// QLD season calendar ("Prepare to win" schedule). Inside CAL_FROM..CAL_TO the BQ training tag comes
+// from here (a BQ weekday with no session shows no BQ tag); outside it, BQ_DAYS is used.
+// [date, label, kind]; kinds: train (label = venue), game, camp, tour, event, off, travel
+const CAL_FROM = "2026-10-01", CAL_TO = "2027-01-31";
+function span(from, n, label, kind){   // n days in a row from "from"
+  return rep(n, i=>{ const d = new Date(from+"T00:00:00"); d.setDate(d.getDate()+i);
+    return [d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"), label, kind]; });
+}
+const CAL_ALL = [["2026-10-21","Coaches","event"],["2026-10-28","Induction","event"],["2026-11-30","All Stars","event"],
+  ["2026-12-06","GBL finish","event"],["2026-12-12","Camp","camp"],["2026-12-13","Camp (TBA)","camp"],["2026-12-14","Game TBA","game"]];
+const CAL = {
+  U18: CAL_ALL.concat([
+    ["2026-11-02","PH","train"],["2026-11-04","Hendra","train"],["2026-11-09","Redcliffe","train"],["2026-11-11","Hendra","train"],
+    ["2026-11-16","TBA","train"],["2026-11-18","vs PH","game"],["2026-11-23","PH","train"],["2026-11-25","Hendra","train"],
+    ["2026-11-26","Bandits (home)","game"],
+    ["2026-12-02","Hendra","train"],["2026-12-05","Bandits","game"],["2026-12-07","Hendra","train"],["2026-12-09","Hendra","train"],
+    ["2026-12-16","Hendra","train"],["2026-12-19","Camp","camp"],["2026-12-20","Camp","camp"],["2026-12-23","Hendra","train"],
+    ["2026-12-28","Camp","camp"],["2026-12-30","Hendra","train"],
+    ["2027-01-02","Camp","camp"],["2027-01-03","vs Padres","game"],["2027-01-05","TBA","event"],["2027-01-06","Off","off"],
+    ["2027-01-07","Travel","travel"]], span("2027-01-08", 7, "Tournament", "tour")),
+  U16: CAL_ALL.concat([
+    ["2026-11-02","PH","train"],["2026-11-05","Hendra","train"],["2026-11-09","Redlands","train"],["2026-11-12","Hendra","train"],
+    ["2026-11-16","Runcorn","train"],["2026-11-19","Hendra","train"],["2026-11-23","PH","train"],["2026-11-26","Hendra","train"],
+    ["2026-12-03","Hendra","train"],["2026-12-05","Home game","game"],["2026-12-07","Hendra","train"],["2026-12-10","Hendra","train"]],
+    span("2026-12-17", 4, "NZ", "tour"), [["2026-12-23","Hendra","train"],["2026-12-30","Hendra","train"],
+    ["2027-01-02","Camp","camp"],["2027-01-03","Camp","camp"],["2027-01-04","Off","off"],["2027-01-05","Travel","travel"]],
+    span("2027-01-06", 7, "Tournament", "tour")),
+  AYWC: [], AWC: [],
+};
+const calEvent = (age, date) => { const e = (CAL[age]||[]).find(x=>x[0]===date); return e ? {label:e[1], kind:e[2]} : null; };
+const inCal = date => date >= CAL_FROM && date <= CAL_TO;
+function calTag(ev){
+  const cls = {train:"bq", game:"game", tour:"game", camp:"pen", off:"off"}[ev.kind] || "ev";
+  return `<span class="tag ${cls}">${esc(ev.kind==="train" ? "BQ training · "+(ev.label==="TBA" ? "venue TBA" : ev.label) : ev.label)}</span>`;
+}
 const DAYS = [["Mon","Monday"],["Tue","Tuesday"],["Wed","Wednesday"],["Thu","Thursday"],["Fri","Friday"],["Sat","Saturday"],["Sun","Sunday"]];
 const RECOVERY = [["T spine levered extension over foam roll","1-2 min"],["Thoracic spine windmills","15 each direction"],["Lat/triceps long head stretch at wall","45 s"],["Pec minor release w/ active ER","2 min"],["Single arm pec stretch","1 min"],["Infraspinatus/teres minor self mobilization","2 min"],["Biceps tack and pump","2 min"],["Levator scap elongation","3 s each direction"],["Foam roll levered 90/90 to Y's","12 slides"]];
 const ARM_A = [["Superset x3: Posterior wall angels","20"],["Superset x3: Arm bar banded ER (abduction)","12"],["Superset x3: Single arm serratus slides","15 each"],["Superset x3: Tripod rotations w/ oscillations, weighted ball","12"],["Superset x3: SA split stance serratus scoops","15 slow"]];
@@ -608,7 +660,7 @@ const progList = (name, rows) => `<details class="plist"><summary>${name}</summa
 // ---------- state ----------
 const $ = id => document.getElementById(id);
 let histDocs = [];
-let setup = {age:"U16",hand:"R",mix:["FB","CH","CB"],fw:"control",lvl:1,des:"CH"};
+let setup = {age:"U16",hand:"R",mix:["FB","CH","CB"],fw:"base",lvl:1,des:"CH"};
 try { const s = JSON.parse(localStorage.getItem("bqpen.setup")||"null"); if (s) Object.assign(setup,s); } catch(e){}
 if (!Array.isArray(setup.mix) || !setup.mix.length) setup.mix = ["FB","CH","CB"];
 let athleteDocs = {};
@@ -1055,7 +1107,8 @@ function renderWeek(){
   $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+"."+penNote+" Tissue prep, bands and recovery every day except the no-throw day.";
   $("w-days").innerHTML = DAYS.map(([d,full])=>{
     const t = w.d[d], T = DAYTYPES[t], dayLabel = `<div class="dayname">${full}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>`;
-    const label = bq.includes(d) ? `<span class="tag bq">BQ training</span>` : t==="off" ? `<span class="tag off">Day off</span>` : `<span class="tag">On own</span>`;
+    const ev = calEvent(setup.age, dates[d]);
+    const label = ev ? calTag(ev) : !inCal(dates[d]) && bq.includes(d) ? `<span class="tag bq">BQ training</span>` : t==="off" ? `<span class="tag off">Day off</span>` : `<span class="tag">On own</span>`;
     const on = t!=="off";
     const armA = t==="pen" || t==="light", recProg = t==="rec" || t==="tol";
     const arm = armA ? progList("Arm care A", ARM_A) : t==="lt" ? progList("Arm care B", ARM_B) : "";
@@ -1094,7 +1147,21 @@ function renderWeek(){
       ${arm}${recov}${btn}${game}${check}
     </div>`;
   }).join("");
-  renderTeam();
+  renderTeam(); renderCal();
+}
+// the whole season for the selected age group, by month, with today's place in it
+function renderCal(){
+  const list = (CAL[setup.age]||[]).slice().sort((a,b)=>a[0].localeCompare(b[0])), today = localDate();
+  $("w-cal").hidden = !list.length; if (!list.length) return;
+  const next = list.find(e=>e[0]>=today), fmt = (d,o) => new Date(d+"T00:00:00").toLocaleDateString("en-AU", o);
+  $("w-calsum").textContent = "Season calendar · "+setup.age+(next ? " · next: "+fmt(next[0],{weekday:"short",day:"numeric",month:"short"})+" "+(next[2]==="train" ? "BQ training" : next[1]) : "");
+  let mo = "", h = "";
+  list.forEach(([d, label, kind])=>{
+    const m = fmt(d,{month:"long",year:"numeric"});
+    if (m!==mo){ mo = m; h += `<div class="mo">${m}</div>`; }
+    h += `<div class="row ${d<today?'past':''} ${next && d===next[0]?'now':''}"><span>${fmt(d,{weekday:"short",day:"numeric",month:"short"})}</span>${calTag({label, kind})}</div>`;
+  });
+  $("w-callist").innerHTML = h;
 }
 $("w-gseg").addEventListener("click", e=>{
   const b = e.target.closest("button[data-gday]"); if (!b || b.disabled) return;
@@ -1184,6 +1251,12 @@ function segBind(id, key, after){
 }
 function saveSetup(){ try{ localStorage.setItem("bqpen.setup", JSON.stringify(setup)); }catch(e){} }
 function paintSetup(){
+  // the base sequence has three volumes instead of five levels
+  const base = setup.fw==="base";
+  if (base && setup.lvl>3) setup.lvl = 1;
+  $("lvl-wrap").querySelector(".label").textContent = base ? "Volume" : "Level";
+  $("f-lvl").querySelectorAll("button").forEach(b=>{ const v = +b.dataset.v;
+    b.hidden = base && v>3; b.textContent = base ? ["Base","+1 set","+2 sets"][v-1] || v : v; b.classList.toggle("on", v===setup.lvl); });
   $("lvl-wrap").hidden = setup.fw==="control"||setup.fw==="custom";
   $("des-wrap").hidden = setup.fw!=="des";
   const k = (setup.fw==="control"||setup.fw==="custom") ? setup.fw : setup.fw+setup.lvl;
@@ -1506,6 +1579,7 @@ function evaluate(r, st){
     case "cmd4": case "tun4": return [st.wins>=6 && st.walks<=1 && pct(st.os,st.n)>=40, "Target: win 6 of 8 hitters, max 1 walk, 40%+ offspeed"];
     case "cmd5": case "tun5": return [st.wins>=6 && st.loadedWalks===0 && (st.ttp==null||st.ttp<1.5) && pct(st.os,st.n)>=40, "Target: win 6 of 8, no walks with bases loaded, time to plate under 1.5 s, 40%+ offspeed"];
     case "des5": return [st.wins>=6 && st.loadedWalks===0 && pct(st.design,st.n)>=30, "Target: win 6 of 8, no walks with bases loaded, design pitch 30%+ of the pen"];
+    case "base1": case "base2": case "base3": return [null, "Base sequence: intensity 80% to max, no set target"];
     default: return [null, "No target for a custom pen"];
   }
 }

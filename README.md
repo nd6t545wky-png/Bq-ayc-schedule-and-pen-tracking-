@@ -59,6 +59,10 @@ Games are saved per player and synced, so the player sees the week the coach set
 
 **Weekly games.** Pick this week's games (Saturday; Friday + Sunday; Saturday + Sunday; Friday, Saturday + Sunday) and, with more than one game, which one they pitched. **U16 throw their bullpen on Thursday** (a BQ training day) with a low-intent day on Wednesday; the one exception is a week they pitch on Friday, when the bullpen stays earlier in the week (no bullpen the day before a start), and the app says why. From 7 December the same Thursday rule applies to U16 game-built weeks.
 
+**Season calendar.** The QLD U16/U18 schedule (October 2026 to January 2027) is in the app: each day card shows that day's BQ session (with venue), game, camp, tour, travel or day off for the selected age group, and **Season calendar** under the week lists the whole season. During that period the BQ training tag comes only from the calendar. The schedule lives in `CAL` in `index.html`.
+
+**Base sequence bullpen.** The default pen option: 8 fastballs to the glove side, then 2 FB + 2 CH x 2 sets and 2 FB + 2 breaking balls x 2 sets (24 pitches) at 80% to max. Volume adds a set of each (+1 set = 32, +2 sets = 40).
+
 **Start date.** Each player's schedule starts the day their account joined the team: earlier days show as "Before joining" and the only thing that can be filled in on them is a game played that day (This week or Last week), and the team table leaves those days blank. Athletes a coach enters without an account have no start date.
 
 Coaches see every player's scores in **Team arm check-ins** at the top of the Throwing week tab (this week or last week). Scores of 4 or lower, or a drop of 3 or more, are flagged in red and listed under "to follow up".
