@@ -633,14 +633,14 @@ const CAL = {
     ["2026-12-16","Hendra","train"],["2026-12-19","Camp","camp"],["2026-12-20","Camp","camp"],["2026-12-23","Hendra","train"],
     ["2026-12-28","Camp","camp"],["2026-12-30","Hendra","train"],
     ["2027-01-02","Camp","camp"],["2027-01-03","vs Padres","game"],["2027-01-05","TBA","event"],["2027-01-06","Off","off"],
-    ["2027-01-07","Travel","travel"]], span("2027-01-08", 7, "Tournament", "tour")),
+    ["2027-01-07","Travel","travel"]], span("2027-01-08", 7, "Nationals", "tour")),
   U16: CAL_ALL.concat([
     ["2026-11-02","PH","train"],["2026-11-05","Hendra","train"],["2026-11-09","Redlands","train"],["2026-11-12","Hendra","train"],
     ["2026-11-16","Runcorn","train"],["2026-11-19","Hendra","train"],["2026-11-23","PH","train"],["2026-11-26","Hendra","train"],
     ["2026-12-03","Hendra","train"],["2026-12-05","Home game","game"],["2026-12-07","Hendra","train"],["2026-12-10","Hendra","train"]],
     span("2026-12-17", 4, "NZ", "tour"), [["2026-12-23","Hendra","train"],["2026-12-30","Hendra","train"],
     ["2027-01-02","Camp","camp"],["2027-01-03","Camp","camp"],["2027-01-04","Off","off"],["2027-01-05","Travel","travel"]],
-    span("2027-01-06", 7, "Tournament", "tour")),
+    span("2027-01-06", 7, "Nationals", "tour")),
   AYWC: [], AWC: [],
 };
 const calEvent = (age, date) => { const e = (CAL[age]||[]).find(x=>x[0]===date); return e ? {label:e[1], kind:e[2]} : null; };
