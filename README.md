@@ -59,7 +59,7 @@ Games are saved per player and synced, so the player sees the week the coach set
 
 **Weekly games.** Pick this week's games (Saturday; Friday + Sunday; Saturday + Sunday; Friday, Saturday + Sunday) and, with more than one game, which one they pitched. **U16 throw their bullpen on Thursday** (a BQ training day) with a low-intent day on Wednesday; the one exception is a week they pitch on Friday, when the bullpen stays earlier in the week (no bullpen the day before a start), and the app says why. From 7 December the same Thursday rule applies to U16 game-built weeks.
 
-**BQ schedule.** The QLD U16/U18 schedule (October 2026 to January 2027, `CAL` in `index.html`) drives the throwing week: each day shows its BQ session (with venue) or event, games, camps, the NZ tour and tournament days become game days (from 7 December with the Not used / Pitched switch), off days are no-throw days, travel days are recovery, and the bullpen moves off (and off the day before) those days. During that period the BQ training tag comes only from the schedule.
+**BQ schedule.** The QLD U16/U18 schedule (October 2026 to January 2027, `CAL` in `index.html`) drives the throwing week: each day shows its BQ session (with venue) or event, games, camps, the NZ tour and Nationals become game days (from 7 December with the Not used / Pitched switch), off days are no-throw days, travel days are recovery, and the bullpen moves off (and off the day before) those days. During that period the BQ training tag comes only from the schedule.
 
 **Base sequence bullpen.** The default pen option: 8 fastballs to the glove side, then 2 FB + 2 CH x 2 sets and 2 FB + 2 breaking balls x 2 sets (24 pitches) at 80% to max. Volume adds a set of each (+1 set = 32, +2 sets = 40).
 
