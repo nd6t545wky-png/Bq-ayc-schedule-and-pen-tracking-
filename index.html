@@ -337,8 +337,11 @@ details.plist .dose{color:var(--muted)}
         <div class="seg" id="a-mode" style="margin-top:12px"><button type="button" data-v="in" class="on">I have an account</button><button type="button" data-v="up">New account</button></div>
         <form id="a-form" autocomplete="on">
           <div id="up-fields" hidden>
-            <div class="pen-desc" style="margin-top:12px">Enter the team code from your coach and your full name. Players, also pick your age group.</div>
-            <div class="wrap" style="gap:10px;margin-top:8px"><input id="a-code" placeholder="Team code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20"><input id="a-name" placeholder="Your full name" autocomplete="name" maxlength="60"><select id="a-age"><option value="">Age group (players)</option><option>U16</option><option>U18</option><option>AYWC</option><option>AWC</option></select></div>
+            <div class="label" style="margin-top:12px">I'm a</div>
+            <div class="seg who" id="a-who"><button type="button" data-v="player" class="on">Player</button><button type="button" data-v="coach">Coach</button></div>
+            <div class="pen-desc" style="margin-top:8px">Enter the team code from your coach and your full name.</div>
+            <div class="wrap" style="gap:10px;margin-top:8px"><input id="a-code" placeholder="Team code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20"><input id="a-name" placeholder="Your full name" autocomplete="name" maxlength="60">
+              <div class="wrap pl-only" style="gap:10px"><select id="a-age"><option value="">Age group</option><option>U16</option><option>U18</option><option>AYWC</option><option>AWC</option></select><select id="a-type"><option value="">Pitcher, position or two-way?</option><option value="P">Pitcher</option><option value="POS">Position player</option><option value="TWO">Two-way (pitch and hit)</option></select></div></div>
           </div>
           <div class="row" style="margin-top:12px"><input id="a-email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" inputmode="email" required><input id="a-pass" type="password" placeholder="Password" autocomplete="current-password" minlength="10" required></div>
           <button class="primary" id="a-in" type="submit" style="margin-top:12px;width:100%">Sign in</button>
@@ -355,10 +358,11 @@ details.plist .dose{color:var(--muted)}
     </div>
     <div class="card" id="join-card" hidden>
       <h2>Join your team</h2>
-      <div class="pen-desc">Enter the team code your coach gave you and your full name the way the team knows you. Players, also pick your age group. You only do this once.</div>
+      <div class="pen-desc">Enter the team code your coach gave you and your full name the way the team knows you. You only do this once.</div>
       <form id="join-form" class="wrap" style="gap:10px">
+        <div class="seg who" id="j-who"><button type="button" data-v="player" class="on">Player</button><button type="button" data-v="coach">Coach</button></div>
         <input id="j-name" placeholder="Your full name" autocomplete="name" maxlength="60">
-        <select id="j-age"><option value="">Age group (players)</option><option>U16</option><option>U18</option><option>AYWC</option><option>AWC</option></select>
+        <div class="wrap pl-only" style="gap:10px"><select id="j-age"><option value="">Age group</option><option>U16</option><option>U18</option><option>AYWC</option><option>AWC</option></select><select id="j-type"><option value="">Pitcher, position or two-way?</option><option value="P">Pitcher</option><option value="POS">Position player</option><option value="TWO">Two-way (pitch and hit)</option></select></div>
         <input id="j-code" placeholder="Team code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20" required>
         <button class="primary" type="submit" id="j-go">Join team</button>
       </form>
@@ -1881,8 +1885,12 @@ function applyRole(){
   limitAges();
   $("hist-title").textContent = player ? "Your pens" : "Recent pens";
   $("w-ath").readOnly = player;
-  $("tab-hit").hidden = (player && !isHitter(playerName)) || pitchingOnly();
-  if ($("tab-hit").hidden && tab==="hit") setTab("sched");
+  // position players only hit: no throwing week or bullpens
+  const posOnly = player && (athleteDocs[slug(playerName||"")]||{}).type==="POS";
+  ["sched","pens"].forEach(t=>$("tabs").querySelector(`[data-t="${t}"]`).hidden = posOnly);
+  $("tab-hit").hidden = !posOnly && ((player && !isHitter(playerName)) || pitchingOnly());
+  if (posOnly && (tab==="sched" || tab==="pens")) setTab("hit");
+  else if ($("tab-hit").hidden && tab==="hit") setTab("sched");
   if (player){
     $("w-ath").value = playerName;
     const prof = athleteDocs[slug(playerName)];
@@ -1943,47 +1951,57 @@ const JOIN_MSG = {
   too_many_attempts: "Too many wrong codes. Wait an hour and try again.",
   name_required: "Enter your full name too.",
   age_required: "Players: pick your age group too.",
+  type_required: "Players: pick pitcher, position player or two-way too.",
   update_app: "This page is out of date. Close the app fully and open it again.",
   name_taken: "That name is already on the team. If it's you, ask your coach to remove the old account first.",
   already_linked: "This account is already on the team under a different name. Ask your coach to fix it.",
   email_not_confirmed: "Confirm your email first: open the link we sent you, then sign in again.",
   not_signed_in: "Sign in first.",
 };
+const joinedMsg = type => type==="POS" ? "You're on the team. Log your games on the Hitting tab." : "You're on the team. Log your arm check-ins on the Throwing week tab.";
+// Player / Coach switch on the sign-up and join forms: players also pick age group and type
+function whoOf(id){ const b = $(id).querySelector("button.on"); return b ? b.dataset.v : "player"; }
+function setWho(id, v){ const seg = $(id); seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===v)); seg.parentElement.querySelectorAll(".pl-only").forEach(el=>el.hidden = v!=="player"); }
+["a-who","j-who"].forEach(id=>$(id).addEventListener("click", e=>{ const b = e.target.closest("button"); if (b) setWho(id, b.dataset.v); }));
+function playerPicks(age, type){ return !age ? "Pick your age group." : !type ? "Pick pitcher, position player or two-way." : ""; }
 // Join with the code given at sign-up, once per page load. True if it worked.
 let autoJoinTried = false;
 async function autoJoin(){
   if (autoJoinTried || !session) return false;
   autoJoinTried = true;
   const meta = session.user.user_metadata || {}, local = lsGet("bqpen.join", {});
-  const code = meta.join_code || local.code, name = meta.join_name || local.name || "", age = meta.join_age || local.age || "";
+  const code = meta.join_code || local.code, name = meta.join_name || local.name || "", age = meta.join_age || local.age || "", type = meta.join_type || local.type || "";
   if (!code) return false;
-  const {data, error} = await sb.rpc("join_team", {p_code: code, p_name: name || null, p_age: age || null});
+  const {data, error} = await sb.rpc("join_team", {p_code: code, p_name: name || null, p_age: age || null, p_type: type || null});
   if (!error && (data==="coach" || data==="player")){
     try{ localStorage.removeItem("bqpen.join"); }catch(e){}
-    sb.auth.updateUser({data:{join_code:null, join_name:null, join_age:null}}).catch(()=>{});
-    setTimeout(()=>msg(data==="coach" ? "You're on the team as a coach." : "You're on the team. Log your arm check-ins on the Throwing week tab.", false), 0);
+    sb.auth.updateUser({data:{join_code:null, join_name:null, join_age:null, join_type:null, join_who:null}}).catch(()=>{});
+    setTimeout(()=>msg(data==="coach" ? "You're on the team as a coach." : joinedMsg(type), false), 0);
     return true;
   }
   // show what went wrong in the join form, with their details filled in to fix
-  $("j-code").value = code; $("j-name").value = name; $("j-age").value = age;
+  $("j-code").value = code; $("j-name").value = name; $("j-age").value = age; $("j-type").value = type;
+  setWho("j-who", meta.join_who || local.who || "player");
   setTimeout(()=>{ const el = $("j-msg"); el.textContent = error ? "Couldn't join yet. Check your connection and tap Join team." : (JOIN_MSG[data] || "Couldn't join. Check the code and try again."); el.hidden = false; el.className = "notice"; }, 0);
   return false;
 }
 $("join-form").addEventListener("submit", async e=>{
   e.preventDefault();
-  const code = $("j-code").value.trim(), name = $("j-name").value.trim(), age = $("j-age").value;
+  const player = whoOf("j-who")==="player";
+  const code = $("j-code").value.trim(), name = $("j-name").value.trim(), age = player ? $("j-age").value : "", type = player ? $("j-type").value : "";
   const jm = (t, warn)=>{ const el = $("j-msg"); el.textContent = t; el.hidden = !t; el.className = warn===false ? "pen-desc" : "notice"; };
+  if (player && playerPicks(age, type)){ jm(playerPicks(age, type)); return; }
   if (!code){ jm("Enter the team code."); return; }
   $("j-go").disabled = true;
-  const {data, error} = await sb.rpc("join_team", {p_code: code, p_name: name || null, p_age: age || null});
+  const {data, error} = await sb.rpc("join_team", {p_code: code, p_name: name || null, p_age: age || null, p_type: type || null});
   $("j-go").disabled = false;
   if (error){ jm(/fetch|network/i.test(error.message) ? "No connection. Try again when you have signal." : "Couldn't join. Try again."); return; }
   if (data!=="coach" && data!=="player"){ jm(JOIN_MSG[data] || "Couldn't join. Try again."); return; }
-  $("j-code").value = ""; $("j-name").value = ""; $("j-age").value = ""; jm("");
+  $("j-code").value = ""; $("j-name").value = ""; $("j-age").value = ""; $("j-type").value = ""; jm("");
   try{ localStorage.removeItem("bqpen.join"); }catch(_){}
-  sb.auth.updateUser({data:{join_code:null, join_name:null, join_age:null}}).catch(()=>{});
+  sb.auth.updateUser({data:{join_code:null, join_name:null, join_age:null, join_type:null, join_who:null}}).catch(()=>{});
   await afterAuth();
-  msg(data==="coach" ? "You're on the team as a coach." : "You're on the team. Log your arm check-ins on the Throwing week tab.", false);
+  msg(data==="coach" ? "You're on the team as a coach." : joinedMsg(type), false);
 });
 async function loadCodes(){
   const {data, error} = await sb.from("team_codes").select("role,code");
@@ -2134,15 +2152,17 @@ $("a-form").addEventListener("submit", async e=>{
   else { $("a-email").value = ""; msg(""); }
 });
 async function createAccount(){
-  const code = $("a-code").value.trim(), name = $("a-name").value.trim(), age = $("a-age").value;
+  const who = whoOf("a-who"), player = who==="player";
+  const code = $("a-code").value.trim(), name = $("a-name").value.trim(), age = player ? $("a-age").value : "", type = player ? $("a-type").value : "";
   if (!code){ msg("Enter the team code from your coach."); $("a-code").focus(); return; }
   if (name.length < 2){ msg("Enter your full name."); $("a-name").focus(); return; }
+  if (player && playerPicks(age, type)){ msg(playerPicks(age, type)); $(age ? "a-type" : "a-age").focus(); return; }
   const c = readCreds(); if (!c) return;
   // the code rides along with the account, so joining works even if the confirmation
   // link opens in a different browser; join_team() checks it once the email is confirmed
-  lsSet("bqpen.join", {code, name, age});
+  lsSet("bqpen.join", {code, name, age, type, who});
   busy(true);
-  const {data, error} = await sb.auth.signUp({...c, options:{emailRedirectTo: BACK, data:{join_code: code, join_name: name || null, join_age: age || null}}});
+  const {data, error} = await sb.auth.signUp({...c, options:{emailRedirectTo: BACK, data:{join_code: code, join_name: name || null, join_age: age || null, join_type: type || null, join_who: who}}});
   busy(false);
   if (error && !/registered|exists/i.test(error.message)){ msg(/weak|password/i.test(error.message) ? error.message : "Couldn't create the account. Try again in a few minutes."); return; }
   if (!data || !data.session){ setAuthMode("in"); msg("Check your email (and junk). Tap the button in it, then tap Confirm. You'll be added to the team automatically.", false); }
