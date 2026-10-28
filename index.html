@@ -930,6 +930,7 @@ function setAthleteType(name, type){
   athleteDocs[id] = body; const ob = outbox(); ob.athletes[id] = body; saveOutbox(ob); flush();
 }
 function renderTeamHits(dates){
+  if (pitchingOnly()){ $("team-hits").innerHTML = ""; return; }
   const rows = Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && Object.values(dates).includes(h.date) && inGroup(h.athlete));
   const by = {}; rows.forEach(h=>{ (by[h.athlete] = by[h.athlete] || []).push(h); });
   const names = Object.keys(by).sort();
@@ -1888,7 +1889,8 @@ function applyRole(){
   limitAges();
   $("hist-title").textContent = player ? "Your pens" : "Recent pens";
   $("w-ath").readOnly = player;
-  $("tab-hit").hidden = player && !isHitter(playerName);
+  $("tab-hit").hidden = (player && !isHitter(playerName)) || pitchingOnly();
+  if ($("tab-hit").hidden && tab==="hit") setTab("sched");
   if (player){
     $("w-ath").value = playerName;
     const prof = athleteDocs[slug(playerName)];
@@ -1926,6 +1928,8 @@ function renderAcct(){
 }
 // ---------- age groups: coaches only work with the groups the owner gave them ----------
 const AGES = ["U16","U18","AYWC","AWC"];
+// a pitching-only coach (set by the owner) doesn't see hitting
+function pitchingOnly(){ return role==="coach" && !!(coachInfo && coachInfo.pitching_only); }
 function isOwner(){ return role==="coach" && !!(coachInfo && coachInfo.owner); }
 function myAges(){ return role!=="coach" ? AGES : isOwner() ? AGES : AGES.filter(a=>(coachInfo.age_groups||[]).includes(a)); }
 function limitAges(){
@@ -2007,14 +2011,14 @@ $("codes").addEventListener("click", async e=>{
 let coachRows = [];
 async function loadCoaches(){
   if (!isOwner()) return;
-  const {data, error} = await sb.from("coaches").select("id,name,age_groups,owner,added_at").order("added_at");
+  const {data, error} = await sb.from("coaches").select("id,name,age_groups,owner,pitching_only,added_at").order("added_at");
   if (error){ $("c-list").innerHTML = `<div class="empty">Couldn't load coaches.</div>`; return; }
   coachRows = data;
   $("c-list").innerHTML = data.map(r=>{
     const label = r.name ? esc(r.name) : "Unnamed coach · joined "+new Date(r.added_at).toLocaleDateString("en-AU",{day:"numeric",month:"short"});
     if (r.owner) return `<div class="prow"><div><div class="n">${label} (you)</div><div class="m">Owner · all age groups</div></div></div>`;
     const seg = AGES.map(a=>`<button type="button" data-cg="${r.id}" data-v="${a}" class="${(r.age_groups||[]).includes(a)?"on":""}">${a}</button>`).join("");
-    return `<div class="prow" style="flex-wrap:wrap"><div style="flex:1 1 180px"><input value="${esc(r.name||"")}" placeholder="Coach name" data-cn="${r.id}" maxlength="60" style="width:100%"></div><button class="small ghost" data-rmc="${r.id}">Remove</button><div class="seg" style="flex:1 1 100%">${seg}</div></div>`;
+    return `<div class="prow" style="flex-wrap:wrap"><div style="flex:1 1 180px"><input value="${esc(r.name||"")}" placeholder="Coach name" data-cn="${r.id}" maxlength="60" style="width:100%"></div><button class="small ghost" data-rmc="${r.id}">Remove</button><div class="seg" style="flex:1 1 100%">${seg}</div><div class="seg" style="flex:1 1 100%"><button type="button" data-cpo="${r.id}" class="${r.pitching_only?"on":""}">Pitching only · no Hitting tab</button></div></div>`;
   }).join("");
 }
 async function saveCoach(id, patch){
@@ -2025,6 +2029,14 @@ async function saveCoach(id, patch){
   Object.assign(r, patch); pmsg("Saved.", false);
 }
 $("c-list").addEventListener("click", async e=>{
+  const po = e.target.closest("button[data-cpo]");
+  if (po){
+    const on = !po.classList.contains("on"); po.classList.toggle("on", on);
+    const {data, error} = await sb.rpc("set_coach_pitching_only", {p_id: po.dataset.cpo, p_on: on});
+    if (error || data!=="ok"){ pmsg("Couldn't save. Check your connection."); loadCoaches(); return; }
+    const r = coachRows.find(x=>x.id===po.dataset.cpo); if (r) r.pitching_only = on;
+    pmsg("Saved.", false); return;
+  }
   const g = e.target.closest("button[data-cg]");
   if (g){
     const r = coachRows.find(x=>x.id===g.dataset.cg); if (!r) return;
