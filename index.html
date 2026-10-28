@@ -331,6 +331,7 @@ details.plist .dose{color:var(--muted)}
       <div class="notice" id="setup-err" hidden></div>
       <button class="primary" id="start">Start pen</button>
     </div>
+    <div class="card" id="velo-card" hidden></div>
     <div class="card">
       <h2 id="hist-title">Recent pens</h2>
       <div class="hist" id="hist"><div class="empty">Saved pens show here. Start a pen above and every pitch is saved as you log it.</div></div>
@@ -388,6 +389,7 @@ details.plist .dose{color:var(--muted)}
       <div class="seg" id="me-age"><button type="button" data-v="U16">U16</button><button type="button" data-v="U18">U18</button><button type="button" data-v="AYWC">AYWC</button><button type="button" data-v="AWC">AWC</button></div>
       <div class="label" style="margin-top:10px">I'm a</div>
       <div class="seg" id="me-type"><button type="button" data-v="P">Pitcher</button><button type="button" data-v="POS">Position player</button><button type="button" data-v="TWO">Two-way</button></div>
+      <div id="me-velo" hidden></div>
       <div class="ars" id="me-ars" hidden></div>
       <button class="small" id="me-ars-save" type="button" hidden style="margin-top:8px">Save throws and pitches</button>
       <div class="pen-desc" id="me-msg" style="margin-top:8px"></div>
@@ -449,7 +451,7 @@ details.plist .dose{color:var(--muted)}
       <div class="zonebox"><svg id="zone" class="zsvg" viewBox="0 0 320 360" role="img" aria-label="Strike zone from the pitcher's view"></svg></div>
       <div class="toggles" id="l-toggles"></div>
       <div class="ttp" id="l-ttp" hidden><span class="label">Time to plate (s)</span><input id="f-ttp" type="number" step="0.01" min="0.8" max="3" inputmode="decimal" placeholder="1.42"></div>
-      <div class="ttp" id="l-velo" hidden><span class="label" id="l-velo-lbl">Velo</span><input id="f-velo" type="number" step="0.1" min="30" max="180" inputmode="decimal" placeholder="km/h"></div>
+      <div class="ttp" id="l-velo" hidden><span class="label" id="l-velo-lbl">Velo</span><input id="f-velo" type="number" step="0.1" min="30" max="110" inputmode="decimal" placeholder="mph"></div>
       <div id="l-outcome" class="toggles" hidden></div>
       <div class="row">
         <button class="small" id="l-undo">Undo last pitch</button>
@@ -1036,7 +1038,7 @@ const GAME_FIELDS = [
   ["strikes","Strikes"],["balls","Balls"],["fps","1st-pitch strikes"],
   ["k","Strikeouts (K)"],["bb","Walks (BB)"],["hbp","Hit by pitch"],
   ["h","Hits"],["r","Runs"],["er","Earned runs"],
-  ["hr","Home runs"],["wp","Wild pitches"],["topVelo","Top velo (km/h)"],
+  ["hr","Home runs"],["wp","Wild pitches"],["topVelo","Top velo (mph)"],
 ];
 // Pitch Smart guidelines for 15-18 year olds (daily max by age; rest days by pitch count)
 const PITCH_MAX = {U16:95, U18:105};
@@ -1052,7 +1054,7 @@ function gameSummaryHtml(g, athlete){
     ["IP", g.ip || "–"], ["Pitches", P ?? "–"], ["Strike %", pct(S,P)], ["1st-pitch strike %", pct(n(g.fps), n(g.bf))],
     ["K", g.k ?? "–"], ["BB", g.bb ?? "–"], ["H", g.h ?? "–"], ["R / ER", (g.r ?? "–")+" / "+(g.er ?? "–")],
     ["HBP", g.hbp ?? "–"], ["HR", g.hr ?? "–"], ["WHIP", inn && (g.bb!=null || g.h!=null) ? ((n(g.bb)||0)+(n(g.h)||0)) / inn : null],
-    ["P / inning", inn && P!=null ? P/inn : null], ["Top velo", g.topVelo ? g.topVelo+" km/h" : null],
+    ["P / inning", inn && P!=null ? P/inn : null], ["Top velo", g.topVelo ? g.topVelo+" mph" : null],
   ].map(([k,v])=>[k, typeof v==="number" && (k==="WHIP" || k==="P / inning") ? v.toFixed(k==="WHIP"?2:1) : (v ?? "–")]);
   const max = PITCH_MAX[athleteAge(athlete)];
   let notes = [];
@@ -1564,14 +1566,20 @@ function renderLive(){
   $("l-typecard").hidden = !lst.n;
   $("l-types").innerHTML = typeRows(lst, pen, false);
 }
+// Velo for one pitch type: top = highest reading, sat = where it sits (the middle reading)
+function veloOf(vs){
+  if (!vs || !vs.length) return null;
+  const a = vs.slice().sort((x,y)=>x-y), m = a.length>>1;
+  return {top: Math.max(...a), sat: Math.round(a.length % 2 ? a[m] : (a[m-1]+a[m])/2), n: a.length};
+}
 function typeRows(st, r, withTrend){
   const plannedN = {};
   const def = penDef(r.fw, r.lvl||1);
   if (def.mode==="plan") def.plan.forEach((x,i)=>{ const p = plannedPitch(def,i,r).p; plannedN[p]=(plannedN[p]||0)+1; });
   const codes = ORDER.filter(c=>st.types[c] || plannedN[c]);
   const anyV = Object.values(st.types).some(t=>t.vs.length);
-  const velo = t => !anyV ? "" : `<td>${t.vs && t.vs.length ? Math.round(t.vs.reduce((a,b)=>a+b,0)/t.vs.length)+(t.vs.length>1?` <span class="m" style="color:var(--muted)">top ${Math.max(...t.vs)}</span>`:"") : "–"}</td>`;
-  return `<tr><th>Pitch</th><th>Thrown</th><th>Strike %</th><th>Hit zone %</th><th>Points</th>${anyV?"<th>Velo</th>":""}${withTrend?"<th>Tendency</th>":""}</tr>` +
+  const velo = t => { if (!anyV) return ""; const v = veloOf(t.vs); return v ? `<td>${v.top}</td><td>${v.sat}</td>` : "<td>–</td><td>–</td>"; };
+  return `<tr><th>Pitch</th><th>Thrown</th><th>Strike %</th><th>Hit zone %</th><th>Points</th>${anyV?"<th>Top velo</th><th>Sat velo</th>":""}${withTrend?"<th>Tendency</th>":""}</tr>` +
     codes.map(k=>{ const t = st.types[k] || {n:0,strikes:0,hit:0,pts:0,m:0,vs:[]};
       const thrown = plannedN[k] ? t.n+" / "+plannedN[k] : t.n;
       return `<tr><td><b>${k}</b> <span class="m" style="color:var(--muted)">${PNAME[k]||""}</span></td><td>${thrown}</td><td>${t.n?pct(t.strikes,t.n)+"%":"–"}</td><td>${t.n?pct(t.hit,t.n)+"%":"–"}</td><td>${t.n?t.pts+" / "+(2*t.n):"–"}</td>${velo(t)}${withTrend?`<td>${missWords(t,r.hand)}</td>`:""}</tr>`; }).join("");
@@ -1585,7 +1593,7 @@ $("l-outcome").addEventListener("click", e=>{const b=e.target.closest("button");
 $("f-velo").addEventListener("change", ()=>{
   const last = pen && pen.pitches[pen.pitches.length-1]; if (!last) return;
   const v = parseFloat($("f-velo").value);
-  if (isFinite(v) && v>=30 && v<=180) last.v = Math.round(v*10)/10; else { delete last.v; $("f-velo").value = ""; }
+  if (isFinite(v) && v>=30 && v<=110) last.v = Math.round(v*10)/10; else { delete last.v; $("f-velo").value = ""; }
   queueSave();
   // refresh only the numbers: redrawing the zone here would swallow the tap that blurred this box
   const lst = computeStats(pen); renderStats($("l-stats"), lst); $("l-types").innerHTML = typeRows(lst, pen, false);
@@ -1814,7 +1822,8 @@ function penSummary(r){
     const st = computeStats(r), [ok, target] = evaluate(r, st), opt = v => v==null ? null : Math.round(v*100);
     return {pitches:st.n, strikePct:pct(st.strikes,st.n), hitZonePct:pct(st.hit,st.n), points:st.pts, maxPoints:st.max, offspeedPct:pct(st.os,st.n),
       gatePct:opt(st.gatePct), shapePct:opt(st.shapePct), hittersWon:st.hitters ? st.wins+"/"+st.hitters : null,
-      targetMet: ok==null ? null : ok ? "Yes" : "No", target, topVelo: st.topVelo, fbVelo: st.fbVelo};
+      targetMet: ok==null ? null : ok ? "Yes" : "No", target, topVelo: st.topVelo, fbVelo: st.fbVelo,
+      velo: ORDER.map(c=>{ const v = st.types[c] && veloOf(st.types[c].vs); return v ? `${c} ${v.top} / ${v.sat}` : null; }).filter(Boolean).join(" · ") || null};
   }catch(e){ return null; }
 }
 function gameSummary(g){
@@ -1845,13 +1854,38 @@ function saveAthlete(name){
   const ob = outbox(); ob.athletes[id] = body; saveOutbox(ob); flush();
 }
 // Server rows, overlaid with anything still waiting to upload, newest first.
+// An athlete's velo by pitch from their pens: top = best reading in any pen, sat = where it sat in
+// their most recent pen with readings for that pitch
+function athleteVelo(name){
+  const id = slug(name||""), out = {};
+  histDocs.filter(r=>slug(r.athlete||"")===id).sort((a,b)=>b.createdAt-a.createdAt).forEach(r=>{
+    const by = {}; (r.pitches||[]).forEach(p=>{ if (typeof p.v==="number") (by[p.p] = by[p.p] || []).push(p.v); });
+    Object.entries(by).forEach(([c, vs])=>{ const v = veloOf(vs), o = out[c];
+      if (!o) out[c] = {top: v.top, sat: v.sat, date: r.date};
+      else o.top = Math.max(o.top, v.top); });
+  });
+  return out;
+}
+function veloHtml(name, title){
+  const v = athleteVelo(name), codes = ORDER.filter(c=>v[c]);
+  if (!codes.length) return "";
+  return `<h2>${esc(title)}</h2><div class="pen-desc">mph · top is the best reading in any pen, sat is where it sat in the latest pen</div>
+    <div class="scroll"><table class="log"><tr><th>Pitch</th><th>Top</th><th>Sat</th><th>Latest pen</th></tr>${codes.map(c=>`<tr><td><b>${c}</b> <span class="m" style="color:var(--muted)">${PNAME[c]||""}</span></td><td>${v[c].top}</td><td>${v[c].sat}</td><td>${new Date(v[c].date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</td></tr>`).join("")}</table></div>`;
+}
+function renderVelo(){
+  const name = role==="player" ? playerName : $("f-ath").value.trim();
+  const h = name ? veloHtml(name, (role==="player" ? "Your" : name+"'s")+" velo") : "";
+  $("velo-card").innerHTML = h; $("velo-card").hidden = !h;
+  if (role==="player"){ const m = veloHtml(playerName, "Your velo"); $("me-velo").innerHTML = m; $("me-velo").hidden = !m; }
+}
+$("f-ath").addEventListener("change", ()=>renderVelo());
 function rebuildHist(){
   const ob = outbox(), byId = {};
   serverPens.forEach(r=>{ byId[r.id] = r; });
   Object.values(ob.pens).forEach(r=>{ byId[r.id] = r; });
   ob.del.forEach(id=>{ delete byId[id]; });
   histDocs = Object.values(byId).sort((a,b)=>b.createdAt-a.createdAt).slice(0,60);
-  renderHist(); renderAcct();
+  renderHist(); renderAcct(); renderVelo();
 }
 async function flush(){
   if (!sb || !role) { renderAcct(); return; }
@@ -2029,6 +2063,7 @@ function myProfile(){ return athleteDocs[slug(playerName||"")] || {}; }
 function renderMe(){
   const prof = myProfile();
   $("me-name").textContent = playerName || "Your details";
+  renderVelo();
   $("me-age").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.age));
   $("me-type").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.type));
   $("me-ars").hidden = $("me-ars-save").hidden = !pitches(prof.type);
