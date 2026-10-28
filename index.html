@@ -839,10 +839,9 @@ function getHit(athlete, date){ const id = hitId(athlete, date); return outbox()
 function athleteHits(athlete){ const s = slug(athlete); return Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && slug(h.athlete)===s).sort((a,b)=>b.date.localeCompare(a.date)); }
 function saveHit(body){ body.updatedAt = Date.now(); body.summary = hitSummary(body.pas||[]); hitDocs[body.id] = body; const ob = outbox(); ob.hits[body.id] = body; saveOutbox(ob); flush(); }
 function hitStats(pas){
-  const t = {pa:0,ab:0,h:0,tb:0,bb:0,hbp:0,k:0,sf:0,sh:0,bip:0,hard:0,rbi:0,xbh:0,ab2:0,h2:0};
+  const t = {pa:0,ab:0,h:0,tb:0,bb:0,hbp:0,k:0,sf:0,sh:0,bip:0,hard:0,rbi:0,xbh:0};
   pas.forEach(p=>{ const c = (HR_BY[p.res]||[])[2] || {}; t.pa++; for (const k in c) t[k] += c[k];
-    if (p.qual==="H" && c.bip) t.hard++; t.rbi += p.rbi||0; if (["2B","3B","HR"].includes(p.res)) t.xbh++;
-    if (p.s===2 && c.ab){ t.ab2++; if (c.h) t.h2++; } });
+    if (p.qual==="H" && c.bip) t.hard++; t.rbi += p.rbi||0; if (["2B","3B","HR"].includes(p.res)) t.xbh++; });
   const r = (a,b) => b ? a/b : null;
   t.avg = r(t.h,t.ab); t.obp = r(t.h+t.bb+t.hbp, t.ab+t.bb+t.hbp+t.sf); t.slg = r(t.tb,t.ab);
   t.ops = t.obp!=null && t.slg!=null ? t.obp+t.slg : null; t.kp = r(t.k,t.pa); t.bbp = r(t.bb,t.pa); t.hardp = r(t.hard,t.bip);
@@ -894,13 +893,12 @@ function renderHit(){
   $("h-opp").value = (doc && doc.opp) || "";
   // this game
   $("h-game").innerHTML = `<div class="livehead"><div><div class="label" style="margin:0">${new Date(date+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"short"})}</div><div class="hitline">${pas.length ? gameLine(pas) : "No at-bats yet"}</div></div></div>
-    ${pas.length ? `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${esc(HR_BY[p.res][1])}${p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}<div class="m">Count ${p.b}-${p.s}${p.rbi?` · ${p.rbi} RBI`:""}</div></div><button class="small ghost" data-parm="${i}">Remove</button></div>`).join("")}</div>` : ""}`;
+    ${pas.length ? `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${esc(HR_BY[p.res][1])}${p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}${p.rbi?`<div class="m">${p.rbi} RBI</div>`:""}</div><button class="small ghost" data-parm="${i}">Remove</button></div>`).join("")}</div>` : ""}`;
   // new plate appearance
-  const d = hitDraft = hitDraft || {b:0, s:0, res:null, qual:null, x:null, y:null, zone:null, rbi:0};
+  const d = hitDraft = hitDraft || {res:null, qual:null, x:null, y:null, zone:null, rbi:0};
   const bip = d.res && (HR_BY[d.res][2].bip);
   const segBtns = (key, n, label) => `<div><div class="label">${label}</div><div class="seg" data-hk="${key}">${Array.from({length:n},(_,i)=>`<button type="button" data-v="${i}" class="${d[key]===i?'on':''}">${i}</button>`).join("")}</div></div>`;
   $("h-entry").innerHTML = `<h2>At-bat ${pas.length+1}</h2>
-    <div class="row">${segBtns("b",4,"Balls")}${segBtns("s",3,"Strikes")}</div>
     <div><div class="label">Result</div><div class="hres">${HRES.map(r=>r[1] ? `<button type="button" data-hres="${r[0]}" class="${d.res===r[0]?'on':''}">${r[1]}</button>` : `<div class="grp">${r[0]}</div>`).join("")}</div></div>
     ${bip ? `<div><div class="label">Contact</div><div class="seg" data-hk="qual">${[["H","Hard"],["M","Medium"],["W","Weak"]].map(([v,l])=>`<button type="button" data-v="${v}" class="${d.qual===v?'on':''}">${l}</button>`).join("")}</div></div>
       <div><div class="label">Where it went <span>· tap the field${d.zone?` · ${esc(d.zone)}`:""}</span></div>${fieldSvg("h-field", d.x!=null ? [{x:d.x, y:d.y, c:dotColour(d.res), r:8}] : [])}</div>` : ""}
@@ -913,7 +911,7 @@ function renderHit(){
   const dots = seasonPas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:5}));
   $("h-season").innerHTML = `<h2>${esc(ath)} · season</h2>
     <div class="gstats">${tiles.map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
-    <div class="gnote">${t.h} H · ${t.xbh} XBH · ${t.rbi} RBI · with 2 strikes ${t.h2}-for-${t.ab2}</div>
+    <div class="gnote">${t.h} H · ${t.xbh} XBH · ${t.rbi} RBI</div>
     ${dots.length ? `<div class="label" style="margin-top:6px">Spray chart</div>${fieldSvg("h-spray", dots)}<div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--muted)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
     ${all.length ? `<div class="label" style="margin-top:6px">Games</div><div class="palist">${all.map(h=>`<div class="prow" data-hdate="${h.date}" style="cursor:pointer"><div>${new Date(h.date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>`).join("")}</div>` : ""}`;
   if (hitSeasonFor !== slug(ath)) loadHitSeason(ath);
@@ -1304,15 +1302,14 @@ $("v-hit").addEventListener("click", e=>{
   const seg = e.target.closest("[data-hk] button");
   if (seg){ const k = seg.parentElement.dataset.hk; d[k] = k==="qual" ? seg.dataset.v : +seg.dataset.v; renderHit(); return; }
   const r = e.target.closest("[data-hres]");
-  if (r){ d.res = r.dataset.hres; if (!HR_BY[d.res][2].bip){ d.qual = null; d.x = d.y = d.zone = null; }
-    if (d.res==="KS" || d.res==="KL") d.s = 2; if (d.res==="BB") d.b = 3; renderHit(); return; }
+  if (r){ d.res = r.dataset.hres; if (!HR_BY[d.res][2].bip){ d.qual = null; d.x = d.y = d.zone = null; } renderHit(); return; }
   const svg = e.target.closest("#h-field");
   if (svg){ const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const q = pt.matrixTransform(svg.getScreenCTM().inverse());
     d.x = Math.min(1, Math.max(0, q.x/FIELD.w)); d.y = Math.min(1, Math.max(0, q.y/FIELD.h)); d.zone = fieldZone(d.x, d.y); renderHit(); return; }
   if (e.target.closest("#h-save")){
     if (!d.res) return;
     const doc = getHit(ath, date) || {id: hitId(ath, date), athlete: ath, date, opp: $("h-opp").value.trim() || null, pas: []};
-    const pa = {b:d.b, s:d.s, res:d.res, rbi:d.rbi||0}; if (d.qual) pa.qual = d.qual; if (d.x!=null){ pa.x = +d.x.toFixed(3); pa.y = +d.y.toFixed(3); pa.zone = d.zone; }
+    const pa = {res:d.res, rbi:d.rbi||0}; if (d.qual) pa.qual = d.qual; if (d.x!=null){ pa.x = +d.x.toFixed(3); pa.y = +d.y.toFixed(3); pa.zone = d.zone; }
     saveHit(Object.assign({}, doc, {pas: (doc.pas||[]).concat([pa])})); hitDraft = null; renderHit();
     $("h-game").scrollIntoView({behavior:"smooth", block:"start"}); return;
   }
