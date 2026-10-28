@@ -604,7 +604,14 @@ const DAYTYPES = {
   pen:{n:"High intent bullpen",i:"90%+",pl:"Plyos (50% volume)",t:T_PEN,cls:"pen",pen:true},
   tol:{n:"Tolerance throw",i:"50-60%",pl:"Plyos (reverse throws and pivot picks only)",t:"Catch to tolerance: easy, no pull-downs",cls:""},
   light:{n:"Light bullpen",i:"70-80%",pl:"Plyos (50% volume)",t:"Throw as needed to get hot, then light bullpen (15 pitches)",cls:"pen",pen:true},
+  // position players: the same week, with throwing days in place of bullpens
+  phi:{n:"High intent throwing day",i:"90%+",pl:"Plyos (50% volume)",t:"Long toss, then position throws at game intent",cls:""},
+  pmod:{n:"Moderate throwing day",i:"70-80%",pl:"Plyos (50% volume)",t:"Throw as needed to get loose, then position throws",cls:""},
 };
+// A pitcher's week turned into a position player's: no bullpens, and every game day is played in the field
+const POS_DAY = {pen:"phi", light:"pmod", pospen:"pos", game:"pos", game2:"pos"};
+const posWeek = d => Object.fromEntries(Object.entries(d).map(([k,t])=>[k, POS_DAY[t] || t]));
+const isPosOnly = name => (athleteDocs[slug(name||"")]||{}).type==="POS";
 const WEEKS = [
  {k:"fri",n:"Friday game",d:{Fri:"game",Sat:"off",Sun:"rec",Mon:"lt",Tue:"pen",Wed:"rec",Thu:"rec"}},
  {k:"sat",n:"Saturday game",d:{Sat:"game",Sun:"off",Mon:"rec",Tue:"lt",Wed:"pen",Thu:"rec",Fri:"rec"}},
@@ -1163,8 +1170,12 @@ function renderWeek(){
   const pattern = WEEKS.find(x=>x.k===weekPattern(set.k, pitchKey)) || WEEKS[1];
   const w = built ? {d: plan.types} : {d: Object.assign({}, setup.age==="U16" ? u16Thursday(pattern.d) : pattern.d)};
   const calMoved = built ? null : applyCal(w.d, dates, setup.age);
+  const posOnly = isPosOnly(ath);
+  if (posOnly) w.d = posWeek(w.d);
+  if (posOnly) $("w-pitchwrap").hidden = true;
   const penAt = DAYS.map(([k])=>k).find(k=>w.d[k]==="pen");
-  const penNote = calMoved==="none" ? " No full bullpen this week: the BQ schedule leaves no safe day for one."
+  const penNote = posOnly ? " Position player schedule."
+    : calMoved==="none" ? " No full bullpen this week: the BQ schedule leaves no safe day for one."
     : calMoved ? " Bullpen on "+DAYS.find(([k])=>k===calMoved)[1]+" this week to fit the BQ schedule."
     : setup.age!=="U16" || penAt==="Thu" ? (setup.age==="U16" ? " Bullpen on Thursday." : "")
     : !penAt ? (built && !plan.pitched ? " No full bullpen this week: no safe day around this week's games." : " No full bullpen this week because of pitching in a game.")
@@ -1174,6 +1185,7 @@ function renderWeek(){
     $("w-gseg").innerHTML = DAYS.map(([d])=>{ const g = games[dates[d]];
       return `<button type="button" data-gday="${dates[d]}" class="${g?'on':''}" ${!ath || calGame[dates[d]] || (g && !canRemoveGame(dates[d])) ? "disabled" : ""}>${d}</button>`; }).join("");
     $("w-gnote").textContent = !ath ? "Enter the athlete's name above to add their games."
+      : posOnly ? "Tap the days with games. Log hitting on the Hitting tab."
       : "Pitched: the next two days are a tolerance throw then a light bullpen, and there's no full bullpen that week. Not used: the full bullpen stays, moved off the day before a game.";
   }
   $("w-wk").querySelectorAll("button").forEach(b=>b.classList.toggle("on", +b.dataset.v===schedWeek));
@@ -1183,7 +1195,7 @@ function renderWeek(){
     const ev = calEvent(setup.age, dates[d]);
     const label = ev ? calTag(ev) : !inCal(dates[d]) && bq.includes(d) ? `<span class="tag bq">BQ training</span>` : t==="off" ? `<span class="tag off">Day off</span>` : `<span class="tag">On own</span>`;
     const on = t!=="off";
-    const armA = t==="pen" || t==="light", recProg = t==="rec" || t==="tol";
+    const armA = t==="pen" || t==="light" || t==="phi" || t==="pmod", recProg = t==="rec" || t==="tol";
     const arm = armA ? progList("Arm care A", ARM_A) : t==="lt" ? progList("Arm care B", ARM_B) : "";
     const recov = recProg ? progList("Recovery / mobility program (before or after throwing)", RECOVERY) : "";
     const btn = T.pen && role!=="player" ? `<button class="small" data-pen="${d}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
@@ -1885,12 +1897,11 @@ function applyRole(){
   limitAges();
   $("hist-title").textContent = player ? "Your pens" : "Recent pens";
   $("w-ath").readOnly = player;
-  // position players only hit: no throwing week or bullpens
+  // position players don't pitch: no Bullpens tab, and their throwing week has no bullpens
   const posOnly = player && (athleteDocs[slug(playerName||"")]||{}).type==="POS";
-  ["sched","pens"].forEach(t=>$("tabs").querySelector(`[data-t="${t}"]`).hidden = posOnly);
+  $("tabs").querySelector('[data-t="pens"]').hidden = posOnly;
   $("tab-hit").hidden = !posOnly && ((player && !isHitter(playerName)) || pitchingOnly());
-  if (posOnly && (tab==="sched" || tab==="pens")) setTab("hit");
-  else if ($("tab-hit").hidden && tab==="hit") setTab("sched");
+  if ((posOnly && tab==="pens") || ($("tab-hit").hidden && tab==="hit")) setTab("sched");
   if (player){
     $("w-ath").value = playerName;
     const prof = athleteDocs[slug(playerName)];
@@ -1958,7 +1969,7 @@ const JOIN_MSG = {
   email_not_confirmed: "Confirm your email first: open the link we sent you, then sign in again.",
   not_signed_in: "Sign in first.",
 };
-const joinedMsg = type => type==="POS" ? "You're on the team. Log your games on the Hitting tab." : "You're on the team. Log your arm check-ins on the Throwing week tab.";
+const joinedMsg = type => type==="POS" ? "You're on the team. Your throwing week is on the Throwing week tab, and you log games on the Hitting tab." : "You're on the team. Log your arm check-ins on the Throwing week tab.";
 // Player / Coach switch on the sign-up and join forms: players also pick age group and type
 function whoOf(id){ const b = $(id).querySelector("button.on"); return b ? b.dataset.v : "player"; }
 function setWho(id, v){ const seg = $(id); seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===v)); seg.parentElement.querySelectorAll(".pl-only").forEach(el=>el.hidden = v!=="player"); }
