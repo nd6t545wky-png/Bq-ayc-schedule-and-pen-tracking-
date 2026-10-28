@@ -343,6 +343,7 @@ details.plist .dose{color:var(--muted)}
           <div class="row" style="margin-top:12px"><input id="a-email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" inputmode="email" required><input id="a-pass" type="password" placeholder="Password" autocomplete="current-password" minlength="10" required></div>
           <button class="primary" id="a-in" type="submit" style="margin-top:12px;width:100%">Sign in</button>
           <button class="small ghost" id="a-forgot" type="button">Forgot password?</button>
+          <button class="small ghost" id="a-resend" type="button">Resend confirmation email</button>
         </form>
       </div>
       <form id="acct-reset" hidden autocomplete="on">
@@ -2108,12 +2109,12 @@ function readCreds(){
   $("a-pass").value = "";
   return {email, password};
 }
-function busy(on){ ["a-in","a-forgot"].forEach(id=>$(id).disabled = on); }
+function busy(on){ ["a-in","a-forgot","a-resend"].forEach(id=>$(id).disabled = on); }
 let authMode = "in";
 function setAuthMode(m){
   authMode = m;
   $("a-mode").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===m));
-  $("up-fields").hidden = m!=="up"; $("a-forgot").hidden = m==="up";
+  $("up-fields").hidden = m!=="up"; $("a-forgot").hidden = $("a-resend").hidden = m==="up";
   $("a-in").textContent = m==="up" ? "Create account" : "Sign in";
   $("a-pass").autocomplete = m==="up" ? "new-password" : "current-password";
   $("a-pass").placeholder = m==="up" ? "New password" : "Password";
@@ -2128,6 +2129,7 @@ $("a-form").addEventListener("submit", async e=>{
   const {error} = await sb.auth.signInWithPassword(c);
   busy(false);
   if (error) msg(/rate|too many/i.test(error.message) ? "Too many attempts. Wait a few minutes and try again."
+    : error.code==="email_not_confirmed" || /not confirmed/i.test(error.message) ? "This email hasn't been confirmed yet. Tap Resend confirmation email below, then tap the button in the email."
     : "Email or password is incorrect, or the email hasn't been confirmed yet.");
   else { $("a-email").value = ""; msg(""); }
 });
@@ -2153,6 +2155,15 @@ $("a-forgot").addEventListener("click", async ()=>{
   busy(false);
   msg("If there's an account for that email, a reset email is on its way (check junk too). Tap the button in it, then tap Continue.", false);
 });
+$("a-resend").addEventListener("click", async ()=>{
+  const email = $("a-email").value.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg("Enter your email above first."); $("a-email").focus(); return; }
+  busy(true);
+  const {error} = await sb.auth.resend({type: "signup", email, options:{emailRedirectTo: BACK}});
+  busy(false);
+  if (error && /rate|security purposes|seconds|too many/i.test(error.message)){ msg("An email was just sent. Wait a minute, then try again."); return; }
+  msg("If that email has an account waiting to be confirmed, a new confirmation email is on its way (check junk too). Tap the button in it, then tap Confirm. Older confirmation emails no longer work.", false);
+});
 // The email links open the app with a Confirm button instead of confirming straight away: work email
 // scanners (e.g. Microsoft Defender) open every link in an email, which used up the link before the person did.
 {
@@ -2167,7 +2178,7 @@ $("a-forgot").addEventListener("click", async ()=>{
       $("link-go").disabled = true;
       const {error} = await sb.auth.verifyOtp({token_hash: th, type: type==="recovery" ? "recovery" : "email"});
       $("link-go").disabled = false; $("link-box").hidden = true;
-      if (error){ msg("That link has expired or was already used. Request a new email."); return; }
+      if (error){ msg("That link has expired or was already used. Request a new email: Resend confirmation email or Forgot password, below."); return; }
       if (type==="recovery"){ recovering = true; msg("Now set your new password below.", false); }
       else msg("Email confirmed. You're signed in.", false);
       renderAcct();
