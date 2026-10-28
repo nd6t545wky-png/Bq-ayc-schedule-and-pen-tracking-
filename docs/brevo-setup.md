@@ -53,12 +53,34 @@ Click **Save**.
    - Redirect URLs → **Add URL**: the same address
 3. **Sign-up day:** Supabase allows 30 auth emails an hour once custom SMTP is on. If the whole squad signs up at once and someone is told to wait, raise it at <https://supabase.com/dashboard/project/icczlruovqfhqllnkohh/auth/rate-limits> (e.g. to 100).
 
-Optional: make the email look friendlier at <https://supabase.com/dashboard/project/icczlruovqfhqllnkohh/auth/templates>. Under **Confirm signup**, set the subject to `Confirm your BQ Weekly Schedule and Tracking account`. Keep `{{ .ConfirmationURL }}` in the body; that's the link.
+## 6. The two email templates (needed)
 
-## 6. Test it
+Work email security scanners (Microsoft, for example) open every link in an email to check it. A plain Supabase link is used up by that check before the person taps it ("link has expired"). These templates send people to the app, where nothing happens until they tap **Confirm**, so a scanner can't use the link up.
+
+Open <https://supabase.com/dashboard/project/icczlruovqfhqllnkohh/auth/templates>.
+
+**Confirm signup**: subject `Confirm your BQ Weekly account`, body:
+
+```html
+<h2>Confirm your BQ Weekly account</h2>
+<p><a href="https://nd6t545wky-png.github.io/Bq-ayc-schedule-and-pen-tracking-/?token_hash={{ .TokenHash }}&type=signup">Confirm my account</a></p>
+<p>Then tap <b>Confirm my email</b> in the app.</p>
+```
+
+**Reset password**: subject `Reset your BQ Weekly password`, body:
+
+```html
+<h2>Reset your BQ Weekly password</h2>
+<p><a href="https://nd6t545wky-png.github.io/Bq-ayc-schedule-and-pen-tracking-/?token_hash={{ .TokenHash }}&type=recovery">Reset my password</a></p>
+<p>Then tap <b>Continue to set a new password</b> in the app.</p>
+```
+
+Save each one.
+
+## 7. Test it
 
 1. Open the app on your phone, go to Bullpens, enter an email you can check (a different one from your own account) and a 10+ character password, and tap **Create account**.
-2. An email from **BQ Weekly Schedule and Tracking** should arrive within a minute. Check junk too. Open the link, then come back and **Sign in**.
+2. An email from **BQ Weekly Schedule and Tracking** should arrive within a minute. Check junk too. Tap its button, then tap **Confirm my email** in the app.
 3. The app shows **Join your team**. Enter the player code from **Team codes**.
 4. Also try **Forgot password?** to check reset emails arrive.
 

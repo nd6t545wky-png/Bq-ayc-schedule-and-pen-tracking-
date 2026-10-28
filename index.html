@@ -343,13 +343,7 @@ details.plist .dose{color:var(--muted)}
           <div class="row" style="margin-top:12px"><input id="a-email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" inputmode="email" required><input id="a-pass" type="password" placeholder="Password" autocomplete="current-password" minlength="10" required></div>
           <button class="primary" id="a-in" type="submit" style="margin-top:12px;width:100%">Sign in</button>
           <button class="small ghost" id="a-forgot" type="button">Forgot password?</button>
-          <button class="small ghost" id="a-havecode" type="button">I have a code from an email</button>
         </form>
-      </div>
-      <div id="otp-box" class="wrap" style="gap:8px;margin-top:12px" hidden>
-        <div class="pen-desc" id="otp-note">Enter the code from the email.</div>
-        <div class="row"><input id="otp-email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" inputmode="email"><input id="otp-code" placeholder="Code" inputmode="numeric" autocomplete="one-time-code" maxlength="10"></div>
-        <button class="primary" id="otp-go" type="button">Confirm code</button>
       </div>
       <form id="acct-reset" hidden autocomplete="on">
         <h2>Set a new password</h2>
@@ -2149,7 +2143,7 @@ async function createAccount(){
   const {data, error} = await sb.auth.signUp({...c, options:{emailRedirectTo: BACK, data:{join_code: code, join_name: name || null, join_age: age || null}}});
   busy(false);
   if (error && !/registered|exists/i.test(error.message)){ msg(/weak|password/i.test(error.message) ? error.message : "Couldn't create the account. Try again in a few minutes."); return; }
-  if (!data || !data.session){ setAuthMode("in"); msg("Check your email (and junk). Enter the code from it below, or tap the button in the email. You'll be added to the team automatically.", false); showOtp(c.email, "signup"); }
+  if (!data || !data.session){ setAuthMode("in"); msg("Check your email (and junk). Tap the button in it, then tap Confirm. You'll be added to the team automatically.", false); }
 }
 $("a-forgot").addEventListener("click", async ()=>{
   const email = $("a-email").value.trim().toLowerCase();
@@ -2157,32 +2151,10 @@ $("a-forgot").addEventListener("click", async ()=>{
   busy(true);
   await sb.auth.resetPasswordForEmail(email, {redirectTo: BACK});
   busy(false);
-  msg("If there's an account for that email, a reset email is on its way (check junk too). Enter its code below, or tap its button.", false);
-  showOtp(email, "recovery");
+  msg("If there's an account for that email, a reset email is on its way (check junk too). Tap the button in it, then tap Continue.", false);
 });
-// Codes and button-links instead of plain one-time links: work email scanners (e.g. Microsoft
-// Defender) open every link in an email to check it, which used up the link before the person did.
-let otpType = null;
-function showOtp(email, type){ otpType = type || null; $("otp-email").value = email || $("a-email").value.trim(); $("otp-code").value = ""; $("otp-box").hidden = false;
-  $("otp-note").textContent = type==="recovery" ? "Enter the code from the reset email." : type==="signup" ? "Enter the code from the confirmation email." : "Enter the code from the email we sent you."; }
-$("a-havecode").addEventListener("click", ()=>showOtp($("a-email").value.trim(), null));
-$("otp-go").addEventListener("click", async ()=>{
-  const email = $("otp-email").value.trim().toLowerCase(), token = $("otp-code").value.replace(/\D/g, "");
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg("Enter your email."); return; }
-  if (token.length < 6){ msg("Enter the code from the email."); return; }
-  $("otp-go").disabled = true;
-  let result = null;
-  for (const type of otpType ? [otpType] : ["signup", "recovery", "email"]){
-    result = await sb.auth.verifyOtp({email, token, type});
-    if (!result.error){ if (type==="recovery") recovering = true; break; }
-  }
-  $("otp-go").disabled = false;
-  if (result.error){ msg(/expired/i.test(result.error.message) ? "That code has expired. Request a new email." : "That code didn't work. Check it and try again, or request a new email."); return; }
-  $("otp-box").hidden = true; $("otp-code").value = ""; $("a-email").value = "";
-  msg(recovering ? "Now set your new password below." : "Email confirmed. You're signed in.", false);
-  renderAcct();
-});
-// Links in the emails open the app with ?token_hash=…&type=…; nothing happens until the person taps Confirm
+// The email links open the app with a Confirm button instead of confirming straight away: work email
+// scanners (e.g. Microsoft Defender) open every link in an email, which used up the link before the person did.
 {
   const q = new URLSearchParams(location.search), th = q.get("token_hash"), type = q.get("type");
   if (th && type && sb){
@@ -2195,7 +2167,7 @@ $("otp-go").addEventListener("click", async ()=>{
       $("link-go").disabled = true;
       const {error} = await sb.auth.verifyOtp({token_hash: th, type: type==="recovery" ? "recovery" : "email"});
       $("link-go").disabled = false; $("link-box").hidden = true;
-      if (error){ msg("That link has expired or was already used. Request a new email, or enter the code from it."); return; }
+      if (error){ msg("That link has expired or was already used. Request a new email."); return; }
       if (type==="recovery"){ recovering = true; msg("Now set your new password below.", false); }
       else msg("Email confirmed. You're signed in.", false);
       renderAcct();
