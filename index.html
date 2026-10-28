@@ -40,10 +40,10 @@ body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:17p
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px calc(96px + env(safe-area-inset-bottom,0px))}
 .wrap{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
 .wrap .wrap{width:100%;max-width:none;margin:0}
-header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding-top:8px;padding-bottom:12px;border-bottom:2px solid var(--gold)}
-header.top img{height:34px;width:auto;order:2}
-header.top h1{font-family:var(--display);font-size:36px;font-weight:700;letter-spacing:.02em;margin:0;line-height:1.05}
-header.top .sub{color:var(--muted);font-size:15px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:4px;padding-bottom:8px;border-bottom:2px solid var(--gold)}
+header.top img{height:26px;width:auto;order:2}
+header.top>div{min-width:0}
+header.top h1{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:.02em;margin:0;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card{background:var(--surface);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
 .label{font-family:var(--display);font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px}
 .label span{text-transform:none}
@@ -206,6 +206,7 @@ button:disabled{opacity:.35;cursor:default}
 .dayname .ddate{font-family:var(--font);font-size:14px;font-weight:500;color:var(--muted);margin-left:8px}
 .dayname small{font-size:13px;font-weight:600;color:var(--gold);margin-left:8px;text-transform:uppercase}
 .dtype{display:flex;align-items:center;gap:10px}
+#team{order:-1}   /* coaches see the team first; tapping a player opens their week below */
 /* days other than today show just their header until tapped */
 .day [data-dtoggle]{cursor:pointer}
 .day.closed>:not(.dayhead):not(.dtype){display:none}
@@ -222,6 +223,13 @@ button:disabled{opacity:.35;cursor:default}
 .items dt,.items dd{padding:8px 0;border-top:.5px solid var(--line)}
 .items dt{color:var(--muted)}
 .items dd{margin:0}
+.arsenal-sum{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#f-arsenal-txt{font-weight:600}
+.ars{display:flex;flex-direction:column;gap:6px;width:100%}
+details.sect>summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+details.sect>summary::-webkit-details-marker{display:none}
+details.sect>summary::after{content:"›";font-size:22px;color:var(--muted);transition:transform .15s}
+details.sect[open]>summary::after{transform:rotate(90deg)}
 details.plist{font-size:15px;border-top:.5px solid var(--line);padding-top:8px}
 details.plist summary{cursor:pointer;color:var(--maroon);list-style:none}
 details.plist summary::-webkit-details-marker{display:none}
@@ -239,7 +247,7 @@ details.plist .dose{color:var(--muted)}
 <div class="wrap">
   <header class="top">
     <img alt="Baseball Queensland" src="data:image/png;base64,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">
-    <div><h1>BQ Weekly Schedule and Tracking</h1><div class="sub">Throwing week, bullpens, games and hitting</div></div>
+    <div><h1>BQ Weekly Schedule and Tracking</h1></div>
   </header>
 
   <nav class="tabs" id="tabs">
@@ -303,10 +311,11 @@ details.plist .dose{color:var(--muted)}
         <div><div class="label">Athlete</div><input id="f-ath" list="athletes" placeholder="Athlete name" autocomplete="off"><datalist id="athletes"></datalist></div>
         <div><div class="label">Age group</div><div class="seg" id="f-age"><button data-v="U16">U16</button><button data-v="U18">U18</button><button data-v="AYWC">AYWC</button><button data-v="AWC">AWC</button></div></div>
       </div>
-      <div class="row">
+      <div class="arsenal-sum" id="f-arsenal-sum" hidden><div><div class="label">Throws</div><div id="f-arsenal-txt"></div></div><button type="button" class="small ghost" id="f-arsenal-edit">Change</button></div>
+      <div class="row" id="f-arsenal">
         <div><div class="label">Throws</div><div class="seg" id="f-hand"><button data-v="R">RHP</button><button data-v="L">LHP</button></div></div>
       </div>
-      <div><div class="label">Pitch mix <span style="text-transform:none;letter-spacing:0;font-family:var(--body);font-weight:400">· tap every pitch the athlete throws</span></div>
+      <div><div class="label">Pitch mix for this pen <span style="text-transform:none;letter-spacing:0;font-family:var(--body);font-weight:400">· starts with all their pitches; untick any you're not working on</span></div>
         <div class="checklist" id="f-mix"></div>
         <div class="pen-desc" id="mix-note"></div>
       </div>
@@ -322,6 +331,7 @@ details.plist .dose{color:var(--muted)}
       <div class="notice" id="setup-err" hidden></div>
       <button class="primary" id="start">Start pen</button>
     </div>
+    <div class="card" id="velo-card" hidden></div>
     <div class="card">
       <h2 id="hist-title">Recent pens</h2>
       <div class="hist" id="hist"><div class="empty">Saved pens show here. Start a pen above and every pitch is saved as you log it.</div></div>
@@ -346,7 +356,7 @@ details.plist .dose{color:var(--muted)}
             <div class="seg who" id="a-who"><button type="button" data-v="player" class="on">Player</button><button type="button" data-v="coach">Coach</button></div>
             <div class="pen-desc" style="margin-top:8px">Enter the team code from your coach and your full name.</div>
             <div class="wrap" style="gap:10px;margin-top:8px"><input id="a-code" placeholder="Team code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20"><input id="a-name" placeholder="Your full name" autocomplete="name" maxlength="60">
-              <div class="wrap pl-only" style="gap:10px"><select id="a-age"><option value="">Age group</option><option>U16</option><option>U18</option><option>AYWC</option><option>AWC</option></select><select id="a-type"><option value="">Pitcher, position or two-way?</option><option value="P">Pitcher</option><option value="POS">Position player</option><option value="TWO">Two-way (pitch and hit)</option></select></div></div>
+              <div class="wrap pl-only" style="gap:10px"><select id="a-age"><option value="">Age group</option><option>U16</option><option>U18</option><option>AYWC</option><option>AWC</option></select><select id="a-type"><option value="">Pitcher, position or two-way?</option><option value="P">Pitcher</option><option value="POS">Position player</option><option value="TWO">Two-way (pitch and hit)</option></select><div class="ars" id="a-ars" hidden></div></div></div>
           </div>
           <div class="row" style="margin-top:12px"><input id="a-email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off" inputmode="email" required><input id="a-pass" type="password" placeholder="Password" autocomplete="current-password" minlength="10" required></div>
           <button class="primary" id="a-in" type="submit" style="margin-top:12px;width:100%">Sign in</button>
@@ -367,7 +377,7 @@ details.plist .dose{color:var(--muted)}
       <form id="join-form" class="wrap" style="gap:10px">
         <div class="seg who" id="j-who"><button type="button" data-v="player" class="on">Player</button><button type="button" data-v="coach">Coach</button></div>
         <input id="j-name" placeholder="Your full name" autocomplete="name" maxlength="60">
-        <div class="wrap pl-only" style="gap:10px"><select id="j-age"><option value="">Age group</option><option>U16</option><option>U18</option><option>AYWC</option><option>AWC</option></select><select id="j-type"><option value="">Pitcher, position or two-way?</option><option value="P">Pitcher</option><option value="POS">Position player</option><option value="TWO">Two-way (pitch and hit)</option></select></div>
+        <div class="wrap pl-only" style="gap:10px"><select id="j-age"><option value="">Age group</option><option>U16</option><option>U18</option><option>AYWC</option><option>AWC</option></select><select id="j-type"><option value="">Pitcher, position or two-way?</option><option value="P">Pitcher</option><option value="POS">Position player</option><option value="TWO">Two-way (pitch and hit)</option></select><div class="ars" id="j-ars" hidden></div></div>
         <input id="j-code" placeholder="Team code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20" required>
         <button class="primary" type="submit" id="j-go">Join team</button>
       </form>
@@ -379,6 +389,9 @@ details.plist .dose{color:var(--muted)}
       <div class="seg" id="me-age"><button type="button" data-v="U16">U16</button><button type="button" data-v="U18">U18</button><button type="button" data-v="AYWC">AYWC</button><button type="button" data-v="AWC">AWC</button></div>
       <div class="label" style="margin-top:10px">I'm a</div>
       <div class="seg" id="me-type"><button type="button" data-v="P">Pitcher</button><button type="button" data-v="POS">Position player</button><button type="button" data-v="TWO">Two-way</button></div>
+      <div id="me-velo" hidden></div>
+      <div class="ars" id="me-ars" hidden></div>
+      <button class="small" id="me-ars-save" type="button" hidden style="margin-top:8px">Save throws and pitches</button>
       <div class="pen-desc" id="me-msg" style="margin-top:8px"></div>
     </div>
     <div class="card" id="coach-name-card" hidden>
@@ -392,21 +405,24 @@ details.plist .dose{color:var(--muted)}
       <h2>Team codes</h2>
       <div class="pen-desc">Share these privately (e.g. the team group chat). People create an account on this site, confirm their email, then enter a code to join. Players only ever see their own data, never other players or coaches. Changing a code stops new sign-ups with the old one; people already on the team stay.</div>
       <div id="codes"></div>
-      <h2 style="margin-top:8px" id="p-title">Players</h2>
+      <details class="sect"><summary><h2 id="p-title">Players</h2></summary>
       <div class="hist" id="p-list"></div>
       <details class="plist"><summary>Link a player by email instead</summary>
         <div class="row" style="margin-top:8px"><input id="p-name" list="athletes" placeholder="Player name" autocomplete="off"><input id="p-email" type="email" placeholder="Player's email" autocapitalize="off" autocomplete="off"><select id="p-age"><option value="">Age group</option></select></div>
         <button id="p-add" style="margin-top:8px">Link player</button>
       </details>
+      </details>
       <div class="notice" id="p-msg" hidden></div>
       <div id="coaches-wrap" hidden>
-        <h2 style="margin-top:8px">Coaches</h2>
+        <details class="sect"><summary><h2>Coaches</h2></summary>
         <div class="pen-desc">Only you see this list. Tap an age group to give or take away access; a coach only sees athletes in their groups. New coaches start with none.</div>
         <div class="hist" id="c-list"></div>
-        <h2 style="margin-top:8px">Live spreadsheets</h2>
+        </details>
+        <details class="sect"><summary><h2>Live spreadsheets</h2></summary>
         <div class="pen-desc">One Google Sheet per age group (U16, U18, AYWC, AWC), players A to Z, updating every 5 minutes. Set up once with <a href="https://github.com/nd6t545wky-png/Bq-ayc-schedule-and-pen-tracking-/blob/main/docs/sheets-setup.md" target="_blank" rel="noopener">these steps</a>, using an export key from here. A new key stops the old one working.</div>
         <div id="sk-box" class="codebox" hidden><div><div class="lbl">Export key · shown once, paste it into the sheet now</div><div class="code" id="sk-key" style="font-size:14px;letter-spacing:0;overflow-wrap:anywhere"></div></div><button class="small" id="sk-copy">Copy</button></div>
         <button id="sk-new" style="margin-top:8px">Make export key</button>
+        </details>
       </div>
     </div>
   </section>
@@ -435,6 +451,7 @@ details.plist .dose{color:var(--muted)}
       <div class="zonebox"><svg id="zone" class="zsvg" viewBox="0 0 320 360" role="img" aria-label="Strike zone from the pitcher's view"></svg></div>
       <div class="toggles" id="l-toggles"></div>
       <div class="ttp" id="l-ttp" hidden><span class="label">Time to plate (s)</span><input id="f-ttp" type="number" step="0.01" min="0.8" max="3" inputmode="decimal" placeholder="1.42"></div>
+      <div class="ttp" id="l-velo" hidden><span class="label" id="l-velo-lbl">Velo</span><input id="f-velo" type="number" step="0.1" min="30" max="110" inputmode="decimal" placeholder="mph"></div>
       <div id="l-outcome" class="toggles" hidden></div>
       <div class="row">
         <button class="small" id="l-undo">Undo last pitch</button>
@@ -1021,7 +1038,7 @@ const GAME_FIELDS = [
   ["strikes","Strikes"],["balls","Balls"],["fps","1st-pitch strikes"],
   ["k","Strikeouts (K)"],["bb","Walks (BB)"],["hbp","Hit by pitch"],
   ["h","Hits"],["r","Runs"],["er","Earned runs"],
-  ["hr","Home runs"],["wp","Wild pitches"],
+  ["hr","Home runs"],["wp","Wild pitches"],["topVelo","Top velo (mph)"],
 ];
 // Pitch Smart guidelines for 15-18 year olds (daily max by age; rest days by pitch count)
 const PITCH_MAX = {U16:95, U18:105};
@@ -1037,7 +1054,7 @@ function gameSummaryHtml(g, athlete){
     ["IP", g.ip || "–"], ["Pitches", P ?? "–"], ["Strike %", pct(S,P)], ["1st-pitch strike %", pct(n(g.fps), n(g.bf))],
     ["K", g.k ?? "–"], ["BB", g.bb ?? "–"], ["H", g.h ?? "–"], ["R / ER", (g.r ?? "–")+" / "+(g.er ?? "–")],
     ["HBP", g.hbp ?? "–"], ["HR", g.hr ?? "–"], ["WHIP", inn && (g.bb!=null || g.h!=null) ? ((n(g.bb)||0)+(n(g.h)||0)) / inn : null],
-    ["P / inning", inn && P!=null ? P/inn : null],
+    ["P / inning", inn && P!=null ? P/inn : null], ["Top velo", g.topVelo ? g.topVelo+" mph" : null],
   ].map(([k,v])=>[k, typeof v==="number" && (k==="WHIP" || k==="P / inning") ? v.toFixed(k==="WHIP"?2:1) : (v ?? "–")]);
   const max = PITCH_MAX[athleteAge(athlete)];
   let notes = [];
@@ -1058,7 +1075,7 @@ function gameFormHtml(g){
   return `<div class="gform">
     <label class="wide">Opponent<input data-f="opp" maxlength="60" value="${esc(g.opp||"")}" placeholder="e.g. Brisbane North"></label>
     ${GAME_FIELDS.map(([k,l,type,ph])=>`<label>${l}<input data-f="${k}" ${type==="text"?'inputmode="decimal"':'type="number" min="0" step="1" inputmode="numeric"'} value="${g[k]??""}" ${ph?`placeholder="${ph}"`:""}></label>`).join("")}
-    <label class="wide">Notes<input data-f="notes" maxlength="300" value="${esc(g.notes||"")}" placeholder="Velo, what worked, anything to follow up"></label>
+    <label class="wide">Notes<input data-f="notes" maxlength="300" value="${esc(g.notes||"")}" placeholder="What worked, anything to follow up"></label>
   </div>
   <div class="notice gmsg" hidden></div>
   <div class="row"><button class="small primary" data-gsave>Save game</button><button class="small ghost" data-gcancel>Cancel</button></div>`;
@@ -1388,6 +1405,7 @@ function paintMix(){
   $("f-mix").querySelectorAll("button").forEach(b=>{const on=setup.mix.includes(b.dataset.v); b.classList.toggle("on",on); b.setAttribute("aria-pressed",on);});
   const os = ORDER.filter(c=>setup.mix.includes(c) && FAM[c]!=="FB");
   const fb = ORDER.filter(c=>setup.mix.includes(c) && FAM[c]==="FB");
+  paintArsenal();
   $("mix-note").textContent = os.length ? "Offspeed reps are split evenly across "+os.map(c=>PNAME[c]).join(", ")+"."+(fb.length>1?" Fastball reps alternate "+fb.map(c=>PNAME[c]).join(" / ")+".":"") : "";
   paintSetup();
 }
@@ -1400,10 +1418,19 @@ $("f-ath").addEventListener("change", loadAthlete);
 renderWeek();
 function slug(n){ return n.trim().toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,80) || "athlete"; }
 function loadAthlete(){
-  const a = athleteDocs[slug($("f-ath").value)]; if (!a) return;
+  arsenalOpen = false;
+  const a = athleteDocs[slug($("f-ath").value)]; if (!a){ paintArsenal(); return; }
   Object.assign(setup, {age:a.age||setup.age, hand:a.hand||setup.hand, mix:(a.mix&&a.mix.length)?a.mix:setup.mix});
   saveSetup(); repaintAll(); paintMix();
 }
+// A pitcher whose throwing hand is already saved sees it as one line, with Change to edit
+var arsenalOpen = false;   // var: paintMix() runs before this line on load
+function paintArsenal(){
+  const a = athleteDocs[slug($("f-ath").value||"")], known = !!(a && a.hand);
+  $("f-arsenal-sum").hidden = !known || arsenalOpen; $("f-arsenal").hidden = known && !arsenalOpen;
+  if (known) $("f-arsenal-txt").textContent = a.hand==="L" ? "LHP" : "RHP";
+}
+$("f-arsenal-edit").addEventListener("click", ()=>{ arsenalOpen = true; paintArsenal(); });
 try{ $("f-ath").value = $("w-ath").value = localStorage.getItem("bqpen.ath")||""; }catch(e){}
 $("w-ath").addEventListener("change", ()=>{
   const v = $("w-ath").value.trim(); $("w-ath").value = v;
@@ -1530,20 +1557,32 @@ function renderLive(){
   $("l-undo").disabled = !i;
   $("l-finish").textContent = done ? "Finish pen" : "Finish pen early";
   $("l-finish").classList.toggle("primary", done);
+  // optional radar reading, for the pitch just logged
+  const lastP = pen.pitches[pen.pitches.length-1];
+  $("l-velo").hidden = !lastP;
+  if (lastP){ $("l-velo-lbl").textContent = "Velo · pitch "+pen.pitches.length+" (optional)"; if (document.activeElement!==$("f-velo")) $("f-velo").value = lastP.v ?? ""; }
   const lst = computeStats(pen);
   renderStats($("l-stats"), lst);
   $("l-typecard").hidden = !lst.n;
   $("l-types").innerHTML = typeRows(lst, pen, false);
+}
+// Velo for one pitch type: top = highest reading, sat = where it sits (the middle reading)
+function veloOf(vs){
+  if (!vs || !vs.length) return null;
+  const a = vs.slice().sort((x,y)=>x-y), m = a.length>>1;
+  return {top: Math.max(...a), sat: Math.round(a.length % 2 ? a[m] : (a[m-1]+a[m])/2), n: a.length};
 }
 function typeRows(st, r, withTrend){
   const plannedN = {};
   const def = penDef(r.fw, r.lvl||1);
   if (def.mode==="plan") def.plan.forEach((x,i)=>{ const p = plannedPitch(def,i,r).p; plannedN[p]=(plannedN[p]||0)+1; });
   const codes = ORDER.filter(c=>st.types[c] || plannedN[c]);
-  return `<tr><th>Pitch</th><th>Thrown</th><th>Strike %</th><th>Hit zone %</th><th>Points</th>${withTrend?"<th>Tendency</th>":""}</tr>` +
-    codes.map(k=>{ const t = st.types[k] || {n:0,strikes:0,hit:0,pts:0,m:0};
+  const anyV = Object.values(st.types).some(t=>t.vs.length);
+  const velo = t => { if (!anyV) return ""; const v = veloOf(t.vs); return v ? `<td>${v.top}</td><td>${v.sat}</td>` : "<td>–</td><td>–</td>"; };
+  return `<tr><th>Pitch</th><th>Thrown</th><th>Strike %</th><th>Hit zone %</th><th>Points</th>${anyV?"<th>Top velo</th><th>Sat velo</th>":""}${withTrend?"<th>Tendency</th>":""}</tr>` +
+    codes.map(k=>{ const t = st.types[k] || {n:0,strikes:0,hit:0,pts:0,m:0,vs:[]};
       const thrown = plannedN[k] ? t.n+" / "+plannedN[k] : t.n;
-      return `<tr><td><b>${k}</b> <span class="m" style="color:var(--muted)">${PNAME[k]||""}</span></td><td>${thrown}</td><td>${t.n?pct(t.strikes,t.n)+"%":"–"}</td><td>${t.n?pct(t.hit,t.n)+"%":"–"}</td><td>${t.n?t.pts+" / "+(2*t.n):"–"}</td>${withTrend?`<td>${missWords(t,r.hand)}</td>`:""}</tr>`; }).join("");
+      return `<tr><td><b>${k}</b> <span class="m" style="color:var(--muted)">${PNAME[k]||""}</span></td><td>${thrown}</td><td>${t.n?pct(t.strikes,t.n)+"%":"–"}</td><td>${t.n?pct(t.hit,t.n)+"%":"–"}</td><td>${t.n?t.pts+" / "+(2*t.n):"–"}</td>${velo(t)}${withTrend?`<td>${missWords(t,r.hand)}</td>`:""}</tr>`; }).join("");
 }
 function sideName(z){ const arm = pen.hand==="L" ? 0 : 2; return col(z)===arm ? "Arm side" : "Glove side"; }
 function grpLabel(def,i){ const g = def.plan[i].grp; const idx = def.plan.filter((x,k)=>k<=i && x.grp===g).length; const n = def.plan.filter(x=>x.grp===g).length; return (n===3?"Sequence":"Pair")+" pitch "+idx+" of "+n; }
@@ -1551,6 +1590,14 @@ function grpLabel(def,i){ const g = def.plan[i].grp; const idx = def.plan.filter
 $("l-pick").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; live.called.p=b.dataset.p; live.shape = true; renderLive();});
 $("l-toggles").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; const k=b.dataset.t; live[k]=!live[k]; renderLive();});
 $("l-outcome").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return; endHitter(b.dataset.o==="W"?"W":"L"); });
+$("f-velo").addEventListener("change", ()=>{
+  const last = pen && pen.pitches[pen.pitches.length-1]; if (!last) return;
+  const v = parseFloat($("f-velo").value);
+  if (isFinite(v) && v>=30 && v<=110) last.v = Math.round(v*10)/10; else { delete last.v; $("f-velo").value = ""; }
+  queueSave();
+  // refresh only the numbers: redrawing the zone here would swallow the tap that blurred this box
+  const lst = computeStats(pen); renderStats($("l-stats"), lst); $("l-types").innerHTML = typeRows(lst, pen, false);
+});
 $("f-ttp").addEventListener("change", ()=>{ const h=curHitter(); const v=parseFloat($("f-ttp").value); h.ttp = isFinite(v)?v:null; queueSave(); });
 
 $("zone").addEventListener("click", e=>{
@@ -1644,8 +1691,9 @@ function computeStats(r){
   const st = {n, strikes:0, hit:0, pts:0, os:0, types:{}, osStrikeRates:[], gatePct:null, shapePct:null};
   ps.forEach(p=>{
     if (p.strike) st.strikes++; if (hitTarget(p)) st.hit++; st.pts += p.pts; if (OS(p.p)) st.os++;
-    const t = st.types[p.p] || (st.types[p.p]={n:0,strikes:0,hit:0,pts:0,dx:0,dy:0,m:0});
+    const t = st.types[p.p] || (st.types[p.p]={n:0,strikes:0,hit:0,pts:0,dx:0,dy:0,m:0,vs:[]});
     t.n++; if (p.strike) t.strikes++; if (hitTarget(p)) t.hit++; t.pts+=p.pts;
+    if (typeof p.v==="number") t.vs.push(p.v);
     if (p.actual && p.intended){ const a=zoneCenter(p.actual), b=zoneCenter(p.intended); t.dx+=a[0]-b[0]; t.dy+=a[1]-b[1]; t.m++; }
   });
   const g = ps.filter(p=>p.gate!=null); if (g.length) st.gatePct = g.filter(p=>p.gate).length/g.length;
@@ -1665,6 +1713,9 @@ function computeStats(r){
   const tt = (r.hitters||[]).map(h=>h.ttp).filter(v=>typeof v==="number"); st.ttp = tt.length ? tt.reduce((a,b)=>a+b,0)/tt.length : null;
   st.max = 2*n;
   const des = ps.filter(p=>p.design); st.design = des.length; st.designHit = des.filter(hitTarget).length;
+  const vs = ps.filter(p=>typeof p.v==="number"), fv = vs.filter(p=>FAM[p.p]==="FB");
+  st.topVelo = vs.length ? Math.max(...vs.map(p=>p.v)) : null;
+  st.fbVelo = fv.length ? Math.round(10*fv.reduce((a,p)=>a+p.v,0)/fv.length)/10 : null;
   return st;
 }
 const pct = (a,b) => b ? Math.round(100*a/b) : 0;
@@ -1673,6 +1724,7 @@ function renderStats(el, st){
   if (st.gatePct!=null) cells.push(["Through gate",Math.round(st.gatePct*100)+"%"]);
   if (st.shapePct!=null) cells.push(["Shape match",Math.round(st.shapePct*100)+"%"]);
   if (st.hitters) cells.push(["Hitters won",st.wins+"/"+st.hitters]);
+  if (st.topVelo) cells.push(["Top velo",st.topVelo]);
   el.innerHTML = cells.slice(0,8).map(([k,v])=>`<div class="stat"><b>${v}</b><span>${k}</span></div>`).join("");
 }
 function evaluate(r, st){
@@ -1770,7 +1822,8 @@ function penSummary(r){
     const st = computeStats(r), [ok, target] = evaluate(r, st), opt = v => v==null ? null : Math.round(v*100);
     return {pitches:st.n, strikePct:pct(st.strikes,st.n), hitZonePct:pct(st.hit,st.n), points:st.pts, maxPoints:st.max, offspeedPct:pct(st.os,st.n),
       gatePct:opt(st.gatePct), shapePct:opt(st.shapePct), hittersWon:st.hitters ? st.wins+"/"+st.hitters : null,
-      targetMet: ok==null ? null : ok ? "Yes" : "No", target};
+      targetMet: ok==null ? null : ok ? "Yes" : "No", target, topVelo: st.topVelo, fbVelo: st.fbVelo,
+      velo: ORDER.map(c=>{ const v = st.types[c] && veloOf(st.types[c].vs); return v ? `${c} ${v.top} / ${v.sat}` : null; }).filter(Boolean).join(" · ") || null};
   }catch(e){ return null; }
 }
 function gameSummary(g){
@@ -1793,19 +1846,46 @@ function queueSave(){
 }
 function saveAthlete(name){
   const id = slug(name), prev = athleteDocs[id];
-  const body = Object.assign({}, prev, {name, age:setup.age, hand:setup.hand, mix:setup.mix.slice(), updatedAt:Date.now()});
+  // the saved mix is every pitch they throw: a pen that works on only some of them adds, never removes
+  const mix = ORDER.filter(c=>setup.mix.includes(c) || (prev && (prev.mix||[]).includes(c)));
+  const body = Object.assign({}, prev, {name, age:setup.age, hand:setup.hand, mix, updatedAt:Date.now()});
   if (prev && prev.age===body.age && prev.hand===body.hand && JSON.stringify(prev.mix)===JSON.stringify(body.mix) && prev.name===name) return;
   athleteDocs[id] = body;
   const ob = outbox(); ob.athletes[id] = body; saveOutbox(ob); flush();
 }
 // Server rows, overlaid with anything still waiting to upload, newest first.
+// An athlete's velo by pitch from their pens: top = best reading in any pen, sat = where it sat in
+// their most recent pen with readings for that pitch
+function athleteVelo(name){
+  const id = slug(name||""), out = {};
+  histDocs.filter(r=>slug(r.athlete||"")===id).sort((a,b)=>b.createdAt-a.createdAt).forEach(r=>{
+    const by = {}; (r.pitches||[]).forEach(p=>{ if (typeof p.v==="number") (by[p.p] = by[p.p] || []).push(p.v); });
+    Object.entries(by).forEach(([c, vs])=>{ const v = veloOf(vs), o = out[c];
+      if (!o) out[c] = {top: v.top, sat: v.sat, date: r.date};
+      else o.top = Math.max(o.top, v.top); });
+  });
+  return out;
+}
+function veloHtml(name, title){
+  const v = athleteVelo(name), codes = ORDER.filter(c=>v[c]);
+  if (!codes.length) return "";
+  return `<h2>${esc(title)}</h2><div class="pen-desc">mph · top is the best reading in any pen, sat is where it sat in the latest pen</div>
+    <div class="scroll"><table class="log"><tr><th>Pitch</th><th>Top</th><th>Sat</th><th>Latest pen</th></tr>${codes.map(c=>`<tr><td><b>${c}</b> <span class="m" style="color:var(--muted)">${PNAME[c]||""}</span></td><td>${v[c].top}</td><td>${v[c].sat}</td><td>${new Date(v[c].date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</td></tr>`).join("")}</table></div>`;
+}
+function renderVelo(){
+  const name = role==="player" ? playerName : $("f-ath").value.trim();
+  const h = name ? veloHtml(name, (role==="player" ? "Your" : name+"'s")+" velo") : "";
+  $("velo-card").innerHTML = h; $("velo-card").hidden = !h;
+  if (role==="player"){ const m = veloHtml(playerName, "Your velo"); $("me-velo").innerHTML = m; $("me-velo").hidden = !m; }
+}
+$("f-ath").addEventListener("change", ()=>renderVelo());
 function rebuildHist(){
   const ob = outbox(), byId = {};
   serverPens.forEach(r=>{ byId[r.id] = r; });
   Object.values(ob.pens).forEach(r=>{ byId[r.id] = r; });
   ob.del.forEach(id=>{ delete byId[id]; });
   histDocs = Object.values(byId).sort((a,b)=>b.createdAt-a.createdAt).slice(0,60);
-  renderHist(); renderAcct();
+  renderHist(); renderAcct(); renderVelo();
 }
 async function flush(){
   if (!sb || !role) { renderAcct(); return; }
@@ -1865,7 +1945,7 @@ async function loadAll(){
   if (!g.error){ gameDocs = {}; g.data.forEach(r=>{ gameDocs[r.data.id] = r.data; }); lsSet("bqpen.games", gameDocs); }
   if (!h.error){ h.data.forEach(r=>{ hitDocs[r.data.id] = r.data; }); lsSet("bqpen.hits", hitDocs); hitSeasonFor = null; }
   if (role==="player"){ const j = await sb.from("players").select("athlete_slug,added_at"); if (!j.error) setJoinDates(j.data); }
-  rebuildHist(); if (role==="player") applyRole(); else renderWeek();
+  rebuildHist(); paintArsenal(); if (role==="player") applyRole(); else renderWeek();
   renderHit();
 }
 athleteDocs = lsGet("bqpen.athletes", {});
@@ -1983,9 +2063,21 @@ function myProfile(){ return athleteDocs[slug(playerName||"")] || {}; }
 function renderMe(){
   const prof = myProfile();
   $("me-name").textContent = playerName || "Your details";
+  renderVelo();
   $("me-age").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.age));
   $("me-type").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.type));
+  $("me-ars").hidden = $("me-ars-save").hidden = !pitches(prof.type);
+  if (pitches(prof.type)) arsenalPaint("me-ars", {hand: prof.hand, mix: prof.mix});
 }
+$("me-ars-save").addEventListener("click", async ()=>{
+  const a = arsenalRead("me-ars"), el = $("me-msg");
+  if (arsenalPicks(a)){ el.textContent = arsenalPicks(a); return; }
+  el.textContent = "Saving…";
+  const {data, error} = await sb.rpc("set_my_arsenal", {p_hand: a.hand, p_mix: a.mix});
+  if (error || data!=="ok"){ el.textContent = "Couldn't save. Check your connection and try again."; return; }
+  athleteDocs[slug(playerName)] = Object.assign({}, myProfile(), a); lsSet("bqpen.athletes", athleteDocs);
+  el.textContent = "Saved.";
+});
 async function saveMe(patch){
   const prof = myProfile(), next = {age: patch.age || prof.age, type: patch.type || prof.type};
   const el = $("me-msg");
@@ -2025,6 +2117,27 @@ const joinedMsg = type => type==="POS" ? "You're on the team. Your throwing week
 function whoOf(id){ const b = $(id).querySelector("button.on"); return b ? b.dataset.v : "player"; }
 function setWho(id, v){ const seg = $(id); seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===v)); seg.parentElement.querySelectorAll(".pl-only").forEach(el=>el.hidden = v!=="player"); }
 ["a-who","j-who"].forEach(id=>$(id).addEventListener("click", e=>{ const b = e.target.closest("button"); if (b) setWho(id, b.dataset.v); }));
+// Throws + pitch mix picker for pitchers and two-way players (sign-up, join and Your details)
+function arsenalPaint(id, v){
+  v = v || {};
+  $(id).innerHTML = `<div class="label">Throws</div><div class="seg" data-ah>${[["R","RHP"],["L","LHP"]].map(([k,l])=>`<button type="button" data-v="${k}" class="${v.hand===k?'on':''}">${l}</button>`).join("")}</div>
+    <div class="label">Pitches you throw</div><div class="checklist" data-am>${PITCHES.map(p=>`<button type="button" data-v="${p.c}" class="${(v.mix||[]).includes(p.c)?'on':''}">${p.n}</button>`).join("")}</div>`;
+}
+function arsenalRead(id){
+  const h = $(id).querySelector("[data-ah] .on");
+  return {hand: h ? h.dataset.v : "", mix: ORDER.filter(c=>$(id).querySelector(`[data-am] [data-v="${c}"].on`))};
+}
+const pitches = type => type==="P" || type==="TWO";
+function arsenalPicks(a){ return !a.hand ? "Pick which hand you throw with." : a.mix.length < 2 ? "Tap at least two pitches you throw." : ""; }
+["a-ars","j-ars","me-ars"].forEach(id=>{ arsenalPaint(id); $(id).addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return;
+  if (b.parentElement.matches("[data-ah]")) b.parentElement.querySelectorAll("button").forEach(x=>x.classList.toggle("on", x===b));
+  else b.classList.toggle("on"); }); });
+[["a-type","a-ars"],["j-type","j-ars"]].forEach(([t,a])=>$(t).addEventListener("change", ()=>{ $(a).hidden = !pitches($(t).value); }));
+// after joining, a pitcher's throws and pitch mix from sign-up are saved to their profile
+async function saveJoinArsenal(type, a){
+  if (!pitches(type) || !a || !a.hand || !(a.mix||[]).length) return;
+  await sb.rpc("set_my_arsenal", {p_hand: a.hand, p_mix: a.mix});
+}
 function playerPicks(age, type){ return !age ? "Pick your age group." : !type ? "Pick pitcher, position player or two-way." : ""; }
 // Join with the code given at sign-up, once per page load. True if it worked.
 let autoJoinTried = false;
@@ -2036,13 +2149,15 @@ async function autoJoin(){
   if (!code) return false;
   const {data, error} = await sb.rpc("join_team", {p_code: code, p_name: name || null, p_age: age || null, p_type: type || null});
   if (!error && (data==="coach" || data==="player")){
+    if (data==="player") await saveJoinArsenal(type, {hand: meta.join_hand || local.hand, mix: meta.join_mix || local.mix});
     try{ localStorage.removeItem("bqpen.join"); }catch(e){}
-    sb.auth.updateUser({data:{join_code:null, join_name:null, join_age:null, join_type:null, join_who:null}}).catch(()=>{});
+    sb.auth.updateUser({data:{join_code:null, join_name:null, join_age:null, join_type:null, join_who:null, join_hand:null, join_mix:null}}).catch(()=>{});
     setTimeout(()=>msg(data==="coach" ? "You're on the team as a coach." : joinedMsg(type), false), 0);
     return true;
   }
   // show what went wrong in the join form, with their details filled in to fix
   $("j-code").value = code; $("j-name").value = name; $("j-age").value = age; $("j-type").value = type;
+  arsenalPaint("j-ars", {hand: meta.join_hand || local.hand, mix: meta.join_mix || local.mix}); $("j-ars").hidden = !pitches(type);
   setWho("j-who", meta.join_who || local.who || "player");
   setTimeout(()=>{ const el = $("j-msg"); el.textContent = error ? "Couldn't join yet. Check your connection and tap Join team." : (JOIN_MSG[data] || "Couldn't join. Check the code and try again."); el.hidden = false; el.className = "notice"; }, 0);
   return false;
@@ -2053,15 +2168,18 @@ $("join-form").addEventListener("submit", async e=>{
   const code = $("j-code").value.trim(), name = $("j-name").value.trim(), age = player ? $("j-age").value : "", type = player ? $("j-type").value : "";
   const jm = (t, warn)=>{ const el = $("j-msg"); el.textContent = t; el.hidden = !t; el.className = warn===false ? "pen-desc" : "notice"; };
   if (player && playerPicks(age, type)){ jm(playerPicks(age, type)); return; }
+  const ars = player && pitches(type) ? arsenalRead("j-ars") : null;
+  if (ars && arsenalPicks(ars)){ jm(arsenalPicks(ars)); return; }
   if (!code){ jm("Enter the team code."); return; }
   $("j-go").disabled = true;
   const {data, error} = await sb.rpc("join_team", {p_code: code, p_name: name || null, p_age: age || null, p_type: type || null});
   $("j-go").disabled = false;
   if (error){ jm(/fetch|network/i.test(error.message) ? "No connection. Try again when you have signal." : "Couldn't join. Try again."); return; }
   if (data!=="coach" && data!=="player"){ jm(JOIN_MSG[data] || "Couldn't join. Try again."); return; }
+  if (data==="player") await saveJoinArsenal(type, ars);
   $("j-code").value = ""; $("j-name").value = ""; $("j-age").value = ""; $("j-type").value = ""; jm("");
   try{ localStorage.removeItem("bqpen.join"); }catch(_){}
-  sb.auth.updateUser({data:{join_code:null, join_name:null, join_age:null, join_type:null, join_who:null}}).catch(()=>{});
+  sb.auth.updateUser({data:{join_code:null, join_name:null, join_age:null, join_type:null, join_who:null, join_hand:null, join_mix:null}}).catch(()=>{});
   await afterAuth();
   msg(data==="coach" ? "You're on the team as a coach." : joinedMsg(type), false);
 });
@@ -2219,12 +2337,14 @@ async function createAccount(){
   if (!code){ msg("Enter the team code from your coach."); $("a-code").focus(); return; }
   if (name.length < 2){ msg("Enter your full name."); $("a-name").focus(); return; }
   if (player && playerPicks(age, type)){ msg(playerPicks(age, type)); $(age ? "a-type" : "a-age").focus(); return; }
+  const ars = player && pitches(type) ? arsenalRead("a-ars") : {hand:"", mix:[]};
+  if (player && pitches(type) && arsenalPicks(ars)){ msg(arsenalPicks(ars)); return; }
   const c = readCreds(); if (!c) return;
   // the code rides along with the account, so joining works even if the confirmation
   // link opens in a different browser; join_team() checks it once the email is confirmed
-  lsSet("bqpen.join", {code, name, age, type, who});
+  lsSet("bqpen.join", {code, name, age, type, who, hand: ars.hand, mix: ars.mix});
   busy(true);
-  const {data, error} = await sb.auth.signUp({...c, options:{emailRedirectTo: BACK, data:{join_code: code, join_name: name || null, join_age: age || null, join_type: type || null, join_who: who}}});
+  const {data, error} = await sb.auth.signUp({...c, options:{emailRedirectTo: BACK, data:{join_code: code, join_name: name || null, join_age: age || null, join_type: type || null, join_who: who, join_hand: ars.hand || null, join_mix: ars.mix.length ? ars.mix : null}}});
   busy(false);
   if (error && !/registered|exists/i.test(error.message)){ msg(/weak|password/i.test(error.message) ? error.message : "Couldn't create the account. Try again in a few minutes."); return; }
   if (!data || !data.session){ setAuthMode("in"); msg("Check your email (and junk). Tap the button in it, then tap Confirm. You'll be added to the team automatically.", false); }
