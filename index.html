@@ -226,6 +226,9 @@ button:disabled{opacity:.35;cursor:default}
 .arsenal-sum{display:flex;align-items:center;justify-content:space-between;gap:10px}
 #f-arsenal-txt{font-weight:600}
 .ars{display:flex;flex-direction:column;gap:6px;width:100%}
+details.gmore>summary{cursor:pointer;color:var(--maroon);font-size:15px;list-style:none}
+details.gmore>summary::-webkit-details-marker{display:none}
+details.gmore .gform{margin-top:8px}
 details.sect>summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;margin-top:8px}
 details.sect>summary::-webkit-details-marker{display:none}
 details.sect>summary::after{content:"›";font-size:22px;color:var(--muted);transition:transform .15s}
@@ -295,6 +298,7 @@ details.plist .dose{color:var(--muted)}
         <div><div class="label">Game date</div><input id="h-date" type="date"></div>
       </div>
       <div id="h-typewrap" hidden><div class="label">Player type</div><div class="seg" id="h-type"><button type="button" data-v="P">Pitcher</button><button type="button" data-v="POS">Position</button><button type="button" data-v="TWO">Two-way</button></div></div>
+      <button type="button" class="small ghost" id="h-oppadd" hidden>+ Add opponent</button>
       <div id="h-oppwrap"><div class="label">Opponent</div><input id="h-opp" placeholder="e.g. Brisbane North" maxlength="60" autocomplete="off"></div>
       <div class="pen-desc" id="h-note"></div>
     </div>
@@ -923,9 +927,10 @@ function renderHit(){
   $("h-note").textContent = !ath ? "Enter the player's name to track their at-bats."
     : !hitter ? (coach ? `Mark ${ath} as a position player or two-way to track hitting.` : "Hitting is tracked for position players. Ask your coach to set you up.") : "";
   ["h-game","h-entry","h-season"].forEach(id=>$(id).hidden = !hitter);
-  $("h-oppwrap").hidden = !hitter;
+  const doc = hitter ? getHit(ath, date) : null, pas = doc ? doc.pas : [];
+  const showOpp = hitter && (oppOpen || !!(doc && doc.opp));
+  $("h-oppwrap").hidden = !showOpp; $("h-oppadd").hidden = !hitter || showOpp;
   if (!hitter) return;
-  const doc = getHit(ath, date), pas = doc ? doc.pas : [];
   $("h-opp").value = (doc && doc.opp) || "";
   // this game
   $("h-game").innerHTML = `<div class="livehead"><div><div class="label" style="margin:0">${new Date(date+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"short"})}</div><div class="hitline">${pas.length ? gameLine(pas) : "No at-bats yet"}</div></div></div>
@@ -1034,11 +1039,11 @@ const hasStats = g => GAME_FIELDS.some(([k])=>g[k]!=null);
 
 // ---------- game logs ----------
 const GAME_FIELDS = [
-  ["ip","Innings","text","e.g. 4.2"],["bf","Batters faced"],["pitches","Pitches"],
-  ["strikes","Strikes"],["balls","Balls"],["fps","1st-pitch strikes"],
-  ["k","Strikeouts (K)"],["bb","Walks (BB)"],["hbp","Hit by pitch"],
-  ["h","Hits"],["r","Runs"],["er","Earned runs"],
-  ["hr","Home runs"],["wp","Wild pitches"],["topVelo","Top velo (mph)"],
+  ["ip","Innings","text","e.g. 4.2"],["pitches","Pitches"],["strikes","Strikes"],
+  ["k","Strikeouts (K)"],["bb","Walks (BB)"],["h","Hits"],["topVelo","Top velo (mph)"],
+  // under "More"
+  ["bf","Batters faced",,,1],["fps","1st-pitch strikes",,,1],["hbp","Hit by pitch",,,1],
+  ["r","Runs",,,1],["er","Earned runs",,,1],["hr","Home runs",,,1],["wp","Wild pitches",,,1],
 ];
 // Pitch Smart guidelines for 15-18 year olds (daily max by age; rest days by pitch count)
 const PITCH_MAX = {U16:95, U18:105};
@@ -1055,7 +1060,8 @@ function gameSummaryHtml(g, athlete){
     ["K", g.k ?? "–"], ["BB", g.bb ?? "–"], ["H", g.h ?? "–"], ["R / ER", (g.r ?? "–")+" / "+(g.er ?? "–")],
     ["HBP", g.hbp ?? "–"], ["HR", g.hr ?? "–"], ["WHIP", inn && (g.bb!=null || g.h!=null) ? ((n(g.bb)||0)+(n(g.h)||0)) / inn : null],
     ["P / inning", inn && P!=null ? P/inn : null], ["Top velo", g.topVelo ? g.topVelo+" mph" : null],
-  ].map(([k,v])=>[k, typeof v==="number" && (k==="WHIP" || k==="P / inning") ? v.toFixed(k==="WHIP"?2:1) : (v ?? "–")]);
+  ].map(([k,v])=>[k, typeof v==="number" && (k==="WHIP" || k==="P / inning") ? v.toFixed(k==="WHIP"?2:1) : (v ?? "–")])
+   .filter(([k,v])=>v!=="–" && v!=="– / –");   // only what was logged
   const max = PITCH_MAX[athleteAge(athlete)];
   let notes = [];
   if (S!=null && B!=null) notes.push(`${S} strikes, ${B} balls`);
@@ -1074,7 +1080,9 @@ function gameFormHtml(g){
   g = g || {};
   return `<div class="gform">
     <label class="wide">Opponent<input data-f="opp" maxlength="60" value="${esc(g.opp||"")}" placeholder="e.g. Brisbane North"></label>
-    ${GAME_FIELDS.map(([k,l,type,ph])=>`<label>${l}<input data-f="${k}" ${type==="text"?'inputmode="decimal"':'type="number" min="0" step="1" inputmode="numeric"'} value="${g[k]??""}" ${ph?`placeholder="${ph}"`:""}></label>`).join("")}
+    ${GAME_FIELDS.filter(f=>!f[4]).map(([k,l,type,ph])=>`<label>${l}<input data-f="${k}" ${type==="text"?'inputmode="decimal"':'type="number" min="0" step="1" inputmode="numeric"'} value="${g[k]??""}" ${ph?`placeholder="${ph}"`:""}></label>`).join("")}
+    <details class="gmore wide" ${GAME_FIELDS.some(f=>f[4] && g[f[0]]!=null) ? "open" : ""}><summary>More (batters faced, 1st-pitch strikes, runs, HR…)</summary><div class="gform">
+    ${GAME_FIELDS.filter(f=>f[4]).map(([k,l])=>`<label>${l}<input data-f="${k}" type="number" min="0" step="1" inputmode="numeric" value="${g[k]??""}"></label>`).join("")}</div></details>
     <label class="wide">Notes<input data-f="notes" maxlength="300" value="${esc(g.notes||"")}" placeholder="What worked, anything to follow up"></label>
   </div>
   <div class="notice gmsg" hidden></div>
@@ -1099,10 +1107,10 @@ function readGameForm(box, athlete, date){
     if (!Number.isInteger(n) || n<0 || n>500) return {err:"Use whole numbers for "+GAME_FIELDS.find(f=>f[0]===k)[1].toLowerCase()+"."};
     out[k] = n;
   }
+  out.balls = null;
   if (out.pitches!=null && out.strikes!=null){
     if (out.strikes>out.pitches) return {err:"Strikes can't be more than pitches."};
-    if (out.balls==null) out.balls = out.pitches - out.strikes;
-    else if (out.strikes + out.balls !== out.pitches) return {err:`Strikes + balls (${out.strikes+out.balls}) should equal pitches (${out.pitches}).`};
+    out.balls = out.pitches - out.strikes;
   }
   if (out.er!=null && out.r!=null && out.er>out.r) return {err:"Earned runs can't be more than runs."};
   if (out.fps!=null && out.bf!=null && out.fps>out.bf) return {err:"First-pitch strikes can't be more than batters faced."};
@@ -1156,7 +1164,8 @@ function renderTeam(){
   renderTeamGames(dates); renderTeamHits(dates);
   $("team-flags").innerHTML = flags.length ? `<div class="flags"><b>${flags.length} to follow up</b><ul>${flags.map(f=>`<li>${f}</li>`).join("")}</ul></div>` : "";
 }
-$("team-wk").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; teamWeek = +b.dataset.v; renderTeam(); });
+// coaches have one This week / Last week switch (on the team card) for the team and the player's week
+$("team-wk").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; teamWeek = schedWeek = +b.dataset.v; gameEdit = null; renderWeek(); });
 $("team-games").addEventListener("click", e=>{
   const tr = e.target.closest("tr[data-ath]"); if (!tr) return;
   $("w-ath").value = tr.dataset.ath; $("w-ath").dispatchEvent(new Event("change"));
@@ -1219,6 +1228,7 @@ function renderWeek(){
       : "Pitched: the next two days are a tolerance throw then a light bullpen, and there's no full bullpen that week. Not used: the full bullpen stays, moved off the day before a game.";
   }
   $("w-wk").querySelectorAll("button").forEach(b=>b.classList.toggle("on", +b.dataset.v===schedWeek));
+  $("w-wk").hidden = role==="coach";
   $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+"."+penNote+" Tissue prep, bands and recovery every day except the no-throw day.";
   $("w-days").innerHTML = DAYS.map(([d,full])=>{
     const t = w.d[d], T = DAYTYPES[t], dayLabel = `<div class="dayname">${full}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>`;
@@ -1341,7 +1351,9 @@ $("tabs").addEventListener("click", e=>{const b=e.target.closest("button"); if(!
 
 // ---------- hitting events ----------
 $("h-ath").addEventListener("change", ()=>{ hitDraft = null; hitSeasonFor = null; renderHit(); });
-$("h-date").addEventListener("change", ()=>{ hitDate = $("h-date").value || null; hitDraft = null; renderHit(); });
+$("h-date").addEventListener("change", ()=>{ hitDate = $("h-date").value || null; hitDraft = null; oppOpen = false; renderHit(); });
+var oppOpen = false;   // opponent box shown only once asked for, or when the game already has one
+$("h-oppadd").addEventListener("click", ()=>{ oppOpen = true; renderHit(); $("h-opp").focus(); });
 $("h-type").addEventListener("click", e=>{ const b = e.target.closest("button"); const ath = hitAthlete(); if (!b || !ath) return; setAthleteType(ath, b.dataset.v); renderHit(); });
 $("h-opp").addEventListener("change", ()=>{
   const ath = hitAthlete(), date = hitDate || localDate(); if (!isHitter(ath)) return;
