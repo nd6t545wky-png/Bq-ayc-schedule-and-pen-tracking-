@@ -206,6 +206,11 @@ button:disabled{opacity:.35;cursor:default}
 .dayname .ddate{font-family:var(--font);font-size:14px;font-weight:500;color:var(--muted);margin-left:8px}
 .dayname small{font-size:13px;font-weight:600;color:var(--gold);margin-left:8px;text-transform:uppercase}
 .dtype{display:flex;align-items:center;gap:10px}
+/* days other than today show just their header until tapped */
+.day [data-dtoggle]{cursor:pointer}
+.day.closed>:not(.dayhead):not(.dtype){display:none}
+.dtype .caret{margin-left:auto;width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translate(-2px,-2px);transition:transform .15s}
+.day:not(.closed) .dtype .caret{transform:rotate(-135deg) translate(-2px,-2px)}
 .int{font-family:var(--display);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
 .tag{font-size:13px;font-weight:500;padding:3px 10px;border-radius:99px;background:var(--fill);color:var(--muted)}
 .tag.game{background:color-mix(in srgb,var(--miss) 13%,transparent);color:var(--miss)}
@@ -248,7 +253,7 @@ details.plist .dose{color:var(--muted)}
   <!-- SCHEDULE -->
   <section id="v-sched" class="wrap" style="gap:12px">
     <div class="card">
-      <div><div class="label">Athlete</div><input id="w-ath" list="athletes" placeholder="Athlete name, for arm check-ins" autocomplete="off"></div>
+      <div id="w-athwrap"><div class="label">Athlete</div><input id="w-ath" list="athletes" placeholder="Athlete name, for arm check-ins" autocomplete="off"></div>
       <div class="row">
         <div><div class="label">Age group</div><div class="seg" id="w-age"><button data-v="U16">U16</button><button data-v="U18">U18</button><button data-v="AYWC">AYWC</button><button data-v="AWC">AWC</button></div></div>
       </div>
@@ -278,7 +283,7 @@ details.plist .dose{color:var(--muted)}
   <section id="v-hit" class="wrap" style="gap:12px" hidden>
     <div class="card">
       <div class="row">
-        <div><div class="label">Hitter</div><input id="h-ath" list="athletes" placeholder="Player name" autocomplete="off"></div>
+        <div id="h-athwrap"><div class="label">Hitter</div><input id="h-ath" list="athletes" placeholder="Player name" autocomplete="off"></div>
         <div><div class="label">Game date</div><input id="h-date" type="date"></div>
       </div>
       <div id="h-typewrap" hidden><div class="label">Player type</div><div class="seg" id="h-type"><button type="button" data-v="P">Pitcher</button><button type="button" data-v="POS">Position</button><button type="button" data-v="TWO">Two-way</button></div></div>
@@ -367,6 +372,14 @@ details.plist .dose{color:var(--muted)}
         <button class="primary" type="submit" id="j-go">Join team</button>
       </form>
       <div class="notice" id="j-msg" hidden></div>
+    </div>
+    <div class="card" id="me-card" hidden>
+      <h2 id="me-name">Your details</h2>
+      <div class="label" style="margin-top:8px">Age group</div>
+      <div class="seg" id="me-age"><button type="button" data-v="U16">U16</button><button type="button" data-v="U18">U18</button><button type="button" data-v="AYWC">AYWC</button><button type="button" data-v="AWC">AWC</button></div>
+      <div class="label" style="margin-top:10px">I'm a</div>
+      <div class="seg" id="me-type"><button type="button" data-v="P">Pitcher</button><button type="button" data-v="POS">Position player</button><button type="button" data-v="TWO">Two-way</button></div>
+      <div class="pen-desc" id="me-msg" style="margin-top:8px"></div>
     </div>
     <div class="card" id="coach-name-card" hidden>
       <h2>Add your name</h2>
@@ -1226,15 +1239,25 @@ function renderWeek(){
       const c = getCheckin(ath, dates[d]);
       if (c && (c.before!=null || c.after!=null)) check = `<div class="armq">${deltaHtml(c.before, c.after) || `<div class="delta">Arm: before <b>${c.before ?? "–"}</b> · after <b>${c.after ?? "–"}</b></div>`}</div>`;
     }
-    return `<div class="day ${d===today?'today':''}">
-      <div class="dayhead"><div class="dayname">${full}${d===today?"<small>Today</small>":""}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>${label}</div>
-      <div class="dtype"><span class="int">${T.i}</span><span class="tag ${T.cls}">${T.n}</span></div>
+    const closed = d!==today && !openDays.has(dates[d]) && gameEdit!==dates[d];
+    return `<div class="day ${d===today?'today':''} ${closed?'closed':''}" data-date="${dates[d]}">
+      <div class="dayhead" data-dtoggle><div class="dayname">${full}${d===today?"<small>Today</small>":""}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>${label}</div>
+      <div class="dtype" data-dtoggle><span class="int">${T.i}</span><span class="tag ${T.cls}">${T.n}</span>${d!==today?'<span class="caret" aria-hidden="true"></span>':""}</div>
       ${on ? `<dl class="items"><dt>Prep</dt><dd>Tissue prep, bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${armA||t==="lt"?`<dt>Arm care</dt><dd>${armA?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${recProg?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
       ${arm}${recov}${btn}${game}${check}
     </div>`;
   }).join("");
   renderTeam();
 }
+// days the person has opened (by date); today is always open
+const openDays = new Set();
+$("w-days").addEventListener("click", e=>{
+  const h = e.target.closest("[data-dtoggle]"); if (!h || e.target.closest("button,a,input")) return;
+  const day = h.closest(".day"); if (day.classList.contains("today")) return;
+  const date = day.dataset.date;
+  if (openDays.has(date)) openDays.delete(date); else openDays.add(date);
+  day.classList.toggle("closed", !openDays.has(date));
+});
 $("w-gseg").addEventListener("click", e=>{
   const b = e.target.closest("button[data-gday]"); if (!b || b.disabled) return;
   const ath = curAthlete(), date = b.dataset.gday, g = athleteGames(ath)[date];
@@ -1897,6 +1920,9 @@ function applyRole(){
   limitAges();
   $("hist-title").textContent = player ? "Your pens" : "Recent pens";
   $("w-ath").readOnly = player;
+  $("w-athwrap").hidden = $("h-athwrap").hidden = player;
+  $("me-card").hidden = !player;
+  if (player) renderMe();
   // position players don't pitch: no Bullpens tab, and their throwing week has no bullpens
   const posOnly = player && (athleteDocs[slug(playerName||"")]||{}).type==="POS";
   $("tabs").querySelector('[data-t="pens"]').hidden = posOnly;
@@ -1946,9 +1972,34 @@ function myAges(){ return role!=="coach" ? AGES : isOwner() ? AGES : AGES.filter
 function limitAges(){
   const ok = myAges();
   ["w-age","f-age"].forEach(id=>$(id).querySelectorAll("button").forEach(b=>{ b.hidden = role==="coach" && !ok.includes(b.dataset.v); }));
+  // players' age group is set in Account; a coach with one age group has nothing to pick
+  const fixed = role==="player" || (role==="coach" && ok.length===1);
+  ["w-age","f-age"].forEach(id=>$(id).parentElement.hidden = fixed);
   $("p-age").innerHTML = `<option value="">Age group</option>` + ok.map(a=>`<option>${a}</option>`).join("");
   if (role==="coach" && ok.length && !ok.includes(setup.age)){ setup.age = ok[0]; saveSetup(); repaintAll(); }
 }
+// ---------- a player's own details (Account tab) ----------
+function myProfile(){ return athleteDocs[slug(playerName||"")] || {}; }
+function renderMe(){
+  const prof = myProfile();
+  $("me-name").textContent = playerName || "Your details";
+  $("me-age").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.age));
+  $("me-type").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.type));
+}
+async function saveMe(patch){
+  const prof = myProfile(), next = {age: patch.age || prof.age, type: patch.type || prof.type};
+  const el = $("me-msg");
+  if (!next.age || !next.type){ Object.assign(prof, patch); athleteDocs[slug(playerName)] = prof; renderMe(); el.textContent = !next.age ? "Now pick your age group." : "Now pick pitcher, position player or two-way."; return; }
+  el.textContent = "Saving…";
+  const {data, error} = await sb.rpc("set_my_profile", {p_age: next.age, p_type: next.type});
+  if (error || data!=="ok"){ el.textContent = "Couldn't save. Check your connection and try again."; renderMe(); return; }
+  athleteDocs[slug(playerName)] = Object.assign({}, prof, next); lsSet("bqpen.athletes", athleteDocs);
+  setup.age = next.age; saveSetup();
+  el.textContent = "Saved.";
+  applyRole(); renderHit();
+}
+["me-age","me-type"].forEach(id=>$(id).addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return;
+  saveMe(id==="me-age" ? {age: b.dataset.v} : {type: b.dataset.v}); }));
 $("cn-save").addEventListener("click", async ()=>{
   const el = $("cn-msg"), name = $("cn-name").value.trim();
   const {data, error} = await sb.rpc("set_my_coach_name", {p_name: name});
