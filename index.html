@@ -229,6 +229,8 @@ button:disabled{opacity:.35;cursor:default}
 details.gmore>summary{cursor:pointer;color:var(--maroon);font-size:15px;list-style:none}
 details.gmore>summary::-webkit-details-marker{display:none}
 details.gmore .gform{margin-top:8px}
+table.log tr.has-sub td{border-bottom:none;padding-bottom:2px}
+table.log tr.sub td{color:var(--muted);font-size:14px;padding-top:0}
 details.sect>summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;margin-top:8px}
 details.sect>summary::-webkit-details-marker{display:none}
 details.sect>summary::after{content:"›";font-size:22px;color:var(--muted);transition:transform .15s}
@@ -900,16 +902,23 @@ const FIELD = {w:300, h:262, hx:150, hy:248, r:205};
 function fieldZone(x, y){
   const dx = x*FIELD.w - FIELD.hx, dy = FIELD.hy - y*FIELD.h, ang = Math.atan2(dx, dy)*180/Math.PI, dist = Math.hypot(dx, dy);
   if (Math.abs(ang) > 45) return "Foul";
-  if (dist < 92) return ang < -27 ? "3B" : ang < -6 ? "SS" : ang <= 6 ? "Up the middle" : ang <= 27 ? "2B" : "1B";
+  if (dist < FIELD.r*155/330) return ang < -27 ? "3B" : ang < -6 ? "SS" : ang <= 6 ? "Up the middle" : ang <= 27 ? "2B" : "1B";
   return ang < -27 ? "LF" : ang < -9 ? "LC" : ang <= 9 ? "CF" : ang <= 27 ? "RC" : "RF";
 }
 function fieldSvg(id, dots){
-  const {w,h,hx,hy,r} = FIELD, a = Math.PI/4, lx = hx - r*Math.sin(a), ly = hy - r*Math.cos(a), rx = hx + r*Math.sin(a);
-  const base = (x,y)=>`<rect class="base" x="${x-4}" y="${y-4}" width="8" height="8" transform="rotate(45 ${x} ${y})"/>`, d = 63;
-  let g = `<path class="grass" d="M${hx},${hy} L${lx},${ly} A${r},${r} 0 0 1 ${rx},${ly} Z"/>`;
-  g += `<path class="dirt" d="M${hx},${hy} L${hx-d*0.95},${hy-d*0.95} A${d*1.4},${d*1.4} 0 0 1 ${hx+d*0.95},${hy-d*0.95} Z"/>`;
+  // to scale: fence at 330 ft = r; 90 ft basepaths, mound at 60.5 ft, infield dirt 95 ft around the mound
+  const {w,h,hx,hy,r} = FIELD, ft = r/330, a = Math.PI/4, lx = hx - r*Math.sin(a), ly = hy - r*Math.cos(a), rx = hx + r*Math.sin(a);
+  const bp = 90*ft*Math.SQRT1_2, B1 = [hx+bp, hy-bp], B2 = [hx, hy-2*bp], B3 = [hx-bp, hy-bp], M = [hx, hy-60.5*ft];
+  const base = ([x,y])=>`<rect class="base" x="${x-3.5}" y="${y-3.5}" width="7" height="7" transform="rotate(45 ${x} ${y})"/>`;
+  const fair = `M${hx},${hy} L${lx},${ly} A${r},${r} 0 0 1 ${rx},${ly} Z`;
+  const c = [hx, hy-bp], pull = ([x,y], k) => [x+(c[0]-x)*k, y+(c[1]-y)*k];   // infield grass: inside the basepaths
+  const ig = [pull([hx,hy],0.3), pull(B1,0.18), pull(B2,0.18), pull(B3,0.18)];
+  let g = `<defs><clipPath id="${id}-fair"><path d="${fair}"/></clipPath></defs><path class="grass" d="${fair}"/>`;
+  g += `<g clip-path="url(#${id}-fair)"><circle class="dirt" cx="${M[0]}" cy="${M[1]}" r="${95*ft}"/>`;
+  g += `<path class="grass" d="M${ig.map(p=>p.join(",")).join(" L")} Z"/></g>`;
+  g += `<circle class="dirt" cx="${M[0]}" cy="${M[1]}" r="${9*ft}"/><circle class="dirt" cx="${hx}" cy="${hy}" r="${13*ft}"/>`;
   g += `<path class="line" d="M${lx},${ly} L${hx},${hy} L${rx},${ly}"/>`;
-  g += base(hx+d*0.707, hy-d*0.707) + base(hx, hy-d*1.414) + base(hx-d*0.707, hy-d*0.707) + base(hx, hy);
+  g += base(B1) + base(B2) + base(B3) + `<path class="base" d="M${hx-3.5},${hy-3} h7 v3 l-3.5,3 l-3.5,-3 z"/>`;
   g += [["LF",-36,170],["LC",-18,182],["CF",0,188],["RC",18,182],["RF",36,170]].map(([t,ang,dist])=>`<text class="lbl" text-anchor="middle" x="${hx+dist*Math.sin(ang*Math.PI/180)}" y="${hy-dist*Math.cos(ang*Math.PI/180)}">${t}</text>`).join("");
   g += (dots||[]).map(p=>`<circle cx="${p.x*w}" cy="${p.y*h}" r="${p.r||6}" fill="${p.c}" stroke="var(--surface)" stroke-width="1.5"/>`).join("");
   return `<svg class="field" id="${id}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Baseball field">${g}</svg>`;
@@ -1590,11 +1599,16 @@ function typeRows(st, r, withTrend){
   if (def.mode==="plan") def.plan.forEach((x,i)=>{ const p = plannedPitch(def,i,r).p; plannedN[p]=(plannedN[p]||0)+1; });
   const codes = ORDER.filter(c=>st.types[c] || plannedN[c]);
   const anyV = Object.values(st.types).some(t=>t.vs.length);
+  const trend = withTrend ? trendFor(r, st) : null;
   const velo = t => { if (!anyV) return ""; const v = veloOf(t.vs); return v ? `<td>${v.top}</td><td>${v.sat}</td>` : "<td>–</td><td>–</td>"; };
-  return `<tr><th>Pitch</th><th>Thrown</th><th>Strike %</th><th>Hit zone %</th><th>Points</th>${anyV?"<th>Top velo</th><th>Sat velo</th>":""}${withTrend?"<th>Tendency</th>":""}</tr>` +
+  return `<tr><th>Pitch</th><th>Thrown</th><th>Strike %</th><th>Hit zone %</th><th>Points</th>${anyV?"<th>Top velo</th><th>Sat velo</th>":""}</tr>` +
     codes.map(k=>{ const t = st.types[k] || {n:0,strikes:0,hit:0,pts:0,m:0,vs:[]};
       const thrown = plannedN[k] ? t.n+" / "+plannedN[k] : t.n;
-      return `<tr><td><b>${k}</b> <span class="m" style="color:var(--muted)">${PNAME[k]||""}</span></td><td>${thrown}</td><td>${t.n?pct(t.strikes,t.n)+"%":"–"}</td><td>${t.n?pct(t.hit,t.n)+"%":"–"}</td><td>${t.n?t.pts+" / "+(2*t.n):"–"}</td>${velo(t)}${withTrend?`<td>${missWords(t,r.hand)}</td>`:""}</tr>`; }).join("");
+      // pitch name and (in the summary) its miss tendency go on a line of their own so the table fits a phone
+      const tr = trend && trend.types[k], miss = withTrend && t.n && tr ? missWords(tr, r.hand) : "";
+      const sub = [PNAME[k]||"", miss && miss!=="–" ? trend.label+": "+miss.replace(/^Misses/,"misses").replace(/^On target/,"on target") : ""].filter(Boolean).join(" · ");
+      return `<tr class="${sub?'has-sub':''}"><td><b>${k}</b></td><td>${thrown}</td><td>${t.n?pct(t.strikes,t.n)+"%":"–"}</td><td>${t.n?pct(t.hit,t.n)+"%":"–"}</td><td>${t.n?t.pts+" / "+(2*t.n):"–"}</td>${velo(t)}</tr>`
+        + (sub ? `<tr class="sub"><td colspan="${anyV?7:5}">${esc(sub)}</td></tr>` : ""); }).join("");
 }
 function sideName(z){ const arm = pen.hand==="L" ? 0 : 2; return col(z)===arm ? "Arm side" : "Glove side"; }
 function grpLabel(def,i){ const g = def.plan[i].grp; const idx = def.plan.filter((x,k)=>k<=i && x.grp===g).length; const n = def.plan.filter(x=>x.grp===g).length; return (n===3?"Sequence":"Pair")+" pitch "+idx+" of "+n; }
@@ -1759,6 +1773,18 @@ function evaluate(r, st){
     case "base1": case "base2": case "base3": return [null, "Base sequence: intensity 80% to max, no set target"];
     default: return [null, "No target for a custom pen"];
   }
+}
+// Miss pattern per pitch for the summary. Until a pitcher has 3 pens logged it's a "Trend" from this pen
+// alone; from the 3rd pen it's a "Tendency" from their recent pens (up to 5, this one included).
+function trendFor(r, st){
+  const me = slug(r.athlete||"");
+  const mine = histDocs.filter(x=>slug(x.athlete||"")===me && x.id!==r.id && (x.pitches||[]).length && (x.createdAt||0) <= (r.createdAt||Infinity))
+    .sort((a,b)=>b.createdAt-a.createdAt).slice(0,4);
+  if (mine.length + 1 < 3) return {label:"Trend", types: st.types};
+  const types = {};
+  [st].concat(mine.map(computeStats)).forEach(s=>Object.entries(s.types).forEach(([c,t])=>{
+    const a = types[c] || (types[c] = {dx:0, dy:0, m:0}); a.dx += t.dx; a.dy += t.dy; a.m += t.m; }));
+  return {label:"Tendency", types, pens: mine.length + 1};
 }
 function missWords(t, hand){
   if (!t.m) return "–";
