@@ -490,8 +490,8 @@ details.plist .dose{color:var(--muted)}
       <div class="scroll"><table class="log" id="s-types"></table></div>
     </div>
     <div class="card">
-      <div class="label">Pitch log</div>
-      <div class="scroll"><table class="log" id="s-log"></table></div>
+      <details class="sect" id="s-logwrap"><summary><div class="label" style="margin:0">Show every pitch</div></summary>
+      <div class="scroll"><table class="log" id="s-log"></table></div></details>
     </div>
     <div class="card">
       <div class="row">
@@ -1809,6 +1809,7 @@ function openSummary(r){
   $("s-legend").innerHTML = ORDER.filter(t=>st.types[t]).map(t=>`<span><i style="background:${TYPE_COLORS[t]||'#888'}"></i>${PNAME[t]}</span>`).join("");
   $("s-types").innerHTML = typeRows(st, r, true);
   const showGate = r.pitches.some(p=>p.gate!=null), showShape = r.pitches.some(p=>p.shape!=null), showH = r.pitches.some(p=>p.hitter);
+  $("s-logwrap").open = false;
   $("s-log").innerHTML = `<tr><th>#</th><th>Pitch</th><th>Intended</th><th>Actual</th><th>Pts</th>${showGate?"<th>Gate</th>":""}${showShape?"<th>Shape</th>":""}${showH?"<th>Hitter</th><th>Count</th>":""}<th>Note</th></tr>` +
     r.pitches.map(p=>`<tr><td>${p.n}</td><td>${p.p}${p.set?" ("+p.set+")":""}</td><td>${p.intended}</td><td>${p.actual===0?"Off":p.actual}</td><td class="${p.pts===2?'pts2':p.pts===1?'pts1':p.pts<0?'ptsm':'pts0'}">${p.pts}</td>${showGate?`<td>${p.gate==null?"":p.gate?"Y":"N"}</td>`:""}${showShape?`<td>${p.shape==null?"":p.shape?"Y":"N"}</td>`:""}${showH?`<td>${p.hitter||""}</td><td>${p.count||""}</td>`:""}<td>${esc([p.note,p.event,p.swung?"swung":""].filter(Boolean).join(", "))}</td></tr>`).join("");
   $("s-resume").hidden = r.status!=="live";
