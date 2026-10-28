@@ -1599,12 +1599,14 @@ function typeRows(st, r, withTrend){
   if (def.mode==="plan") def.plan.forEach((x,i)=>{ const p = plannedPitch(def,i,r).p; plannedN[p]=(plannedN[p]||0)+1; });
   const codes = ORDER.filter(c=>st.types[c] || plannedN[c]);
   const anyV = Object.values(st.types).some(t=>t.vs.length);
+  const trend = withTrend ? trendFor(r, st) : null;
   const velo = t => { if (!anyV) return ""; const v = veloOf(t.vs); return v ? `<td>${v.top}</td><td>${v.sat}</td>` : "<td>–</td><td>–</td>"; };
   return `<tr><th>Pitch</th><th>Thrown</th><th>Strike %</th><th>Hit zone %</th><th>Points</th>${anyV?"<th>Top velo</th><th>Sat velo</th>":""}</tr>` +
     codes.map(k=>{ const t = st.types[k] || {n:0,strikes:0,hit:0,pts:0,m:0,vs:[]};
       const thrown = plannedN[k] ? t.n+" / "+plannedN[k] : t.n;
       // pitch name and (in the summary) its miss tendency go on a line of their own so the table fits a phone
-      const sub = [PNAME[k]||"", withTrend && t.n ? missWords(t,r.hand) : ""].filter(Boolean).join(" · ");
+      const tr = trend && trend.types[k], miss = withTrend && t.n && tr ? missWords(tr, r.hand) : "";
+      const sub = [PNAME[k]||"", miss && miss!=="–" ? trend.label+": "+miss.replace(/^Misses/,"misses").replace(/^On target/,"on target") : ""].filter(Boolean).join(" · ");
       return `<tr class="${sub?'has-sub':''}"><td><b>${k}</b></td><td>${thrown}</td><td>${t.n?pct(t.strikes,t.n)+"%":"–"}</td><td>${t.n?pct(t.hit,t.n)+"%":"–"}</td><td>${t.n?t.pts+" / "+(2*t.n):"–"}</td>${velo(t)}</tr>`
         + (sub ? `<tr class="sub"><td colspan="${anyV?7:5}">${esc(sub)}</td></tr>` : ""); }).join("");
 }
@@ -1771,6 +1773,18 @@ function evaluate(r, st){
     case "base1": case "base2": case "base3": return [null, "Base sequence: intensity 80% to max, no set target"];
     default: return [null, "No target for a custom pen"];
   }
+}
+// Miss pattern per pitch for the summary. Until a pitcher has 3 pens logged it's a "Trend" from this pen
+// alone; from the 3rd pen it's a "Tendency" from their recent pens (up to 5, this one included).
+function trendFor(r, st){
+  const me = slug(r.athlete||"");
+  const mine = histDocs.filter(x=>slug(x.athlete||"")===me && x.id!==r.id && (x.pitches||[]).length && (x.createdAt||0) <= (r.createdAt||Infinity))
+    .sort((a,b)=>b.createdAt-a.createdAt).slice(0,4);
+  if (mine.length + 1 < 3) return {label:"Trend", types: st.types};
+  const types = {};
+  [st].concat(mine.map(computeStats)).forEach(s=>Object.entries(s.types).forEach(([c,t])=>{
+    const a = types[c] || (types[c] = {dx:0, dy:0, m:0}); a.dx += t.dx; a.dy += t.dy; a.m += t.m; }));
+  return {label:"Tendency", types, pens: mine.length + 1};
 }
 function missWords(t, hand){
   if (!t.m) return "–";
