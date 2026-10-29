@@ -1084,9 +1084,10 @@ const hasStats = g => GAME_FIELDS.some(([k])=>g[k]!=null);
 // ---------- game logs ----------
 const GAME_FIELDS = [
   ["ip","Innings","text","e.g. 4.2"],["pitches","Pitches"],["strikes","Strikes"],
+  ["bf","Batters faced"],["fps","1st-pitch strikes"],
   ["k","Strikeouts (K)"],["bb","Walks (BB)"],["h","Hits"],["topVelo","Top velo (mph)"],
   // under "More"
-  ["bf","Batters faced",,,1],["fps","1st-pitch strikes",,,1],["hbp","Hit by pitch",,,1],
+  ["hbp","Hit by pitch",,,1],
   ["r","Runs",,,1],["er","Earned runs",,,1],["hr","Home runs",,,1],["wp","Wild pitches",,,1],
 ];
 // Pitch Smart guidelines for 15-18 year olds (daily max by age; rest days by pitch count)
@@ -1109,7 +1110,6 @@ function gameSummaryHtml(g, athlete){
   const max = PITCH_MAX[athleteAge(athlete)];
   let notes = [];
   if (S!=null && B!=null) notes.push(`${S} strikes, ${B} balls`);
-  if (g.fps!=null && g.bf) notes.push(`${g.fps} of ${g.bf} first pitches for strikes`);
   if (g.k!=null && g.bb) notes.push(`K/BB ${(g.k/g.bb).toFixed(1)}`);
   if (g.wp) notes.push(`${g.wp} wild pitch${g.wp==1?"":"es"}`);
   let warn = "";
@@ -1125,7 +1125,7 @@ function gameFormHtml(g){
   return `<div class="gform">
     <label class="wide">Opponent<input data-f="opp" maxlength="60" value="${esc(g.opp||"")}" placeholder="e.g. Brisbane North"></label>
     ${GAME_FIELDS.filter(f=>!f[4]).map(([k,l,type,ph])=>`<label>${l}<input data-f="${k}" ${type==="text"?'inputmode="decimal"':'type="number" min="0" step="1" inputmode="numeric"'} value="${g[k]??""}" ${ph?`placeholder="${ph}"`:""}></label>`).join("")}
-    <details class="gmore wide" ${GAME_FIELDS.some(f=>f[4] && g[f[0]]!=null) ? "open" : ""}><summary>More (batters faced, 1st-pitch strikes, runs, HR…)</summary><div class="gform">
+    <details class="gmore wide" ${GAME_FIELDS.some(f=>f[4] && g[f[0]]!=null) ? "open" : ""}><summary>More (runs, HR, HBP, wild pitches)</summary><div class="gform">
     ${GAME_FIELDS.filter(f=>f[4]).map(([k,l])=>`<label>${l}<input data-f="${k}" type="number" min="0" step="1" inputmode="numeric" value="${g[k]??""}"></label>`).join("")}</div></details>
     <label class="wide">Notes<input data-f="notes" maxlength="300" value="${esc(g.notes||"")}" placeholder="What worked, anything to follow up"></label>
   </div>
