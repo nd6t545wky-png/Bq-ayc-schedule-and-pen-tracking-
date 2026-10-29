@@ -314,7 +314,7 @@ details.plist .dose{color:var(--muted)}
     <div class="card" id="newpen">
       <h2>New pen</h2>
       <div class="row">
-        <div><div class="label">Athlete</div><input id="f-ath" list="athletes" placeholder="Athlete name" autocomplete="off"><datalist id="athletes"></datalist></div>
+        <div id="f-athwrap"><div class="label">Athlete</div><input id="f-ath" list="athletes" placeholder="Athlete name" autocomplete="off"><datalist id="athletes"></datalist></div>
         <div><div class="label">Age group</div><div class="seg" id="f-age"><button data-v="U16">U16</button><button data-v="U18">U18</button><button data-v="AYWC">AYWC</button><button data-v="AWC">AWC</button></div></div>
       </div>
       <div class="arsenal-sum" id="f-arsenal-sum" hidden><div><div class="label">Throws</div><div id="f-arsenal-txt"></div></div><button type="button" class="small ghost" id="f-arsenal-edit">Change</button></div>
@@ -1247,7 +1247,7 @@ function renderWeek(){
     const armA = t==="pen" || t==="light" || t==="phi" || t==="pmod", recProg = t==="rec" || t==="tol";
     const arm = armA ? progList("Arm care A", ARM_A) : t==="lt" ? progList("Arm care B", ARM_B) : "";
     const recov = recProg ? progList("Recovery / mobility program (before or after throwing)", RECOVERY) : "";
-    const btn = T.pen && role!=="player" ? `<button class="small" data-pen="${d}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
+    const btn = T.pen ? `<button class="small" data-pen="${d}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
     let check = "", game = "";
     if (built && t==="game" && !ath) game = `<div class="glog"><button class="small" data-gneedath>Log this game</button></div>`;
     else if (built && t==="game"){
@@ -1468,7 +1468,7 @@ document.addEventListener("click", e=>{
   const [where, field, date] = b.parentElement.dataset.k.split(":"), v = +b.dataset.v;
   if (where==="w"){ const ath = curAthlete(), cur = (getCheckin(ath, date)||{})[field]; setCheckin(ath, date, field, cur===v ? null : v); renderWeek(); }
   else if (where==="f"){ armBefore = armBefore===v ? null : v; paintArmBefore(); }
-  else if (where==="s" && pen && role!=="player"){
+  else if (where==="s" && pen){
     pen.armAfter = pen.armAfter===v ? null : v; queueSave();
     setCheckin(pen.athlete, pen.date, "after", pen.armAfter);
     paintSummaryArm(pen);
@@ -1482,7 +1482,7 @@ $("start").addEventListener("click", ()=>{
   if (setup.mix.length<2){ $("setup-err").textContent="Pick at least two pitches in the pitch mix."; $("setup-err").hidden=false; return; }
   $("setup-err").hidden = true;
   try{ localStorage.setItem("bqpen.ath", ath); }catch(e){}
-  saveAthlete(ath);
+  if (role==="player") savePlayerArsenal(); else saveAthlete(ath);
   const def = penDef(setup.fw, setup.lvl);
   const now = new Date();
   pen = { id:"p"+now.getTime().toString(36)+Math.random().toString(36).slice(2,6), athlete:ath, age:setup.age, hand:setup.hand, mix:setup.mix.slice(),
@@ -1814,11 +1814,11 @@ function openSummary(r){
     r.pitches.map(p=>`<tr><td>${p.n}</td><td>${p.p}${p.set?" ("+p.set+")":""}</td><td>${p.intended}</td><td>${p.actual===0?"Off":p.actual}</td><td class="${p.pts===2?'pts2':p.pts===1?'pts1':p.pts<0?'ptsm':'pts0'}">${p.pts}</td>${showGate?`<td>${p.gate==null?"":p.gate?"Y":"N"}</td>`:""}${showShape?`<td>${p.shape==null?"":p.shape?"Y":"N"}</td>`:""}${showH?`<td>${p.hitter||""}</td><td>${p.count||""}</td>`:""}<td>${esc([p.note,p.event,p.swung?"swung":""].filter(Boolean).join(", "))}</td></tr>`).join("");
   $("s-resume").hidden = r.status!=="live";
   $("s-confirm").hidden = true; $("s-del").hidden = !isCoach;
-  $("s-again").hidden = role==="player"; if (role==="player") $("s-resume").hidden = true;
+  // players can resume and re-run their own pens; deleting stays with coaches
+  $("s-again").hidden = false;
 }
 function paintSummaryArm(r){
   const b = r.armBefore ?? null, a = r.armAfter ?? null;
-  if (role==="player"){ $("s-arm").innerHTML = `<div class="armq"><div class="q">Arm before and after this pen</div>${b!=null&&a!=null ? deltaHtml(b,a) : `<div class="delta">Before: <b>${b ?? "–"}</b> · After: <b>${a ?? "–"}</b></div>`}</div>`; return; }
   $("s-arm").innerHTML = `<div class="armq"><div class="q">How does the arm feel now, after the pen?</div>${scaleHtml("s:after", a)}
     ${b==null ? `<div class="delta">No arm score was logged before this pen.</div>` : a==null ? `<div class="delta">Before the pen: <b>${b}</b></div>` : deltaHtml(b, a)}</div>`;
 }
@@ -1883,6 +1883,14 @@ function queueSave(){
   const ob = outbox(); ob.pens[pen.id] = body; saveOutbox(ob);
   rebuildHist(); flush();
 }
+// A player can't write the athlete list, so their throwing hand / pitches go through set_my_arsenal
+// (the saved pitch list only grows, as for coaches)
+function savePlayerArsenal(){
+  const prof = myProfile(), mix = ORDER.filter(c=>setup.mix.includes(c) || (prof.mix||[]).includes(c));
+  if (prof.hand===setup.hand && JSON.stringify(prof.mix||[])===JSON.stringify(mix)) return;
+  athleteDocs[slug(playerName)] = Object.assign({}, prof, {hand: setup.hand, mix}); lsSet("bqpen.athletes", athleteDocs);
+  if (sb) sb.rpc("set_my_arsenal", {p_hand: setup.hand, p_mix: mix}).then(()=>{}, ()=>{});
+}
 function saveAthlete(name){
   const id = slug(name), prev = athleteDocs[id];
   // the saved mix is every pitch they throw: a pen that works on only some of them adds, never removes
@@ -1935,7 +1943,8 @@ async function flush(){
       again = false;
       const ob = outbox();
       const coach = role==="coach";
-      const pens = coach ? Object.values(ob.pens) : [], aths = coach ? Object.entries(ob.athletes) : [], del = coach ? ob.del.slice() : [];
+      const pens = Object.values(ob.pens).filter(b=>coach || slug(b.athlete)===slug(playerName));   // players send their own pens
+      const aths = coach ? Object.entries(ob.athletes) : [], del = coach ? ob.del.slice() : [];
       const chks = Object.values(ob.checkins).filter(b=>coach || slug(b.athlete)===slug(playerName));
       const gms = Object.values(ob.games).filter(b=>coach || slug(b.athlete)===slug(playerName));
       const gdel = ob.gdel.filter(id=>coach || id.startsWith(slug(playerName)+"_"));
@@ -2028,7 +2037,7 @@ async function afterAuth(){
 }
 function applyRole(){
   const player = role==="player";
-  $("newpen").hidden = player || !!(session && !role);
+  $("newpen").hidden = !!(session && !role);   // players log their own pens too
   const coach = role==="coach", noGroups = coach && !myAges().length;
   $("players-card").hidden = !coach;
   $("coaches-wrap").hidden = !isOwner();
@@ -2039,7 +2048,8 @@ function applyRole(){
   limitAges();
   $("hist-title").textContent = player ? "Your pens" : "Recent pens";
   $("w-ath").readOnly = player;
-  $("w-athwrap").hidden = $("h-athwrap").hidden = player;
+  $("w-athwrap").hidden = $("h-athwrap").hidden = $("f-athwrap").hidden = player;
+  if (player && playerName && $("f-ath").value.trim()!==playerName){ $("f-ath").value = playerName; loadAthlete(); }
   $("me-card").hidden = !player;
   if (player) renderMe();
   // position players don't pitch: no Bullpens tab, and their throwing week has no bullpens
