@@ -279,8 +279,11 @@ details.plist .dose{color:var(--muted)}
       </div>
       <div class="seg" id="w-wk"><button type="button" data-v="0" class="on">This week</button><button type="button" data-v="-1">Last week</button></div>
       <div class="pen-desc" id="w-note"></div>
-      <button type="button" class="small ghost" id="w-addgame" style="align-self:flex-start">+ Log a game on another day</button>
-      <div class="seg" id="w-addday" hidden></div>
+      <button type="button" class="small" id="w-addgame" style="align-self:flex-start">+ Log a game</button>
+      <div class="row" id="w-addday" hidden style="align-items:flex-end">
+        <div><div class="label">Game date</div><input type="date" id="w-gamedate"></div>
+        <button type="button" class="primary" id="w-gamego">Open game log</button>
+      </div>
     </div>
     <div class="card" id="team" hidden>
       <div class="livehead"><h2 id="team-title">Team arm check-ins</h2></div>
@@ -1240,7 +1243,8 @@ function renderWeek(){
   }
   $("w-wk").querySelectorAll("button").forEach(b=>b.classList.toggle("on", +b.dataset.v===schedWeek));
   $("w-addgame").hidden = !ath;
-  if (!$("w-addday").hidden) $("w-addday").innerHTML = DAYS.filter(([k])=>dates[k] <= todayDate).map(([k])=>`<button type="button" data-addday="${dates[k]}">${k} ${new Date(dates[k]+"T00:00:00").getDate()}</button>`).join("");
+  // any day of last week or this week
+  $("w-gamedate").min = weekDates(-1).Mon; $("w-gamedate").max = weekDates(0).Sun;
   $("w-wk").hidden = role==="coach";
   $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+"."+penNote+" Tissue prep, bands and recovery every day except the no-throw day.";
   $("w-days").innerHTML = DAYS.map(([d,full])=>{
@@ -1303,10 +1307,16 @@ $("w-days").addEventListener("click", e=>{
   day.classList.toggle("closed", !openDays.has(date));
 });
 // + Log a game: pick the day, then the game log opens on that day (position players go to Hitting)
-$("w-addgame").addEventListener("click", ()=>{ $("w-addday").hidden = !$("w-addday").hidden; renderWeek(); });
-$("w-addday").addEventListener("click", e=>{
-  const b = e.target.closest("[data-addday]"); if (!b) return;
-  const date = b.dataset.addday; $("w-addday").hidden = true;
+$("w-addgame").addEventListener("click", ()=>{
+  const open = $("w-addday").hidden; $("w-addday").hidden = !open;
+  if (open && !$("w-gamedate").value) $("w-gamedate").value = localDate();
+});
+$("w-gamego").addEventListener("click", ()=>{
+  const date = $("w-gamedate").value; if (!date) return;
+  if (date < weekDates(-1).Mon || date > weekDates(0).Sun){ $("w-gamedate").value = localDate(); return; }
+  $("w-addday").hidden = true;
+  // show the week the game is in
+  schedWeek = teamWeek = date >= weekDates(0).Mon ? 0 : -1;
   if (isPosOnly(curAthlete())){ hitDate = date; hitDraft = null; setTab("hit"); return; }
   gameEdit = date; openDays.add(date); renderWeek();
   document.querySelector(`[data-game="${date}"]`)?.scrollIntoView({behavior:"smooth", block:"center"});
