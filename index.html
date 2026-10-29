@@ -751,7 +751,7 @@ const CAL = {
   AYWC: [], AWC: [],
 };
 // Schoolboys tournament: a game can be logged on any of these days (the throwing plan is unchanged)
-const TOURNEYS = [{from:"2026-10-30", to:"2026-11-01", label:"Schoolboys tournament"}];
+const TOURNEYS = [{from:"2026-10-29", to:"2026-11-01", label:"Schoolboys tournament"}];
 const tourneyOn = date => TOURNEYS.find(t => date >= t.from && date <= t.to);
 const calEvent = (age, date) => { const e = (CAL[age]||[]).find(x=>x[0]===date); return e ? {label:e[1], kind:e[2]} : null; };
 const inCal = date => date >= CAL_FROM && date <= CAL_TO;
