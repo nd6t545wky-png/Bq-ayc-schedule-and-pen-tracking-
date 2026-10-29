@@ -279,6 +279,8 @@ details.plist .dose{color:var(--muted)}
       </div>
       <div class="seg" id="w-wk"><button type="button" data-v="0" class="on">This week</button><button type="button" data-v="-1">Last week</button></div>
       <div class="pen-desc" id="w-note"></div>
+      <button type="button" class="small ghost" id="w-addgame" style="align-self:flex-start">+ Log a game on another day</button>
+      <div class="seg" id="w-addday" hidden></div>
     </div>
     <div class="card" id="team" hidden>
       <div class="livehead"><h2 id="team-title">Team arm check-ins</h2></div>
@@ -1237,6 +1239,8 @@ function renderWeek(){
       : "Pitched: the next two days are a tolerance throw then a light bullpen, and there's no full bullpen that week. Not used: the full bullpen stays, moved off the day before a game.";
   }
   $("w-wk").querySelectorAll("button").forEach(b=>b.classList.toggle("on", +b.dataset.v===schedWeek));
+  $("w-addgame").hidden = !ath;
+  if (!$("w-addday").hidden) $("w-addday").innerHTML = DAYS.filter(([k])=>dates[k] <= todayDate).map(([k])=>`<button type="button" data-addday="${dates[k]}">${k} ${new Date(dates[k]+"T00:00:00").getDate()}</button>`).join("");
   $("w-wk").hidden = role==="coach";
   $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+"."+penNote+" Tissue prep, bands and recovery every day except the no-throw day.";
   $("w-days").innerHTML = DAYS.map(([d,full])=>{
@@ -1259,6 +1263,10 @@ function renderWeek(){
     }
     else if (t==="game" || t==="game2") game = ath ? gameHtml(ath, dates[d])
       : `<div class="glog"><button class="small" data-gneedath>Log this game</button></div>`;
+    // position players log their games on the Hitting tab
+    else if (posOnly && t==="pos" && ath) game = `<div class="glog"><button class="small" data-ghit="${dates[d]}">Log hitting for this game</button></div>`;
+    // a game on any other day (picked with "+ Log a game", or already logged there)
+    else if (ath && !posOnly && (gameEdit===dates[d] || hasStats(getGame(ath, dates[d]) || {}))) game = gameHtml(ath, dates[d]);
     // before the athlete joined, the only thing to fill in is a game they played that day
     if (dates[d] < start) return `<div class="day pre ${game?'hasgame':''}"><div class="dayhead">${dayLabel}<span class="tag off">Before joining</span></div><div class="pen-desc">${esc(ath)}'s schedule starts ${new Date(start+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long", day:"numeric", month:"short"})}, the day they joined.${game ? " You can still log this game." : ""}</div>${game}</div>`;
     // the 1-10 scales only on today's card; earlier days just show what was logged
@@ -1293,6 +1301,19 @@ $("w-days").addEventListener("click", e=>{
   const date = day.dataset.date;
   if (openDays.has(date)) openDays.delete(date); else openDays.add(date);
   day.classList.toggle("closed", !openDays.has(date));
+});
+// + Log a game: pick the day, then the game log opens on that day (position players go to Hitting)
+$("w-addgame").addEventListener("click", ()=>{ $("w-addday").hidden = !$("w-addday").hidden; renderWeek(); });
+$("w-addday").addEventListener("click", e=>{
+  const b = e.target.closest("[data-addday]"); if (!b) return;
+  const date = b.dataset.addday; $("w-addday").hidden = true;
+  if (isPosOnly(curAthlete())){ hitDate = date; hitDraft = null; setTab("hit"); return; }
+  gameEdit = date; openDays.add(date); renderWeek();
+  document.querySelector(`[data-game="${date}"]`)?.scrollIntoView({behavior:"smooth", block:"center"});
+});
+$("w-days").addEventListener("click", e=>{
+  const h = e.target.closest("[data-ghit]"); if (!h) return;
+  hitDate = h.dataset.ghit; hitDraft = null; setTab("hit");
 });
 $("w-gseg").addEventListener("click", e=>{
   const b = e.target.closest("button[data-gday]"); if (!b || b.disabled) return;
