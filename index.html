@@ -909,8 +909,9 @@ function hitStats(pas){
   t.ops = t.obp!=null && t.slg!=null ? t.obp+t.slg : null; t.kp = r(t.k,t.pa); t.bbp = r(t.bb,t.pa); t.hardp = r(t.hard,t.bip);
   return t;
 }
-// every list of people is A to Z, ignoring capitals
-const byName = (a, b) => String(a||"").localeCompare(String(b||""), "en", {sensitivity:"base"});
+// every list of people is A to Z by surname (then first name), ignoring capitals
+const surname = n => String(n||"").trim().split(/\s+/).pop();
+const byName = (a, b) => surname(a).localeCompare(surname(b), "en", {sensitivity:"base"}) || String(a||"").localeCompare(String(b||""), "en", {sensitivity:"base"});
 const avgFmt = v => v==null ? "–" : (v>=1 ? v.toFixed(3) : v.toFixed(3).replace(/^0/,""));
 const pctFmt = v => v==null ? "–" : Math.round(v*100)+"%";
 function gameLine(pas){

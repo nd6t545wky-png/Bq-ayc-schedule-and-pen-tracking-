@@ -13,7 +13,7 @@ One Google Sheet per age group (U16, U18, AYWC, AWC). Each one has these tabs:
 | **Hitting games** | Every hitting game |
 | **At-bats** | Every at-bat |
 
-Players are in alphabetical order, newest entries first within each player. The sheets update every 5 minutes. New players, new data and any new fields the app adds show up on their own. No email addresses are ever included.
+Players are in alphabetical order by surname, newest entries first within each player. The sheets update every 5 minutes. New players, new data and any new fields the app adds show up on their own. No email addresses are ever included.
 
 You set this up once, in about 10 minutes, on a computer.
 
