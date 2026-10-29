@@ -910,6 +910,10 @@ function hitStats(pas){
   return t;
 }
 // every list of people is A to Z by surname (then first name), ignoring capitals
+// names start with a capital: "zavier leigh" becomes "Zavier Leigh" (the rest is left as typed)
+const capName = n => String(n||"").trim().replace(/\s+/g," ").replace(/(^|[ -])(\p{Ll})/gu, (m, a, b) => a + b.toUpperCase());
+document.addEventListener("change", e=>{ const t = e.target;
+  if (t.matches && t.matches("#w-ath,#f-ath,#h-ath,#cn-name,#j-name,#a-name,#p-name,input[data-cn]") && t.value !== capName(t.value)) t.value = capName(t.value); }, true);
 const surname = n => String(n||"").trim().split(/\s+/).pop();
 const byName = (a, b) => surname(a).localeCompare(surname(b), "en", {sensitivity:"base"}) || String(a||"").localeCompare(String(b||""), "en", {sensitivity:"base"});
 const avgFmt = v => v==null ? "–" : (v>=1 ? v.toFixed(3) : v.toFixed(3).replace(/^0/,""));
@@ -2131,7 +2135,7 @@ async function afterAuth(){
     }
     else {
       const r = await sb.rpc("my_athlete");
-      if (!r.error && r.data){ role = "player"; playerName = r.data; }
+      if (!r.error && r.data){ role = "player"; playerName = capName(r.data); }
     }
     if (!role && await autoJoin()) return afterAuth();
   }
