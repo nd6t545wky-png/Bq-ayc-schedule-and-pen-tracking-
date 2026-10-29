@@ -750,6 +750,9 @@ const CAL = {
     span("2027-01-06", 7, "Nationals", "tour")),
   AYWC: [], AWC: [],
 };
+// Schoolboys tournament: a game can be logged on any of these days (the throwing plan is unchanged)
+const TOURNEYS = [{from:"2026-10-30", to:"2026-11-01", label:"Schoolboys tournament"}];
+const tourneyOn = date => TOURNEYS.find(t => date >= t.from && date <= t.to);
 const calEvent = (age, date) => { const e = (CAL[age]||[]).find(x=>x[0]===date); return e ? {label:e[1], kind:e[2]} : null; };
 const inCal = date => date >= CAL_FROM && date <= CAL_TO;
 // What a calendar day does to the throwing plan: play days are game days, off days are no-throw,
@@ -1293,6 +1296,9 @@ function renderWeek(){
     else if (posOnly && t==="pos" && ath) game = `<div class="glog"><button class="small" data-ghit="${dates[d]}">Log hitting for this game</button></div>`;
     // a game on any other day (picked with "+ Log a game", or already logged there)
     else if (ath && !posOnly && (gameEdit===dates[d] || hasStats(getGame(ath, dates[d]) || {}))) game = gameHtml(ath, dates[d]);
+    else if (tourneyOn(dates[d])) game = !ath ? `<div class="glog"><button class="small" data-gneedath>Log a game</button></div>`
+      : posOnly ? `<div class="glog"><button class="small" data-ghit="${dates[d]}">Log hitting for a game</button></div>`
+      : gameHtml(ath, dates[d]);
     // before the athlete joined, the only thing to fill in is a game they played that day
     if (dates[d] < start) return `<div class="day pre ${game?'hasgame':''}"><div class="dayhead">${dayLabel}<span class="tag off">Before joining</span></div><div class="pen-desc">${esc(ath)}'s schedule starts ${new Date(start+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long", day:"numeric", month:"short"})}, the day they joined.${game ? " You can still log this game." : ""}</div>${game}</div>`;
     // the 1-10 scales only on today's card; earlier days just show what was logged
@@ -1311,7 +1317,7 @@ function renderWeek(){
     }
     const closed = d!==today && !openDays.has(dates[d]) && gameEdit!==dates[d];
     return `<div class="day ${d===today?'today':''} ${closed?'closed':''}" data-date="${dates[d]}">
-      <div class="dayhead" data-dtoggle><div class="dayname">${full}${d===today?"<small>Today</small>":""}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>${label}</div>
+      <div class="dayhead" data-dtoggle><div class="dayname">${full}${d===today?"<small>Today</small>":""}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>${tourneyOn(dates[d]) ? `<span class="tag game">${esc(tourneyOn(dates[d]).label)}</span>` : label}</div>
       <div class="dtype" data-dtoggle><span class="int">${T.i}</span><span class="tag ${T.cls}">${T.n}</span>${d!==today?'<span class="caret" aria-hidden="true"></span>':""}</div>
       ${on ? `<dl class="items"><dt>Prep</dt><dd>Tissue prep, bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${armA||t==="lt"?`<dt>Arm care</dt><dd>${armA?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${recProg?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
       ${arm}${recov}${btn}${game}${check}
@@ -1319,8 +1325,8 @@ function renderWeek(){
   }).join("");
   renderTeam();
 }
-// days the person has opened (by date); today is always open
-const openDays = new Set();
+// days the person has opened (by date); today is always open, and tournament days start open
+const openDays = new Set(TOURNEYS.flatMap(t => span(t.from, Math.round((new Date(t.to) - new Date(t.from)) / 864e5) + 1).map(x => x[0])));
 $("w-days").addEventListener("click", e=>{
   const h = e.target.closest("[data-dtoggle]"); if (!h || e.target.closest("button,a,input")) return;
   const day = h.closest(".day"); if (day.classList.contains("today")) return;
