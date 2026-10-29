@@ -231,6 +231,7 @@ details.gmore>summary::-webkit-details-marker{display:none}
 details.gmore .gform{margin-top:8px}
 table.log tr.has-sub td{border-bottom:none;padding-bottom:2px}
 table.log tr.sub td{color:var(--muted);font-size:14px;padding-top:0}
+table.log td.flag{color:var(--miss);font-weight:700}
 details.sect>summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;margin-top:8px}
 details.sect>summary::-webkit-details-marker{display:none}
 details.sect>summary::after{content:"›";font-size:22px;color:var(--muted);transition:transform .15s}
@@ -295,6 +296,20 @@ details.plist .dose{color:var(--muted)}
       <div class="pen-desc">Before → after for each day. Red: arm score 4 or lower, or a drop of 3 or more. Tap a player to open their week below.</div>
     </div>
     <div class="days" id="w-days"></div>
+  </section>
+
+  <!-- PLAYER PROFILE (coaches) -->
+  <section id="v-prof" class="wrap" style="gap:12px" hidden>
+    <div class="card">
+      <div class="livehead"><div><h2 id="pf-name"></h2><div class="pen" id="pf-sub"></div></div><button class="small ghost" id="pf-back">Back</button></div>
+      <button class="small" id="pf-week" style="align-self:flex-start;margin-top:8px">Open their throwing week</button>
+      <div class="pen-desc" id="pf-load"></div>
+    </div>
+    <div class="card" id="pf-velo" hidden></div>
+    <div class="card"><h2>Arm check-ins</h2><div id="pf-arm"></div></div>
+    <div class="card" id="pf-pens-card"><h2>Bullpens</h2><div class="hist" id="pf-pens"></div></div>
+    <div class="card"><h2>Games</h2><div id="pf-games"></div></div>
+    <div class="card" id="pf-hit-card" hidden><h2>Hitting</h2><div id="pf-hit"></div></div>
   </section>
 
   <!-- HITTING -->
@@ -989,7 +1004,7 @@ function renderTeamHits(dates){
   const names = Object.keys(by).sort();
   $("team-hits").innerHTML = names.length ? `<div class="label" style="margin-top:6px">Hitting ${teamWeek?"last":"this"} week</div><div class="scroll"><table class="log team"><tr><th>Player</th><th>G</th><th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th><th>OPS</th></tr>${names.map(n=>{
     const t = hitStats(by[n].flatMap(h=>h.pas||[]));
-    return `<tr><td><b>${esc(n)}</b></td><td>${by[n].length}</td><td>${t.ab}</td><td>${t.h}</td><td>${t.bb}</td><td>${t.k}</td><td>${avgFmt(t.avg)}</td><td>${avgFmt(t.ops)}</td></tr>`; }).join("")}</table></div>` : "";
+    return `<tr data-ath="${esc(n)}" style="cursor:pointer"><td><b>${esc(n)}</b></td><td>${by[n].length}</td><td>${t.ab}</td><td>${t.h}</td><td>${t.bb}</td><td>${t.k}</td><td>${avgFmt(t.avg)}</td><td>${avgFmt(t.ops)}</td></tr>`; }).join("")}</table></div>` : "";
 }
 
 // ---------- reliever weeks ----------
@@ -1180,15 +1195,10 @@ function renderTeam(){
 }
 // coaches have one This week / Last week switch (on the team card) for the team and the player's week
 $("team-wk").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; teamWeek = schedWeek = +b.dataset.v; gameEdit = null; renderWeek(); });
-$("team-games").addEventListener("click", e=>{
-  const tr = e.target.closest("tr[data-ath]"); if (!tr) return;
-  $("w-ath").value = tr.dataset.ath; $("w-ath").dispatchEvent(new Event("change"));
-});
-$("team-tbl").addEventListener("click", e=>{
-  const tr = e.target.closest("tr[data-ath]"); if (!tr) return;
-  $("w-ath").value = tr.dataset.ath; $("w-ath").dispatchEvent(new Event("change"));
-  document.querySelector(".day.today, #w-days .day")?.scrollIntoView({behavior:"smooth", block:"start"});
-});
+// tapping a player in the team lists opens their profile
+["team-tbl","team-games","team-hits"].forEach(id=>$(id).addEventListener("click", e=>{
+  const tr = e.target.closest("tr[data-ath]"); if (tr) openProfile(tr.dataset.ath);
+}));
 function curAthlete(){ return role==="player" ? playerName : $("w-ath").value.trim(); }
 
 // ---------- schedule view ----------
@@ -1363,7 +1373,7 @@ let tab = "sched";
 function setTab(t){
   tab = t;
   $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t===t));
-  $("v-sched").hidden = t!=="sched"; $("v-hit").hidden = t!=="hit"; $("v-acct").hidden = t!=="acct";
+  $("v-sched").hidden = t!=="sched"; $("v-hit").hidden = t!=="hit"; $("v-acct").hidden = t!=="acct"; $("v-prof").hidden = true;
   if (t!=="pens"){ ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden=true); }
   renderNudge();
   if (t==="acct") return;
@@ -1551,7 +1561,7 @@ function openLive(){
   live = {def:curDef(), called:{p:null,z:null}, swung:false, gate:true, shape:true};
   show("v-live"); renderLive();
 }
-function show(id){ $("v-sched").hidden = true; $("v-hit").hidden = true; $("v-acct").hidden = true; if (tab!=="pens"){ tab="pens"; $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t==="pens")); }
+function show(id){ $("v-prof").hidden = true; $("v-sched").hidden = true; $("v-hit").hidden = true; $("v-acct").hidden = true; if (tab!=="pens"){ tab="pens"; $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t==="pens")); }
   ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden = v!==id); window.scrollTo(0,0); }
 
 function pitchChoices(){
@@ -1853,7 +1863,7 @@ function paintSummaryArm(r){
   $("s-arm").innerHTML = `<div class="armq"><div class="q">How does the arm feel now, after the pen?</div>${scaleHtml("s:after", a)}
     ${b==null ? `<div class="delta">No arm score was logged before this pen.</div>` : a==null ? `<div class="delta">Before the pen: <b>${b}</b></div>` : deltaHtml(b, a)}</div>`;
 }
-$("s-back").addEventListener("click", ()=>show("v-setup"));
+$("s-back").addEventListener("click", ()=>{ if (profReturn){ profReturn = false; setTab("sched"); openProfile(profName); } else show("v-setup"); });
 $("s-resume").addEventListener("click", ()=>{ pen.status="live"; openLive(); });
 $("s-again").addEventListener("click", ()=>{
   Object.assign(setup,{age:pen.age,hand:pen.hand,mix:mixOf(pen).slice(),fw:pen.fw,lvl:pen.lvl||1,des:pen.design||setup.des});
@@ -1934,9 +1944,9 @@ function saveAthlete(name){
 // Server rows, overlaid with anything still waiting to upload, newest first.
 // An athlete's velo by pitch from their pens: top = best reading in any pen, sat = where it sat in
 // their most recent pen with readings for that pitch
-function athleteVelo(name){
+function athleteVelo(name, pens){
   const id = slug(name||""), out = {};
-  histDocs.filter(r=>slug(r.athlete||"")===id).sort((a,b)=>b.createdAt-a.createdAt).forEach(r=>{
+  (pens || histDocs).filter(r=>slug(r.athlete||"")===id).sort((a,b)=>b.createdAt-a.createdAt).forEach(r=>{
     const by = {}; (r.pitches||[]).forEach(p=>{ if (typeof p.v==="number") (by[p.p] = by[p.p] || []).push(p.v); });
     Object.entries(by).forEach(([c, vs])=>{ const v = veloOf(vs), o = out[c];
       if (!o) out[c] = {top: v.top, sat: v.sat, date: r.date};
@@ -1944,8 +1954,8 @@ function athleteVelo(name){
   });
   return out;
 }
-function veloHtml(name, title){
-  const v = athleteVelo(name), codes = ORDER.filter(c=>v[c]);
+function veloHtml(name, title, pens){
+  const v = athleteVelo(name, pens), codes = ORDER.filter(c=>v[c]);
   if (!codes.length) return "";
   return `<h2>${esc(title)}</h2><div class="pen-desc">mph · top is the best reading in any pen, sat is where it sat in the latest pen</div>
     <div class="scroll"><table class="log"><tr><th>Pitch</th><th>Top</th><th>Sat</th><th>Latest pen</th></tr>${codes.map(c=>`<tr><td><b>${c}</b> <span class="m" style="color:var(--muted)">${PNAME[c]||""}</span></td><td>${v[c].top}</td><td>${v[c].sat}</td><td>${new Date(v[c].date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</td></tr>`).join("")}</table></div>`;
@@ -1957,6 +1967,78 @@ function renderVelo(){
   if (role==="player"){ const m = veloHtml(playerName, "Your velo"); $("me-velo").innerHTML = m; $("me-velo").hidden = !m; }
 }
 $("f-ath").addEventListener("change", ()=>renderVelo());
+// ---------- player profile (coaches): everything logged for one player ----------
+let profName = null, profData = null, profReturn = false;
+const TYPE_NAME = {P:"Pitcher", POS:"Position player", TWO:"Two-way"};
+async function openProfile(name){
+  if (profName!==name) profData = null;
+  profName = name; profReturn = false;
+  $("v-sched").hidden = true; $("v-prof").hidden = false; window.scrollTo(0,0);
+  renderProfile();
+  if (!sb || !role) return;
+  $("pf-load").textContent = "Loading their full history…";
+  const id = slug(name), q = (t, order) => sb.from(t).select("data").eq("athlete_slug", id).order(order, {ascending:false}).limit(300);
+  const [p, c, g, h] = await Promise.all([q("pens","created_at"), q("checkins","day"), q("games","day"), q("hitting","day")]);
+  if (profName!==name) return;
+  const ok = r => !r.error ? r.data.map(x=>x.data) : null;
+  profData = {pens: ok(p), checkins: ok(c), games: ok(g), hits: ok(h)};
+  $("pf-load").textContent = [p,c,g,h].some(r=>r.error) ? "Couldn't load everything. Showing what's on this phone." : "";
+  renderProfile();
+}
+function closeProfile(){ $("v-prof").hidden = true; $("v-sched").hidden = tab!=="sched"; }
+function profRows(server, local, name){
+  // server copy, with anything still waiting to upload from this phone on top
+  const id = slug(name), by = {};
+  (server || Object.values(local[0])).forEach(r=>{ if (r && slug(r.athlete||"")===id) by[r.id] = r; });
+  Object.values(local[1]).forEach(r=>{ if (r && slug(r.athlete||"")===id) by[r.id] = r; });
+  return Object.values(by);
+}
+function renderProfile(){
+  if ($("v-prof").hidden || !profName) return;
+  const name = profName, a = athleteDocs[slug(name)] || {}, ob = outbox(), d = profData || {};
+  const dd = s => new Date(s+"T00:00:00").toLocaleDateString("en-AU",{weekday:"short", day:"numeric", month:"short"});
+  $("pf-name").textContent = name;
+  $("pf-sub").textContent = [a.age, TYPE_NAME[a.type], a.hand ? (a.hand==="L"?"LHP":"RHP") : "", (a.mix||[]).length ? "throws "+a.mix.join(", ") : "",
+    joinDates[slug(name)] ? "joined "+new Date(joinDates[slug(name)]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"}) : ""].filter(Boolean).join(" · ");
+  // pens
+  const pens = profRows(d.pens, [Object.fromEntries(histDocs.map(r=>[r.id,r])), ob.pens], name).sort((x,y)=>y.createdAt-x.createdAt);
+  const v = veloHtml(name, "Velo", pens); $("pf-velo").innerHTML = v; $("pf-velo").hidden = !v;
+  $("pf-pens-card").hidden = a.type==="POS" && !pens.length;
+  $("pf-pens").innerHTML = pens.length ? pens.map(r=>{ const st = computeStats(r), top = st.topVelo;
+    return `<div class="prow" data-pfpen="${esc(r.id)}" style="cursor:pointer"><div><div class="n">${dd(r.date)} · ${esc(r.penName||"Pen")}</div><div class="m">${st.n} pitches · ${pct(st.strikes,st.n)}% strikes · hit zone ${pct(st.hit,st.n)}%${top?" · top "+top+" mph":""}${r.status==="live"?" · in progress":""}</div></div><span class="m">›</span></div>`; }).join("")
+    : `<div class="empty">No bullpens logged yet.</div>`;
+  // arm check-ins
+  const chk = profRows(d.checkins, [checkinDocs, ob.checkins], name).filter(c=>c.before!=null || c.after!=null).sort((x,y)=>y.date.localeCompare(x.date));
+  $("pf-arm").innerHTML = chk.length ? `<div class="scroll"><table class="log"><tr><th>Day</th><th>Before</th><th>After</th><th>Change</th></tr>${chk.map(c=>{
+    const ch = c.before!=null && c.after!=null ? c.after-c.before : null, flag = (c.before!=null && c.before<=4) || (c.after!=null && c.after<=4) || (ch!=null && ch<=-3);
+    return `<tr class="${flag?'flagrow':''}"><td>${dd(c.date)}</td><td>${c.before ?? "–"}</td><td>${c.after ?? "–"}</td><td class="${flag?'flag':''}">${ch==null?"–":(ch>0?"+":"")+ch}</td></tr>`; }).join("")}</table></div>`
+    : `<div class="empty">No arm check-ins yet.</div>`;
+  // games
+  const gms = profRows(d.games, [gameDocs, ob.games], name).filter(g=>hasStats(g) || g.pitched).sort((x,y)=>y.date.localeCompare(x.date));
+  $("pf-games").innerHTML = gms.length ? `<div class="scroll"><table class="log"><tr><th>Day</th><th>IP</th><th>P</th><th>K</th><th>BB</th><th>H</th><th>Top</th></tr>${gms.map(g=>
+    `<tr><td>${dd(g.date)}${g.opp?`<div class="m" style="color:var(--muted)">vs ${esc(g.opp)}</div>`:""}</td><td>${esc(g.ip||"–")}</td><td>${g.pitches ?? "–"}</td><td>${g.k ?? "–"}</td><td>${g.bb ?? "–"}</td><td>${g.h ?? "–"}</td><td>${g.topVelo ?? "–"}</td></tr>`).join("")}</table></div>`
+    : `<div class="empty">No games logged yet.</div>`;
+  // hitting
+  const hts = profRows(d.hits, [hitDocs, ob.hits], name).filter(h=>(h.pas||[]).length).sort((x,y)=>y.date.localeCompare(x.date));
+  $("pf-hit-card").hidden = !hts.length && !isHitter(name);
+  if (!$("pf-hit-card").hidden){
+    const t = hitStats(hts.flatMap(h=>h.pas||[]));
+    $("pf-hit").innerHTML = hts.length ? `<div class="gstats">${[["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)],["Hard-hit",pctFmt(t.hardp)]].map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
+      <div class="palist">${hts.map(h=>`<div class="prow"><div>${dd(h.date)}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>`).join("")}</div>`
+      : `<div class="empty">No at-bats logged yet.</div>`;
+  }
+}
+$("pf-back").addEventListener("click", closeProfile);
+$("pf-week").addEventListener("click", ()=>{
+  const name = profName; closeProfile();
+  $("w-ath").value = name; $("w-ath").dispatchEvent(new Event("change"));
+  document.querySelector(".day.today, #w-days .day")?.scrollIntoView({behavior:"smooth", block:"start"});
+});
+$("pf-pens").addEventListener("click", e=>{
+  const row = e.target.closest("[data-pfpen]"); if (!row) return;
+  const id = row.dataset.pfpen, r = ((profData && profData.pens) || []).concat(histDocs, Object.values(outbox().pens)).find(x=>x && x.id===id);
+  if (r){ profReturn = true; openSummary(r); }
+});
 function rebuildHist(){
   const ob = outbox(), byId = {};
   serverPens.forEach(r=>{ byId[r.id] = r; });
