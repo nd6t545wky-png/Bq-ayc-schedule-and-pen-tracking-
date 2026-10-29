@@ -37,6 +37,8 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.35;letter-spacing:-.01em;
+  /* every tab at least a screen tall (and just scrollable), so iPad lays out a short tab like Hitting the same as the long ones */
+  min-height:calc(100vh + 1px);min-height:calc(100lvh + 1px);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px calc(96px + env(safe-area-inset-bottom,0px))}
 .wrap{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
 .wrap .wrap{width:100%;max-width:none;margin:0}
