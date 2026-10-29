@@ -301,7 +301,7 @@ details.plist .dose{color:var(--muted)}
   <!-- PLAYER PROFILE (coaches) -->
   <section id="v-prof" class="wrap" style="gap:12px" hidden>
     <div class="card">
-      <div class="livehead"><div><h2 id="pf-name"></h2><div class="pen" id="pf-sub"></div></div><button class="small ghost" id="pf-back">Back</button></div>
+      <div class="livehead"><div><h2 id="pf-name"></h2><div class="pen" id="pf-sub"></div><div class="pen-desc" id="pf-joined"></div></div><button class="small ghost" id="pf-back">Back</button></div>
       <button class="small" id="pf-week" style="align-self:flex-start;margin-top:8px">Open their throwing week</button>
       <div class="pen-desc" id="pf-load"></div>
     </div>
@@ -1985,10 +1985,12 @@ async function openProfile(name){
   if (!sb || !role) return;
   $("pf-load").textContent = "Loading their full history…";
   const id = slug(name), q = (t, order) => sb.from(t).select("data").eq("athlete_slug", id).order(order, {ascending:false}).limit(300);
-  const [p, c, g, h] = await Promise.all([q("pens","created_at"), q("checkins","day"), q("games","day"), q("hitting","day")]);
+  const [p, c, g, h, j] = await Promise.all([q("pens","created_at"), q("checkins","day"), q("games","day"), q("hitting","day"),
+    sb.from("players").select("athlete_slug,added_at").eq("athlete_slug", id)]);
   if (profName!==name) return;
   const ok = r => !r.error ? r.data.map(x=>x.data) : null;
-  profData = {pens: ok(p), checkins: ok(c), games: ok(g), hits: ok(h)};
+  if (!j.error) setJoinDates(j.data);
+  profData = {pens: ok(p), checkins: ok(c), games: ok(g), hits: ok(h), account: j.error ? null : j.data.length > 0};
   $("pf-load").textContent = [p,c,g,h].some(r=>r.error) ? "Couldn't load everything. Showing what's on this phone." : "";
   renderProfile();
 }
@@ -2005,8 +2007,10 @@ function renderProfile(){
   const name = profName, a = athleteDocs[slug(name)] || {}, ob = outbox(), d = profData || {};
   const dd = s => new Date(s+"T00:00:00").toLocaleDateString("en-AU",{weekday:"short", day:"numeric", month:"short"});
   $("pf-name").textContent = name;
-  $("pf-sub").textContent = [a.age, TYPE_NAME[a.type], a.hand ? (a.hand==="L"?"LHP":"RHP") : "", (a.mix||[]).length ? "throws "+a.mix.join(", ") : "",
-    joinDates[slug(name)] ? "joined "+new Date(joinDates[slug(name)]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"}) : ""].filter(Boolean).join(" · ");
+  $("pf-sub").textContent = [a.age, TYPE_NAME[a.type], a.hand ? (a.hand==="L"?"LHP":"RHP") : "", (a.mix||[]).length ? "throws "+a.mix.join(", ") : ""].filter(Boolean).join(" · ");
+  const joined = joinDates[slug(name)];
+  $("pf-joined").textContent = joined ? "Joined the app "+new Date(joined+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})
+    : d.account===false ? "Hasn't joined the app yet" : "";
   // pens
   const pens = profRows(d.pens, [Object.fromEntries(histDocs.map(r=>[r.id,r])), ob.pens], name).sort((x,y)=>y.createdAt-x.createdAt);
   const v = veloHtml(name, "Velo", pens); $("pf-velo").innerHTML = v; $("pf-velo").hidden = !v;
