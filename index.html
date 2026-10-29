@@ -909,6 +909,8 @@ function hitStats(pas){
   t.ops = t.obp!=null && t.slg!=null ? t.obp+t.slg : null; t.kp = r(t.k,t.pa); t.bbp = r(t.bb,t.pa); t.hardp = r(t.hard,t.bip);
   return t;
 }
+// every list of people is A to Z, ignoring capitals
+const byName = (a, b) => String(a||"").localeCompare(String(b||""), "en", {sensitivity:"base"});
 const avgFmt = v => v==null ? "–" : (v>=1 ? v.toFixed(3) : v.toFixed(3).replace(/^0/,""));
 const pctFmt = v => v==null ? "–" : Math.round(v*100)+"%";
 function gameLine(pas){
@@ -1001,7 +1003,7 @@ function renderTeamHits(dates){
   if (pitchingOnly()){ $("team-hits").innerHTML = ""; return; }
   const rows = Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && Object.values(dates).includes(h.date) && inGroup(h.athlete));
   const by = {}; rows.forEach(h=>{ (by[h.athlete] = by[h.athlete] || []).push(h); });
-  const names = Object.keys(by).sort();
+  const names = Object.keys(by).sort(byName);
   $("team-hits").innerHTML = names.length ? `<div class="label" style="margin-top:6px">Hitting ${teamWeek?"last":"this"} week</div><div class="scroll"><table class="log team"><tr><th>Player</th><th>G</th><th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th><th>OPS</th></tr>${names.map(n=>{
     const t = hitStats(by[n].flatMap(h=>h.pas||[]));
     return `<tr data-ath="${esc(n)}" style="cursor:pointer"><td><b>${esc(n)}</b></td><td>${by[n].length}</td><td>${t.ab}</td><td>${t.h}</td><td>${t.bb}</td><td>${t.k}</td><td>${avgFmt(t.avg)}</td><td>${avgFmt(t.ops)}</td></tr>`; }).join("")}</table></div>` : "";
@@ -1153,7 +1155,7 @@ function saveGame(body){
 }
 function renderTeamGames(dates){
   const all = Object.values(Object.assign({}, gameDocs, outbox().games)).filter(g=>g && Object.values(dates).includes(g.date) && (g.pitched!==false || hasStats(g)) && inGroup(g.athlete))
-    .sort((a,b)=>a.date.localeCompare(b.date) || a.athlete.localeCompare(b.athlete));
+    .sort((a,b)=>byName(a.athlete, b.athlete) || a.date.localeCompare(b.date));
   const dayOf = d => (DAYS.find(([k])=>dates[k]===d)||["",""])[0];
   $("team-games").innerHTML = all.length ? `<div class="label" style="margin-top:6px">Games ${teamWeek?"last":"this"} week</div><div class="scroll"><table class="log team"><tr><th>Player</th><th>Day</th><th>IP</th><th>P</th><th>S%</th><th>K</th><th>BB</th><th>H</th><th>ER</th></tr>${all.map(g=>{
       const max = PITCH_MAX[athleteAge(g.athlete)], over = max && g.pitches>max;
@@ -1180,7 +1182,7 @@ function renderTeam(){
   Object.values(all).forEach(c=>{ if (c && Object.values(dates).includes(c.date) && (c.before!=null || c.after!=null)) (byAth[slug(c.athlete)] = byAth[slug(c.athlete)] || {name:c.athlete, days:{}}).days[c.date] = c; });
   playerNames.forEach(n=>{ if (!(joinedOn(n) > dates.Sun)) byAth[slug(n)] = byAth[slug(n)] || {name:n, days:{}}; });
   $("team-title").textContent = "Team arm check-ins · "+setup.age;
-  const rows = Object.values(byAth).filter(r=>inGroup(r.name)).sort((a,b)=>a.name.localeCompare(b.name));
+  const rows = Object.values(byAth).filter(r=>inGroup(r.name)).sort((a,b)=>byName(a.name, b.name));
   const sel = slug($("w-ath").value||"");
   const flags = [];
   $("team-tbl").innerHTML = `<tr><th>Player</th>${DAYS.map(([d])=>`<th>${d}</th>`).join("")}</tr>` + (rows.length ? rows.map(r=>`<tr data-ath="${esc(r.name)}" class="${slug(r.name)===sel?'sel':''}"><td><b>${esc(r.name)}</b></td>${DAYS.map(([d,full])=>{
@@ -2365,6 +2367,7 @@ async function loadCoaches(){
   if (!isOwner()) return;
   const {data, error} = await sb.from("coaches").select("id,name,age_groups,owner,pitching_only,added_at").order("added_at");
   if (error){ $("c-list").innerHTML = `<div class="empty">Couldn't load coaches.</div>`; return; }
+  data.sort((a,b)=>(b.owner?1:0)-(a.owner?1:0) || byName(a.name, b.name));   // you first, then A to Z
   coachRows = data;
   $("c-list").innerHTML = data.map(r=>{
     const label = r.name ? esc(r.name) : "Unnamed coach · joined "+new Date(r.added_at).toLocaleDateString("en-AU",{day:"numeric",month:"short"});
@@ -2422,6 +2425,7 @@ async function loadPlayers(){
   loadCodes(); loadCoaches();
   const {data, error} = await sb.from("players").select("athlete,athlete_slug,added_at").order("athlete");
   if (error){ $("p-list").innerHTML = `<div class="empty">Couldn't load players. Check your connection.</div>`; return; }
+  data.sort((a,b)=>byName(a.athlete, b.athlete));
   playerNames = data.map(r=>r.athlete); setJoinDates(data); renderWeek();
   $("p-title").textContent = isOwner() ? "Players" : "Players · "+(myAges().join(", ") || "no age group");
   // one section per age group, players A to Z within it
@@ -2589,7 +2593,7 @@ if ("serviceWorker" in navigator && location.protocol==="https:"){
 
 function renderHist(){
   const el = $("hist");
-  const names = [...new Set([...Object.values(athleteDocs).filter(a=>a.name && inGroup(a.name, a.age)).map(a=>a.name), ...histDocs.filter(r=>inGroup(r.athlete, r.age)).map(r=>r.athlete)])].sort((a,b)=>a.localeCompare(b));
+  const names = [...new Set([...Object.values(athleteDocs).filter(a=>a.name && inGroup(a.name, a.age)).map(a=>a.name), ...histDocs.filter(r=>inGroup(r.athlete, r.age)).map(r=>r.athlete)])].sort(byName);
   $("athletes").innerHTML = names.map(n=>`<option value="${esc(n)}"></option>`).join("");
   if (role!=="player") $("hist-title").textContent = "Recent pens · "+setup.age;
   if (!histDocs.some(r=>inGroup(r.athlete, r.age))){ el.innerHTML = `<div class="empty">${histDocs.length && role!=="player" ? "No "+setup.age+" pens yet." : "Saved pens show here. Start a pen above and every pitch is saved as you log it."}</div>`; return; }
