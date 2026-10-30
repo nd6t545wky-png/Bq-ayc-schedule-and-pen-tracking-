@@ -910,7 +910,7 @@ const HR_BY = Object.fromEntries(HRES.filter(r=>r[1]).map(r=>[r[0], r]));
 const isBunt = res => !!(HR_BY[res] && HR_BY[res][2].bunt);
 // hard hit: thumb up / down on every result but a bunt (older at-bats used Hard / Medium / Weak contact)
 // Quality at-bat: any one of these. The last three are quick taps on the at-bat screen.
-const QAB_TAPS = [["p6","6+ pitches"],["adv","Moved a runner"],["two","Battled with 2 strikes"]];
+const QAB_TAPS = [["p7","7+ pitches"],["adv","Moved a runner"],["two","Battled with 2 strikes"]];
 function qabWhy(p){
   const c = (HR_BY[p.res]||[])[2] || {}, why = [];
   if (c.h) why.push("hit"); if (c.bb) why.push("walk"); if (c.hbp) why.push("HBP");
