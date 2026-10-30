@@ -903,19 +903,21 @@ const HRES = [
   ["BH","Bunt hit",{ab:1,h:1,tb:1,bip:1,bunt:1}],
   ["On base"], ["BB","Walk",{bb:1}], ["HBP","Hit by pitch",{hbp:1}], ["ROE","Reached on error",{ab:1,bip:1}], ["FC","Fielder's choice",{ab:1,bip:1}],
   ["Outs"], ["KS","K swinging",{ab:1,k:1}], ["KL","K looking",{ab:1,k:1}], ["GO","Ground out",{ab:1,bip:1}], ["FO","Fly out",{ab:1,bip:1}],
-  ["LO","Line out",{ab:1,bip:1}], ["PO","Pop out",{ab:1,bip:1}], ["SF","Sac fly",{sf:1,bip:1}], ["SH","Sac bunt",{sh:1,bip:1,bunt:1}],
-  ["BO","Bunt out",{ab:1,bip:1,bunt:1}],
+  ["LO","Line out",{ab:1,bip:1}], ["PO","Pop out",{ab:1,bip:1}], ["BO","Bunt out",{ab:1,bip:1,bunt:1}],
+  ["Situation"], ["SF","Sac fly",{sf:1,bip:1}], ["SH","Sac bunt",{sh:1,bip:1,bunt:1}],
 ];
 const HR_BY = Object.fromEntries(HRES.filter(r=>r[1]).map(r=>[r[0], r]));
 const isBunt = res => !!(HR_BY[res] && HR_BY[res][2].bunt);
 // hard hit: thumb up / down on every result but a bunt (older at-bats used Hard / Medium / Weak contact)
 // Quality at-bat: any one of these. The last three are quick taps on the at-bat screen.
-const QAB_TAPS = [["p7","7+ pitches"],["adv","Moved a runner"],["two","Battled with 2 strikes"]];
+const QAB_TAPS = [["p7","7+ pitches"],["two","Battled with 2 strikes"]];
+// situation taps that go with any result, shown under Situation next to Sac fly / Sac bunt
+const SIT_TAPS = [["adv","Moved the runner"],["r3","Scored runner from 3rd"]];
 function qabWhy(p){
   const c = (HR_BY[p.res]||[])[2] || {}, why = [];
   if (c.h) why.push("hit"); if (c.bb) why.push("walk"); if (c.hbp) why.push("HBP");
   if (hardOf(p)===1) why.push("hard hit"); if (p.rbi) why.push("RBI"); if (p.r3) why.push("runner from 3rd");
-  if (c.sh || c.sf) why.push("sacrifice");
+  if (c.sh || c.sf) why.push("sacrifice"); if (p.adv) why.push("moved the runner");
   QAB_TAPS.forEach(([k,l])=>{ if (p[k]) why.push(l.toLowerCase()); });
   return why;
 }
@@ -996,15 +998,14 @@ function renderHit(){
   $("h-opp").value = (doc && doc.opp) || "";
   // this game
   $("h-game").innerHTML = `<div class="livehead"><div><div class="label" style="margin:0">${new Date(date+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"short"})}</div><div class="hitline">${pas.length ? gameLine(pas) : "No at-bats yet"}</div></div></div>
-    ${pas.length ? `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${qabWhy(p).length?'<span class="qab">QAB ✓</span>':""}${esc(HR_BY[p.res][1])}${p.hh!=null ? (p.hh ? " · 👍 hard hit" : " · 👎") : p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}${p.rbi||p.r3||QAB_TAPS.some(([k])=>p[k])?`<div class="m">${[p.rbi?p.rbi+" RBI":"", p.r3?"Scored runner from 3rd":"", ...QAB_TAPS.filter(([k])=>p[k]).map(([,l])=>l)].filter(Boolean).join(" · ")}</div>`:""}</div><button class="small ghost" data-parm="${i}">Remove</button></div>`).join("")}</div>` : ""}`;
+    ${pas.length ? `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${qabWhy(p).length?'<span class="qab">QAB ✓</span>':""}${esc(HR_BY[p.res][1])}${p.hh!=null ? (p.hh ? " · 👍 hard hit" : " · 👎") : p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}${(m=>m.length?`<div class="m">${m.join(" · ")}</div>`:"")([p.rbi?p.rbi+" RBI":"", ...SIT_TAPS.concat(QAB_TAPS).filter(([k])=>p[k]).map(([,l])=>l)].filter(Boolean))}</div><button class="small ghost" data-parm="${i}">Remove</button></div>`).join("")}</div>` : ""}`;
   // new plate appearance
   const d = hitDraft = hitDraft || {res:null, hh:null, r3:0, p6:0, adv:0, two:0, x:null, y:null, zone:null, rbi:0};
   const bip = d.res && (HR_BY[d.res][2].bip);
   const segBtns = (key, n, label) => `<div><div class="label">${label}</div><div class="seg" data-hk="${key}">${Array.from({length:n},(_,i)=>`<button type="button" data-v="${i}" class="${d[key]===i?'on':''}">${i}</button>`).join("")}</div></div>`;
   $("h-entry").innerHTML = `<h2>At-bat ${pas.length+1}</h2>
-    <div><div class="label">Result</div><div class="hres">${HRES.map(r=>r[1] ? `<button type="button" data-hres="${r[0]}" class="${d.res===r[0]?'on':''}">${r[1]}</button>` : `<div class="grp">${r[0]}</div>`).join("")}</div></div>
+    <div><div class="label">Result</div><div class="hres">${HRES.map(r=>r[1] ? `<button type="button" data-hres="${r[0]}" class="${d.res===r[0]?'on':''}">${r[1]}</button>` : `<div class="grp">${r[0]}</div>`).join("")}${SIT_TAPS.map(([k,l])=>`<button type="button" data-htog="${k}" class="${d[k]?'on':''}">${l}</button>`).join("")}</div></div>
     ${d.res && !isBunt(d.res) ? `<div><div class="label">Hard hit ball?</div><div class="seg" data-hk="hh">${[[1,"👍 Yes"],[0,"👎 No"]].map(([v,l])=>`<button type="button" data-v="${v}" class="${d.hh===v?'on':''}">${l}</button>`).join("")}</div></div>` : ""}
-    ${d.res ? `<div><div class="label">Runner on 3rd</div><div class="seg" data-hk="r3">${[[1,"Scored runner from 3rd"],[0,"No"]].map(([v,l])=>`<button type="button" data-v="${v}" class="${d.r3===v?'on':''}">${l}</button>`).join("")}</div></div>` : ""}
     ${bip ? `<div><div class="label">Where it went <span>· tap the field${d.zone?` · ${esc(d.zone)}`:""}</span></div>${fieldSvg("h-field", d.x!=null ? [{x:d.x, y:d.y, c:dotColour(d.res), r:8}] : [])}</div>` : ""}
     ${segBtns("rbi",5,"RBI")}
     ${d.res ? `<div><div class="label">Quality at-bat <span>· tap any that happened</span></div><div class="checklist">${QAB_TAPS.map(([k,l])=>`<button type="button" data-htog="${k}" class="${d[k]?'on':''}">${l}</button>`).join("")}</div>
@@ -1463,7 +1464,7 @@ $("v-hit").addEventListener("click", e=>{
   if (e.target.closest("#h-save")){
     if (!d.res) return;
     const doc = getHit(ath, date) || {id: hitId(ath, date), athlete: ath, date, opp: $("h-opp").value.trim() || null, pas: []};
-    const pa = {res:d.res, rbi:d.rbi||0}; if (d.hh!=null && !isBunt(d.res)) pa.hh = d.hh; if (d.r3) pa.r3 = 1; QAB_TAPS.forEach(([k])=>{ if (d[k]) pa[k] = 1; }); if (d.x!=null){ pa.x = +d.x.toFixed(3); pa.y = +d.y.toFixed(3); pa.zone = d.zone; }
+    const pa = {res:d.res, rbi:d.rbi||0}; if (d.hh!=null && !isBunt(d.res)) pa.hh = d.hh; SIT_TAPS.concat(QAB_TAPS).forEach(([k])=>{ if (d[k]) pa[k] = 1; }); if (d.x!=null){ pa.x = +d.x.toFixed(3); pa.y = +d.y.toFixed(3); pa.zone = d.zone; }
     saveHit(Object.assign({}, doc, {pas: (doc.pas||[]).concat([pa])})); hitDraft = null; renderHit();
     $("h-game").scrollIntoView({behavior:"smooth", block:"start"}); return;
   }
