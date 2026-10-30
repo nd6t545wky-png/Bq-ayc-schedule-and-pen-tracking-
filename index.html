@@ -912,12 +912,12 @@ const isBunt = res => !!(HR_BY[res] && HR_BY[res][2].bunt);
 // Quality at-bat: any one of these. The last three are quick taps on the at-bat screen.
 const QAB_TAPS = [["p7","7+ pitches"],["two","Battled with 2 strikes"]];
 // situation taps that go with any result, shown under Situation next to Sac fly / Sac bunt
-const SIT_TAPS = [["adv","Moved the runner"],["r3","Scored runner from 3rd"]];
+const SIT_TAPS = [["adv","Moved the runner"],["r3","Scored runner from 3rd"],["hnr","Hit and run"]];
 function qabWhy(p){
   const c = (HR_BY[p.res]||[])[2] || {}, why = [];
   if (c.h) why.push("hit"); if (c.bb) why.push("walk"); if (c.hbp) why.push("HBP");
   if (hardOf(p)===1) why.push("hard hit"); if (p.rbi) why.push("RBI"); if (p.r3) why.push("runner from 3rd");
-  if (c.sh || c.sf) why.push("sacrifice"); if (p.adv) why.push("moved the runner");
+  if (c.sh || c.sf) why.push("sacrifice"); if (p.adv) why.push("moved the runner"); if (p.hnr) why.push("hit and run");
   QAB_TAPS.forEach(([k,l])=>{ if (p[k]) why.push(l.toLowerCase()); });
   return why;
 }
