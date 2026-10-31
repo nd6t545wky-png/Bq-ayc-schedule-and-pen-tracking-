@@ -433,6 +433,9 @@ details.plist .dose{color:var(--muted)}
       <div class="ars" id="me-ars" hidden></div>
       <button class="small" id="me-ars-save" type="button" hidden style="margin-top:8px">Save throws and pitches</button>
       <div class="pen-desc" id="me-msg" style="margin-top:8px"></div>
+      <div class="label" style="margin-top:14px">Reminders</div>
+      <div class="pen-desc" id="push-note"></div>
+      <button class="small" id="push-btn" type="button" style="align-self:flex-start;margin-top:6px" hidden></button>
     </div>
     <div class="card" id="coach-name-card" hidden>
       <h2>Add your name</h2>
@@ -1425,8 +1428,9 @@ function renderWeek(){
   $("w-gamedate").min = weekDates(-1).Mon; $("w-gamedate").max = weekDates(0).Sun;
   $("w-wk").hidden = role==="coach";
   $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+"."+penNote+" Tissue prep, bands and recovery every day except the no-throw day.";
+  const gameDays = [];
   $("w-days").innerHTML = DAYS.map(([d,full])=>{
-    const t = w.d[d], T = DAYTYPES[t], dayLabel = `<div class="dayname">${full}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>`;
+    const t = w.d[d], T = DAYTYPES[t], _g = ["game","game2","pos","pospen"].includes(t) || tourneyOn(dates[d]) ? gameDays.push(dates[d]) : 0, dayLabel = `<div class="dayname">${full}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>`;
     const ev = calEvent(setup.age, dates[d]);
     const label = ev ? calTag(ev) : !inCal(dates[d]) && bq.includes(d) ? `<span class="tag bq">BQ training</span>` : t==="off" ? `<span class="tag off">Day off</span>` : `<span class="tag">On own</span>`;
     const on = t!=="off";
@@ -1476,6 +1480,7 @@ function renderWeek(){
       ${arm}${recov}${btn}${ath && sprinter(ath) && (t==="pen" || t==="light") ? sprintHtml(ath, dates[d], t==="pen" ? 1 : 2) : ""}${game}${check}
     </div>`;
   }).join("");
+  if (role==="player" && schedWeek===0) pushGameDays(gameDays);
   renderTeam();
 }
 // days the person has opened (by date); today is always open, and tournament days start open
@@ -2424,10 +2429,51 @@ function limitAges(){
 }
 // ---------- a player's own details (Account tab) ----------
 function myProfile(){ return athleteDocs[slug(playerName||"")] || {}; }
+// ---------- push reminders (players): arm check-in 7:30am daily, log your game 3pm on game days ----------
+const PUSH_KEY = "BGZfN12GjMItSJHTbX-O49K70mXACVUB93C_8pFSb2FJUMEHPtBbtxWB8efnaaqyCW8tumhdxYsgEzDBxJidUJQ";
+const pushOK = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const installed = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints > 1);
+async function pushSub(){ try{ const r = await navigator.serviceWorker.ready; return await r.pushManager.getSubscription(); }catch(e){ return null; } }
+async function renderPush(){
+  const note = $("push-note"), btn = $("push-btn");
+  const when = "Every day at 7:30am: complete arm check-in and check schedule. On game days: a reminder to log your game.";
+  if (!pushOK() || (isIOS() && !installed())){
+    note.textContent = isIOS() && !installed() ? "To get reminders, add the app to your home screen (Share, then Add to Home Screen) and open it from there." : "This phone or browser can't show reminders.";
+    btn.hidden = true; return; }
+  const sub = Notification.permission==="granted" ? await pushSub() : null;
+  if (Notification.permission==="denied"){ note.textContent = "Notifications are blocked for this app. Turn them on in your phone's settings, then come back here."; btn.hidden = true; return; }
+  note.textContent = sub ? "Reminders are on. "+when : when;
+  btn.hidden = false; btn.textContent = sub ? "Turn off reminders" : "Turn on reminders"; btn.dataset.on = sub ? "1" : "";
+}
+function b64key(s){ const p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from(b, c=>c.charCodeAt(0)); }
+$("push-btn").addEventListener("click", async ()=>{
+  const btn = $("push-btn"), note = $("push-note"); btn.disabled = true;
+  try{
+    if (btn.dataset.on){
+      const sub = await pushSub(); if (sub){ await sb.rpc("delete_push_sub", {p_endpoint: sub.endpoint}); await sub.unsubscribe(); }
+      lsSet("bqpen.push", false);
+    } else {
+      if (await Notification.requestPermission() !== "granted"){ btn.disabled = false; renderPush(); return; }
+      const r = await navigator.serviceWorker.ready;
+      const sub = await r.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64key(PUSH_KEY)});
+      const {data, error} = await sb.rpc("save_push_sub", {p_sub: sub.toJSON()});
+      if (error || data!=="ok") throw new Error("save");
+      lsSet("bqpen.push", true); lsSet("bqpen.gamedays", ""); renderWeek();   // sends this week's game days
+    }
+  }catch(e){ note.textContent = "Couldn't change reminders. Check your connection and try again."; btn.disabled = false; return; }
+  btn.disabled = false; renderPush();
+});
+// The schedule already knows a player's game days; the reminder server gets this week's whenever they change.
+function pushGameDays(days){
+  if (!sb || !lsGet("bqpen.push", false)) return;
+  const key = days.join(","); if (lsGet("bqpen.gamedays", "") === key) return;
+  sb.rpc("set_my_game_days", {p_days: days}).then(({error})=>{ if (!error) lsSet("bqpen.gamedays", key); });
+}
 function renderMe(){
   const prof = myProfile();
   $("me-name").textContent = playerName || "Your details";
-  renderVelo();
+  renderVelo(); renderPush();
   $("me-age").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.age));
   $("me-type").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.type));
   $("me-ars").hidden = $("me-ars-save").hidden = !pitches(prof.type);
