@@ -1097,6 +1097,8 @@ const GAME_FIELDS = [
   ["hbp","Hit by pitch",,,1],
   ["r","Runs",,,1],["er","Earned runs",,,1],["hr","Home runs",,,1],["wp","Wild pitches",,,1],
 ];
+// pitchers chase winning 70% of their 1-1 counts
+const C11_TARGET = 70;
 // Pitch Smart guidelines for 15-18 year olds (daily max by age; rest days by pitch count)
 const PITCH_MAX = {U16:95, U18:105};
 const restDays = n => n>=76 ? 4 : n>=61 ? 3 : n>=46 ? 2 : n>=31 ? 1 : 0;
@@ -1117,6 +1119,10 @@ function gameSummaryHtml(g, athlete){
   const max = PITCH_MAX[athleteAge(athlete)];
   let notes = [];
   if (S!=null && B!=null) notes.push(`${S} strikes, ${B} balls`);
+  let goal = "";
+  if (n(g.c11) && n(g.c11w)!=null){ const w = Math.round(100*n(g.c11w)/n(g.c11));
+    goal = w>=C11_TARGET ? `<div class="gnote" style="color:var(--hit)">✓ 1-1 win ${w}%: hit the ${C11_TARGET}% target</div>`
+      : `<div class="gwarn">1-1 win ${w}%: under the ${C11_TARGET}% target</div>`; }
   if (g.k!=null && g.bb) notes.push(`K/BB ${(g.k/g.bb).toFixed(1)}`);
   if (g.wp) notes.push(`${g.wp} wild pitch${g.wp==1?"":"es"}`);
   let warn = "";
@@ -1125,7 +1131,7 @@ function gameSummaryHtml(g, athlete){
     notes.push(`Pitch Smart rest: ${restDays(P)} day${restDays(P)===1?"":"s"}`);
   }
   return `${g.opp?`<div class="gnote">vs ${esc(g.opp)}</div>`:""}<div class="gstats">${cells.map(([k,v])=>`<div><b>${esc(v)}</b><span>${k}</span></div>`).join("")}</div>
-    ${notes.length?`<div class="gnote">${esc(notes.join(" · "))}</div>`:""}${warn?`<div class="gwarn">${esc(warn)}</div>`:""}${g.notes?`<div class="gnote">${esc(g.notes)}</div>`:""}`;
+    ${goal}${notes.length?`<div class="gnote">${esc(notes.join(" · "))}</div>`:""}${warn?`<div class="gwarn">${esc(warn)}</div>`:""}${g.notes?`<div class="gnote">${esc(g.notes)}</div>`:""}`;
 }
 function gameFormHtml(g){
   g = g || {};
