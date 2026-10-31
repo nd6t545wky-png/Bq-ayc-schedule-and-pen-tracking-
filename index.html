@@ -1110,7 +1110,7 @@ function gameSummaryHtml(g, athlete){
   const P = n(g.pitches), S = n(g.strikes), B = g.balls!=null ? n(g.balls) : (P!=null && S!=null ? P-S : null);
   const pct = (a,b) => a!=null && b ? Math.round(100*a/b)+"%" : "–";
   const cells = [
-    ["IP", g.ip || "–"], ["Pitches", P ?? "–"], ["Strike %", pct(S,P)], ["1st-pitch strike %", pct(n(g.fps), n(g.bf))], ["1-1 win %", pct(n(g.c11w), n(g.c11))],
+    ["IP", g.ip || "–"], ["Pitches", P ?? "–"], ["Strike %", pct(S,P)], ["1st-pitch strike %", pct(n(g.fps), n(g.bf))], [`1-1 win % · goal ${C11_TARGET}`, pct(n(g.c11w), n(g.c11))],
     ["K", g.k ?? "–"], ["BB", g.bb ?? "–"], ["H", g.h ?? "–"], ["R / ER", (g.r ?? "–")+" / "+(g.er ?? "–")],
     ["HBP", g.hbp ?? "–"], ["HR", g.hr ?? "–"], ["WHIP", inn && (g.bb!=null || g.h!=null) ? ((n(g.bb)||0)+(n(g.h)||0)) / inn : null],
     ["P / inning", inn && P!=null ? P/inn : null], ["Top velo", g.topVelo ? g.topVelo+" mph" : null],
@@ -1119,10 +1119,6 @@ function gameSummaryHtml(g, athlete){
   const max = PITCH_MAX[athleteAge(athlete)];
   let notes = [];
   if (S!=null && B!=null) notes.push(`${S} strikes, ${B} balls`);
-  let goal = "";
-  if (n(g.c11) && n(g.c11w)!=null){ const w = Math.round(100*n(g.c11w)/n(g.c11));
-    goal = w>=C11_TARGET ? `<div class="gnote" style="color:var(--hit)">✓ 1-1 win ${w}%: hit the ${C11_TARGET}% target</div>`
-      : `<div class="gwarn">1-1 win ${w}%: under the ${C11_TARGET}% target</div>`; }
   if (g.k!=null && g.bb) notes.push(`K/BB ${(g.k/g.bb).toFixed(1)}`);
   if (g.wp) notes.push(`${g.wp} wild pitch${g.wp==1?"":"es"}`);
   let warn = "";
@@ -1130,8 +1126,8 @@ function gameSummaryHtml(g, athlete){
     if (P>max) warn = `Over the Pitch Smart daily max (${max} for ${athleteAge(athlete)})`;
     notes.push(`Pitch Smart rest: ${restDays(P)} day${restDays(P)===1?"":"s"}`);
   }
-  return `${g.opp?`<div class="gnote">vs ${esc(g.opp)}</div>`:""}<div class="gstats">${cells.map(([k,v])=>`<div><b>${esc(v)}</b><span>${k}</span></div>`).join("")}</div>
-    ${goal}${notes.length?`<div class="gnote">${esc(notes.join(" · "))}</div>`:""}${warn?`<div class="gwarn">${esc(warn)}</div>`:""}${g.notes?`<div class="gnote">${esc(g.notes)}</div>`:""}`;
+  return `${g.opp?`<div class="gnote">vs ${esc(g.opp)}</div>`:""}<div class="gstats">${cells.map(([k,v])=>`<div><b${k.startsWith("1-1") ? ` style="color:var(${parseInt(v)>=C11_TARGET?"--hit":"--miss"})"` : ""}>${esc(v)}</b><span>${k}</span></div>`).join("")}</div>
+    ${notes.length?`<div class="gnote">${esc(notes.join(" · "))}</div>`:""}${warn?`<div class="gwarn">${esc(warn)}</div>`:""}${g.notes?`<div class="gnote">${esc(g.notes)}</div>`:""}`;
 }
 function gameFormHtml(g){
   g = g || {};
