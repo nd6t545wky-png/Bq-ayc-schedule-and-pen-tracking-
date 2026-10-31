@@ -1091,7 +1091,7 @@ const hasStats = g => GAME_FIELDS.some(([k])=>g[k]!=null);
 // ---------- game logs ----------
 const GAME_FIELDS = [
   ["ip","Innings","text","e.g. 4.2"],["pitches","Pitches"],["strikes","Strikes"],
-  ["bf","Batters faced"],["fps","1st-pitch strikes"],
+  ["bf","Batters faced"],["fps","1st-pitch strikes"],["c11","1-1 counts"],["c11w","1-1 counts won"],
   ["k","Strikeouts (K)"],["bb","Walks (BB)"],["h","Hits"],["topVelo","Top velo (mph)"],
   // under "More"
   ["hbp","Hit by pitch",,,1],
@@ -1108,7 +1108,7 @@ function gameSummaryHtml(g, athlete){
   const P = n(g.pitches), S = n(g.strikes), B = g.balls!=null ? n(g.balls) : (P!=null && S!=null ? P-S : null);
   const pct = (a,b) => a!=null && b ? Math.round(100*a/b)+"%" : "–";
   const cells = [
-    ["IP", g.ip || "–"], ["Pitches", P ?? "–"], ["Strike %", pct(S,P)], ["1st-pitch strike %", pct(n(g.fps), n(g.bf))],
+    ["IP", g.ip || "–"], ["Pitches", P ?? "–"], ["Strike %", pct(S,P)], ["1st-pitch strike %", pct(n(g.fps), n(g.bf))], ["1-1 win %", pct(n(g.c11w), n(g.c11))],
     ["K", g.k ?? "–"], ["BB", g.bb ?? "–"], ["H", g.h ?? "–"], ["R / ER", (g.r ?? "–")+" / "+(g.er ?? "–")],
     ["HBP", g.hbp ?? "–"], ["HR", g.hr ?? "–"], ["WHIP", inn && (g.bb!=null || g.h!=null) ? ((n(g.bb)||0)+(n(g.h)||0)) / inn : null],
     ["P / inning", inn && P!=null ? P/inn : null], ["Top velo", g.topVelo ? g.topVelo+" mph" : null],
@@ -1165,6 +1165,8 @@ function readGameForm(box, athlete, date){
   }
   if (out.er!=null && out.r!=null && out.er>out.r) return {err:"Earned runs can't be more than runs."};
   if (out.fps!=null && out.bf!=null && out.fps>out.bf) return {err:"First-pitch strikes can't be more than batters faced."};
+  if (out.c11w!=null && out.c11!=null && out.c11w>out.c11) return {err:"1-1 counts won can't be more than 1-1 counts."};
+  if (out.c11!=null && out.bf!=null && out.c11>out.bf) return {err:"1-1 counts can't be more than batters faced."};
   out.updatedAt = Date.now();
   return {game: out};
 }
@@ -1935,6 +1937,7 @@ function gameSummary(g){
   const n = v => v==null || v==="" ? null : +v, P = n(g.pitches), S = n(g.strikes), outs = ipOuts(g.ip), max = PITCH_MAX[athleteAge(g.athlete)];
   const r = (a,b,d) => a!=null && b ? +(a/b).toFixed(d) : null;
   return {strikePct: P && S!=null ? Math.round(100*S/P) : null, fpsPct: n(g.bf) && n(g.fps)!=null ? Math.round(100*n(g.fps)/n(g.bf)) : null,
+    c11Pct: n(g.c11) && n(g.c11w)!=null ? Math.round(100*n(g.c11w)/n(g.c11)) : null,
     whip: outs && (g.bb!=null || g.h!=null) ? r(((n(g.bb)||0)+(n(g.h)||0))*3, outs, 2) : null, pitchesPerInning: P!=null ? r(P*3, outs, 1) : null,
     restDays: max && P!=null ? restDays(P) : null, overMax: max && P!=null ? (P>max ? "Yes" : "No") : null};
 }
