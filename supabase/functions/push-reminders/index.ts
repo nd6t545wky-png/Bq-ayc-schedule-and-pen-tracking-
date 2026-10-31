@@ -6,7 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const MSG: Record<string, {title: string; body: string}> = {
   arm: {title: "Arm check-in", body: "How does your arm feel today? Tap to log it before you throw."},
-  game: {title: "Log your game", body: "It's game day. Tap to log today's game while it's fresh."},
+  game: {title: "BQ Weekly", body: "Reminder to log your game"},
 };
 
 Deno.serve(async (req) => {
