@@ -2437,7 +2437,7 @@ const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.pla
 async function pushSub(){ try{ const r = await navigator.serviceWorker.ready; return await r.pushManager.getSubscription(); }catch(e){ return null; } }
 async function renderPush(){
   const note = $("push-note"), btn = $("push-btn");
-  const when = "Arm check-in every day at 7:30am, and a reminder to log your game.";
+  const when = "Every day at 7:30am: complete arm check-in and check schedule. On game days: a reminder to log your game.";
   if (!pushOK() || (isIOS() && !installed())){
     note.textContent = isIOS() && !installed() ? "To get reminders, add the app to your home screen (Share, then Add to Home Screen) and open it from there." : "This phone or browser can't show reminders.";
     btn.hidden = true; return; }

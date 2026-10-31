@@ -5,7 +5,7 @@ import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const MSG: Record<string, {title: string; body: string}> = {
-  arm: {title: "Arm check-in", body: "How does your arm feel today? Tap to log it before you throw."},
+  arm: {title: "BQ Weekly", body: "Complete arm check-in and check schedule"},
   game: {title: "BQ Weekly", body: "Reminder to log your game"},
 };
 
