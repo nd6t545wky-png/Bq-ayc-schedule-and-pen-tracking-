@@ -8,7 +8,6 @@ One Google Sheet per age group (U16, U18, AYWC, AWC). Each one has these tabs:
 | **Season** | Season totals per player (pens, pitching, hitting, last arm check) |
 | **Arm check-ins** | Every arm check-in |
 | **Bullpens** | Every pen |
-| **Pitches** | Every pitch |
 | **Games** | Every game |
 | **Hitting games** | Every hitting game |
 | **At-bats** | Every at-bat |
