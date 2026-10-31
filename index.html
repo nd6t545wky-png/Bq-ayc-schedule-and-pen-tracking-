@@ -991,21 +991,26 @@ const pctFmt = v => v==null ? "–" : Math.round(v*100)+"%";
 function abListHtml(pas){
   return `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${qabWhy(p).length?'<span class="qab">QAB ✓</span>':""}${esc((HR_BY[p.res]||[,p.res])[1])}${p.hh!=null ? (p.hh ? " · 👍" : " · 👎") : p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}${(m=>m.length?`<div class="m">${m.join(" · ")}</div>`:"")([p.rbi?p.rbi+" RBI":"", ...SIT_TAPS.concat(QAB_TAPS).filter(([k])=>p[k]).map(([,l])=>l)].filter(Boolean))}</div></div>`).join("")}</div>`;
 }
+// Direction of a ball in play, from home plate: negative is the left side. Up the middle is between where the
+// shortstop and second baseman stand; pull and opposite field are everything outside them (by batting side).
+const SS_2B_ANGLE = 15;
+const sprayAngle = p => p.x==null ? null : Math.atan2(p.x*FIELD.w - FIELD.hx, FIELD.hy - p.y*FIELD.h)*180/Math.PI;
 // season spray chart and a breakdown of results, where the ball went, and situations
 function hitBreakdownHtml(pas, id, bats){
   const n = c => pas.filter(p=>p.res===c).length, row = (label, v, of) => v ? `<tr><td>${label}</td><td>${v}</td><td>${of ? Math.round(100*v/of)+"%" : ""}</td></tr>` : "";
   const pa = pas.length, bip = pas.filter(p=>p.zone && p.zone!=="Foul");
   const zones = ["LF","LC","CF","RC","RF","3B","SS","Up the middle","2B","1B"].map(z=>[z, bip.filter(p=>p.zone===z).length]).filter(([,v])=>v);
-  const left = bip.filter(p=>["LF","LC","3B","SS"].includes(p.zone)).length, mid = bip.filter(p=>["CF","Up the middle"].includes(p.zone)).length, right = bip.length - left - mid;
+  const side = bip.map(p=>sprayAngle(p)).filter(a=>a!=null), left = side.filter(a=>a < -SS_2B_ANGLE).length,
+    right = side.filter(a=>a > SS_2B_ANGLE).length, mid = side.length - left - right;
   const dots = pas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:5}));
   const results = [["Single","1B"],["Double","2B"],["Triple","3B"],["Home run","HR"],["Bunt hit","BH"],["Walk","BB"],["Hit by pitch","HBP"],["Reached on error","ROE"],["Fielder's choice","FC"],
     ["K swinging","KS"],["K looking","KL"],["Ground out","GO"],["Fly out","FO"],["Line out","LO"],["Pop out","PO"],["Bunt out","BO"],["Sac fly","SF"],["Sac bunt","SH"]].map(([l,c])=>row(l, n(c), pa)).join("");
   const sit = [["RBI", pas.reduce((a,p)=>a+(p.rbi||0),0)], ...SIT_TAPS.concat(QAB_TAPS).map(([k,l])=>[l, pas.filter(p=>p[k]).length])].map(([l,v])=>row(l, v)).join("");
   return `${dots.length ? `<div class="label" style="margin-top:8px">Spray chart <span>· every ball in play</span></div>${fieldSvg(id, dots)}
       <div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--miss)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
-    ${bip.length ? `<div class="gnote">Balls in play: ${bip.length} · ${(([pull, oppo]) => bats==="R" || bats==="L"
-        ? `pull ${Math.round(100*pull/bip.length)}% · middle ${Math.round(100*mid/bip.length)}% · opposite field ${Math.round(100*oppo/bip.length)}%`
-        : `left side ${Math.round(100*left/bip.length)}% · middle ${Math.round(100*mid/bip.length)}% · right side ${Math.round(100*right/bip.length)}%`)(bats==="L" ? [right, left] : [left, right])}</div>` : ""}
+    ${side.length ? `<div class="gnote">Balls in play: ${side.length} · ${(([pull, oppo], pc) => bats==="R" || bats==="L"
+        ? `pull ${pc(pull)} · up the middle ${pc(mid)} · opposite field ${pc(oppo)}`
+        : `left side ${pc(left)} · up the middle ${pc(mid)} · right side ${pc(right)}`)(bats==="L" ? [right, left] : [left, right], v=>Math.round(100*v/side.length)+"%")}</div>` : ""}
     <div class="label" style="margin-top:8px">Breakdown</div>
     <div class="scroll"><table class="log"><tr><th>Result</th><th>#</th><th>% of PA</th></tr>${results}</table></div>
     ${zones.length ? `<div class="scroll" style="margin-top:8px"><table class="log"><tr><th>Where it went</th><th>#</th><th>%</th></tr>${zones.map(([z,v])=>row(z, v, bip.length)).join("")}</table></div>` : ""}
