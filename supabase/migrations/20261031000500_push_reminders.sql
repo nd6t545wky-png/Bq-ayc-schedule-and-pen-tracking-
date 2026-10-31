@@ -1,4 +1,4 @@
--- Push reminders for players: arm check-in every day at 7:30am, and on game days a 7pm reminder to log
+-- Push reminders for players: arm check-in every day at 7:30am, and on game days a 3pm reminder to log
 -- the game (only if it isn't logged yet). Phones subscribe from Account; the app sends each player's game
 -- days for the week (it already knows them from the schedule). The VAPID keys and the cron secret live in
 -- Vault (vapid_public, vapid_private, push_cron_secret) and are added outside migrations.
@@ -67,7 +67,7 @@ $$;
 revoke all on function public.push_config(), public.push_due(text), public.drop_push_sub(text) from public, anon, authenticated;
 grant execute on function public.push_config(), public.push_due(text), public.drop_push_sub(text) to service_role;
 
--- 7:30am and 7pm Brisbane (UTC+10, no daylight saving) = 21:30 and 09:00 UTC
+-- 7:30am and 3pm Brisbane (UTC+10, no daylight saving) = 21:30 and 05:00 UTC
 create or replace function public.push_kick(p_kind text)
 returns void language sql volatile security definer set search_path = '' as $$
   select net.http_post(
@@ -79,4 +79,4 @@ $$;
 revoke all on function public.push_kick(text) from public, anon, authenticated;
 
 select cron.schedule('push-arm-checkin', '30 21 * * *', $$select public.push_kick('arm')$$);
-select cron.schedule('push-game-log', '0 9 * * *', $$select public.push_kick('game')$$);
+select cron.schedule('push-game-log', '0 5 * * *', $$select public.push_kick('game')$$);

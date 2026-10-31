@@ -2429,7 +2429,7 @@ function limitAges(){
 }
 // ---------- a player's own details (Account tab) ----------
 function myProfile(){ return athleteDocs[slug(playerName||"")] || {}; }
-// ---------- push reminders (players): arm check-in 7:30am daily, log your game 7pm on game days ----------
+// ---------- push reminders (players): arm check-in 7:30am daily, log your game 3pm on game days ----------
 const PUSH_KEY = "BGZfN12GjMItSJHTbX-O49K70mXACVUB93C_8pFSb2FJUMEHPtBbtxWB8efnaaqyCW8tumhdxYsgEzDBxJidUJQ";
 const pushOK = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 const installed = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
@@ -2437,7 +2437,7 @@ const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.pla
 async function pushSub(){ try{ const r = await navigator.serviceWorker.ready; return await r.pushManager.getSubscription(); }catch(e){ return null; } }
 async function renderPush(){
   const note = $("push-note"), btn = $("push-btn");
-  const when = "Arm check-in every day at 7:30am, and a reminder to log your game at 7pm on game days.";
+  const when = "Arm check-in every day at 7:30am, and a reminder to log your game at 3pm on game days.";
   if (!pushOK() || (isIOS() && !installed())){
     note.textContent = isIOS() && !installed() ? "To get reminders, add the app to your home screen (Share, then Add to Home Screen) and open it from there." : "This phone or browser can't show reminders.";
     btn.hidden = true; return; }

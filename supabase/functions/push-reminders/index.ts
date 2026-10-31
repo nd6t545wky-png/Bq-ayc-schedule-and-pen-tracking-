@@ -1,6 +1,6 @@
 // Sends the players' reminders. Called by pg_cron (public.push_kick) with the cron secret:
 //   {kind: "arm"}  every day 7:30am Brisbane: arm check-in, to every subscribed player
-//   {kind: "game"} 7pm Brisbane on a player's game days, only if that game isn't logged yet
+//   {kind: "game"} 3pm Brisbane on a player's game days, only if that game isn't logged yet
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
