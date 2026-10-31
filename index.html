@@ -175,6 +175,8 @@ button:disabled{opacity:.35;cursor:default}
 .verdict.fail{background:color-mix(in srgb,var(--miss) 11%,transparent)}
 .verdict b{font-family:var(--display);font-size:22px;font-weight:700;white-space:nowrap}
 .verdict.pass b{color:var(--hit)}.verdict.fail b{color:var(--miss)}
+div.pfdetail{background:var(--fill);border-radius:10px;padding:8px 10px;margin:2px 0 8px}
+tr.pfdetail td{white-space:normal;text-align:left;padding:4px 0 10px}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);justify-content:center}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
 .notice{font-size:15px;color:var(--warn)}
@@ -328,7 +330,8 @@ details.plist .dose{color:var(--muted)}
         <div id="h-athwrap"><div class="label">Hitter</div><input id="h-ath" list="athletes" placeholder="Player name" autocomplete="off"></div>
         <div><div class="label">Game date</div><input id="h-date" type="date"></div>
       </div>
-      <div id="h-typewrap" hidden><div class="label">Player type</div><div class="seg" id="h-type"><button type="button" data-v="P">Pitcher</button><button type="button" data-v="POS">Position</button><button type="button" data-v="TWO">Two-way</button></div></div>
+      <div id="h-typewrap" hidden><div class="label">Player type</div><div class="seg" id="h-type"><button type="button" data-v="P">Pitcher</button><button type="button" data-v="POS">Position</button><button type="button" data-v="TWO">Two-way</button></div>
+        <div id="h-batswrap" hidden><div class="label" style="margin-top:8px">Bats</div><div class="seg" id="h-bats"><button type="button" data-v="R">Right</button><button type="button" data-v="L">Left</button><button type="button" data-v="S">Switch</button></div></div></div>
       <button type="button" class="small ghost" id="h-oppadd" hidden>+ Add opponent</button>
       <div id="h-oppwrap"><div class="label">Opponent</div><input id="h-opp" placeholder="e.g. Brisbane North" maxlength="60" autocomplete="off"></div>
       <div class="pen-desc" id="h-note"></div>
@@ -424,6 +427,7 @@ details.plist .dose{color:var(--muted)}
       <div class="seg" id="me-age"><button type="button" data-v="U16">U16</button><button type="button" data-v="U18">U18</button><button type="button" data-v="AYWC">AYWC</button><button type="button" data-v="AWC">AWC</button></div>
       <div class="label" style="margin-top:10px">I'm a</div>
       <div class="seg" id="me-type"><button type="button" data-v="P">Pitcher</button><button type="button" data-v="POS">Position player</button><button type="button" data-v="TWO">Two-way</button></div>
+      <div id="me-batswrap" hidden><div class="label" style="margin-top:10px">I bat</div><div class="seg" id="me-bats"><button type="button" data-v="R">Right</button><button type="button" data-v="L">Left</button><button type="button" data-v="S">Switch</button></div></div>
       <div id="me-velo" hidden></div>
       <div class="ars" id="me-ars" hidden></div>
       <button class="small" id="me-ars-save" type="button" hidden style="margin-top:8px">Save throws and pitches</button>
@@ -983,6 +987,35 @@ const surname = n => String(n||"").trim().split(/\s+/).pop();
 const byName = (a, b) => surname(a).localeCompare(surname(b), "en", {sensitivity:"base"}) || String(a||"").localeCompare(String(b||""), "en", {sensitivity:"base"});
 const avgFmt = v => v==null ? "–" : (v>=1 ? v.toFixed(3) : v.toFixed(3).replace(/^0/,""));
 const pctFmt = v => v==null ? "–" : Math.round(v*100)+"%";
+// every at-bat of a game, read-only (result, hard hit, spray zone, RBI, situation taps, QAB)
+function abListHtml(pas){
+  return `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${qabWhy(p).length?'<span class="qab">QAB ✓</span>':""}${esc((HR_BY[p.res]||[,p.res])[1])}${p.hh!=null ? (p.hh ? " · 👍" : " · 👎") : p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}${(m=>m.length?`<div class="m">${m.join(" · ")}</div>`:"")([p.rbi?p.rbi+" RBI":"", ...SIT_TAPS.concat(QAB_TAPS).filter(([k])=>p[k]).map(([,l])=>l)].filter(Boolean))}</div></div>`).join("")}</div>`;
+}
+// Direction of a ball in play, from home plate: negative is the left side. Up the middle is between where the
+// shortstop and second baseman stand; pull and opposite field are everything outside them (by batting side).
+const SS_2B_ANGLE = 15;
+const sprayAngle = p => p.x==null ? null : Math.atan2(p.x*FIELD.w - FIELD.hx, FIELD.hy - p.y*FIELD.h)*180/Math.PI;
+// season spray chart and a breakdown of results, where the ball went, and situations
+function hitBreakdownHtml(pas, id, bats){
+  const n = c => pas.filter(p=>p.res===c).length, row = (label, v, of) => v ? `<tr><td>${label}</td><td>${v}</td><td>${of ? Math.round(100*v/of)+"%" : ""}</td></tr>` : "";
+  const pa = pas.length, bip = pas.filter(p=>p.zone && p.zone!=="Foul");
+  const zones = ["LF","LC","CF","RC","RF","3B","SS","Up the middle","2B","1B"].map(z=>[z, bip.filter(p=>p.zone===z).length]).filter(([,v])=>v);
+  const side = bip.map(p=>sprayAngle(p)).filter(a=>a!=null), left = side.filter(a=>a < -SS_2B_ANGLE).length,
+    right = side.filter(a=>a > SS_2B_ANGLE).length, mid = side.length - left - right;
+  const dots = pas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:5}));
+  const results = [["Single","1B"],["Double","2B"],["Triple","3B"],["Home run","HR"],["Bunt hit","BH"],["Walk","BB"],["Hit by pitch","HBP"],["Reached on error","ROE"],["Fielder's choice","FC"],
+    ["K swinging","KS"],["K looking","KL"],["Ground out","GO"],["Fly out","FO"],["Line out","LO"],["Pop out","PO"],["Bunt out","BO"],["Sac fly","SF"],["Sac bunt","SH"]].map(([l,c])=>row(l, n(c), pa)).join("");
+  const sit = [["RBI", pas.reduce((a,p)=>a+(p.rbi||0),0)], ...SIT_TAPS.concat(QAB_TAPS).map(([k,l])=>[l, pas.filter(p=>p[k]).length])].map(([l,v])=>row(l, v)).join("");
+  return `${dots.length ? `<div class="label" style="margin-top:8px">Spray chart <span>· every ball in play</span></div>${fieldSvg(id, dots)}
+      <div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--miss)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
+    ${side.length ? `<div class="gnote">Balls in play: ${side.length} · ${(([pull, oppo], pc) => bats==="R" || bats==="L"
+        ? `pull ${pc(pull)} · up the middle ${pc(mid)} · opposite field ${pc(oppo)}`
+        : `left side ${pc(left)} · up the middle ${pc(mid)} · right side ${pc(right)}`)(bats==="L" ? [right, left] : [left, right], v=>Math.round(100*v/side.length)+"%")}</div>` : ""}
+    <div class="label" style="margin-top:8px">Breakdown</div>
+    <div class="scroll"><table class="log"><tr><th>Result</th><th>#</th><th>% of PA</th></tr>${results}</table></div>
+    ${zones.length ? `<div class="scroll" style="margin-top:8px"><table class="log"><tr><th>Where it went</th><th>#</th><th>%</th></tr>${zones.map(([z,v])=>row(z, v, bip.length)).join("")}</table></div>` : ""}
+    ${sit ? `<div class="scroll" style="margin-top:8px"><table class="log"><tr><th>Situations</th><th>#</th><th></th></tr>${sit}</table></div>` : ""}`;
+}
 function gameLine(pas){
   const t = hitStats(pas), extras = [];
   ["2B","3B","HR"].forEach(c=>{ const n = pas.filter(p=>p.res===c).length; if (n) extras.push((n>1?n:"")+c); });
@@ -1015,7 +1048,7 @@ function fieldSvg(id, dots){
   g += (dots||[]).map(p=>`<circle cx="${p.x*w}" cy="${p.y*h}" r="${p.r||6}" fill="${p.c}" stroke="var(--surface)" stroke-width="1.5"/>`).join("");
   return `<svg class="field" id="${id}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Baseball field">${g}</svg>`;
 }
-const dotColour = res => ["1B","2B","3B","HR","BH"].includes(res) ? "var(--hit)" : res==="ROE" ? "var(--gold)" : "var(--muted)";
+const dotColour = res => ["1B","2B","3B","HR","BH"].includes(res) ? "var(--hit)" : res==="ROE" ? "var(--gold)" : "var(--miss)";
 function hitAthlete(){ return role==="player" ? playerName : $("h-ath").value.trim(); }
 function renderHit(){
   if ($("v-hit").hidden) return;
@@ -1025,6 +1058,8 @@ function renderHit(){
   const prof = ath ? athleteDocs[slug(ath)] : null, hitter = isHitter(ath);
   $("h-typewrap").hidden = !coach || !ath;
   $("h-type").querySelectorAll("button").forEach(b=>b.classList.toggle("on", !!prof && prof.type===b.dataset.v));
+  $("h-batswrap").hidden = !coach || !hitter;
+  $("h-bats").querySelectorAll("button").forEach(b=>b.classList.toggle("on", !!prof && prof.bats===b.dataset.v));
   $("h-note").textContent = !ath ? "Enter the player's name to track their at-bats."
     : !hitter ? (coach ? `Mark ${ath} as a position player or two-way to track hitting.` : "Hitting is tracked for position players. Ask your coach to set you up.") : "";
   ["h-game","h-entry","h-season"].forEach(id=>$(id).hidden = !hitter);
@@ -1056,7 +1091,7 @@ function renderHit(){
   $("h-season").innerHTML = `<h2>${esc(ath)} · season</h2>
     <div class="gstats">${tiles.map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
     <div class="gnote">${t.h} H · ${t.xbh} XBH · ${t.rbi} RBI${t.bunt?` · ${t.bunt} bunt${t.bunt>1?"s":""}`:""}${t.r3?` · ${t.r3} runner${t.r3>1?"s":""} scored from 3rd`:""}</div>
-    ${dots.length ? `<div class="label" style="margin-top:6px">Spray chart</div>${fieldSvg("h-spray", dots)}<div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--muted)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
+    ${dots.length ? `<div class="label" style="margin-top:6px">Spray chart</div>${fieldSvg("h-spray", dots)}<div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--miss)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
     ${all.length ? `<div class="label" style="margin-top:6px">Games</div><div class="palist">${all.map(h=>`<div class="prow" data-hdate="${h.date}" style="cursor:pointer"><div>${new Date(h.date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>`).join("")}</div>` : ""}`;
   if (hitSeasonFor !== slug(ath)) loadHitSeason(ath);
 }
@@ -1067,10 +1102,12 @@ async function loadHitSeason(ath){
   if (error) return;
   data.forEach(r=>{ hitDocs[r.data.id] = r.data; }); lsSet("bqpen.hits", hitDocs); renderHit();
 }
-function setAthleteType(name, type){
-  const id = slug(name), body = Object.assign({name}, athleteDocs[id] || {age:setup.age}, {type, updatedAt:Date.now()});
+function setAthleteType(name, type){ setAthleteField(name, {type}); }
+function setAthleteField(name, patch){
+  const id = slug(name), body = Object.assign({name}, athleteDocs[id] || {age:setup.age}, patch, {updatedAt:Date.now()});
   athleteDocs[id] = body; const ob = outbox(); ob.athletes[id] = body; saveOutbox(ob); flush();
 }
+const BATS_NAME = {R:"bats right", L:"bats left", S:"switch hitter"};
 function renderTeamHits(dates){
   if (pitchingOnly()){ $("team-hits").innerHTML = ""; return; }
   const rows = Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && Object.values(dates).includes(h.date) && inGroup(h.athlete));
@@ -1490,6 +1527,7 @@ $("h-ath").addEventListener("change", ()=>{ hitDraft = null; hitSeasonFor = null
 $("h-date").addEventListener("change", ()=>{ hitDate = $("h-date").value || null; hitDraft = null; oppOpen = false; renderHit(); });
 var oppOpen = false;   // opponent box shown only once asked for, or when the game already has one
 $("h-oppadd").addEventListener("click", ()=>{ oppOpen = true; renderHit(); $("h-opp").focus(); });
+$("h-bats").addEventListener("click", e=>{ const b = e.target.closest("button"); const ath = hitAthlete(); if (!b || !ath) return; setAthleteField(ath, {bats: b.dataset.v}); renderHit(); });
 $("h-type").addEventListener("click", e=>{ const b = e.target.closest("button"); const ath = hitAthlete(); if (!b || !ath) return; setAthleteType(ath, b.dataset.v); renderHit(); });
 $("h-opp").addEventListener("change", ()=>{
   const ath = hitAthlete(), date = hitDate || localDate(); if (!isHitter(ath)) return;
@@ -2058,6 +2096,7 @@ function renderVelo(){
 $("f-ath").addEventListener("change", ()=>renderVelo());
 // ---------- player profile (coaches): everything logged for one player ----------
 let profName = null, profData = null, profReturn = false;
+const profOpen = new Set();   // games opened on the profile ("g"+date pitching, "h"+date hitting)
 const TYPE_NAME = {P:"Pitcher", POS:"Position player", TWO:"Two-way"};
 async function openProfile(name){
   if (profName!==name) profData = null;
@@ -2089,7 +2128,7 @@ function renderProfile(){
   const name = profName, a = athleteDocs[slug(name)] || {}, ob = outbox(), d = profData || {};
   const dd = s => new Date(s+"T00:00:00").toLocaleDateString("en-AU",{weekday:"short", day:"numeric", month:"short"});
   $("pf-name").textContent = name;
-  $("pf-sub").textContent = [a.age, TYPE_NAME[a.type], a.hand ? (a.hand==="L"?"LHP":"RHP") : "", (a.mix||[]).length ? "throws "+a.mix.join(", ") : ""].filter(Boolean).join(" · ");
+  $("pf-sub").textContent = [a.age, TYPE_NAME[a.type], a.hand ? (a.hand==="L"?"LHP":"RHP") : "", (a.mix||[]).length ? "throws "+a.mix.join(", ") : "", BATS_NAME[a.bats] || ""].filter(Boolean).join(" · ");
   const joined = joinDates[slug(name)];
   $("pf-joined").textContent = joined ? "Joined the app "+new Date(joined+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})
     : d.account===false ? "Hasn't joined the app yet" : "";
@@ -2109,7 +2148,8 @@ function renderProfile(){
   // games
   const gms = profRows(d.games, [gameDocs, ob.games], name).filter(g=>hasStats(g) || g.pitched).sort((x,y)=>y.date.localeCompare(x.date));
   $("pf-games").innerHTML = gms.length ? `<div class="scroll"><table class="log"><tr><th>Day</th><th>IP</th><th>P</th><th>K</th><th>BB</th><th>H</th><th>Top</th></tr>${gms.map(g=>
-    `<tr><td>${dd(g.date)}${g.opp?`<div class="m" style="color:var(--muted)">vs ${esc(g.opp)}</div>`:""}</td><td>${esc(g.ip||"–")}</td><td>${g.pitches ?? "–"}</td><td>${g.k ?? "–"}</td><td>${g.bb ?? "–"}</td><td>${g.h ?? "–"}</td><td>${g.topVelo ?? "–"}</td></tr>`).join("")}</table></div>`
+    `<tr data-pfopen="g${g.date}" style="cursor:pointer"><td>${profOpen.has("g"+g.date)?"▾":"▸"} ${dd(g.date)}${g.opp?`<div class="m" style="color:var(--muted)">vs ${esc(g.opp)}</div>`:""}</td><td>${esc(g.ip||"–")}</td><td>${g.pitches ?? "–"}</td><td>${g.k ?? "–"}</td><td>${g.bb ?? "–"}</td><td>${g.h ?? "–"}</td><td>${g.topVelo ?? "–"}</td></tr>
+     ${profOpen.has("g"+g.date) ? `<tr class="pfdetail"><td colspan="7">${gameSummaryHtml(g, name)}</td></tr>` : ""}`).join("")}</table></div>`
     : `<div class="empty">No games logged yet.</div>`;
   // hitting
   const hts = profRows(d.hits, [hitDocs, ob.hits], name).filter(h=>(h.pas||[]).length).sort((x,y)=>y.date.localeCompare(x.date));
@@ -2117,7 +2157,10 @@ function renderProfile(){
   if (!$("pf-hit-card").hidden){
     const t = hitStats(hts.flatMap(h=>h.pas||[]));
     $("pf-hit").innerHTML = hts.length ? `<div class="gstats">${[["QAB %",pctFmt(t.qabp)],["Hard-hit %",pctFmt(t.hardp)],["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)]].map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
-      <div class="palist">${hts.map(h=>`<div class="prow"><div>${dd(h.date)}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>`).join("")}</div>`
+      ${hitBreakdownHtml(hts.flatMap(h=>h.pas||[]), "pf-spray", a.bats)}
+      <div class="label" style="margin-top:8px">Games <span>· tap one to see every at-bat</span></div>
+      <div class="palist">${hts.map(h=>`<div class="prow" data-pfopen="h${h.date}" style="cursor:pointer"><div>${profOpen.has("h"+h.date)?"▾":"▸"} ${dd(h.date)}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>
+        ${profOpen.has("h"+h.date) ? `<div class="pfdetail">${abListHtml(h.pas||[])}${(h.pas||[]).some(p=>p.x!=null) ? fieldSvg("pf-gspray-"+h.date, h.pas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:6}))) : ""}</div>` : ""}`).join("")}</div>`
       : `<div class="empty">No at-bats logged yet.</div>`;
   }
 }
@@ -2126,6 +2169,10 @@ $("pf-week").addEventListener("click", ()=>{
   const name = profName; closeProfile();
   $("w-ath").value = name; $("w-ath").dispatchEvent(new Event("change"));
   document.querySelector(".day.today, #w-days .day")?.scrollIntoView({behavior:"smooth", block:"start"});
+});
+$("v-prof").addEventListener("click", e=>{
+  const row = e.target.closest("[data-pfopen]"); if (!row) return;
+  const k = row.dataset.pfopen; if (profOpen.has(k)) profOpen.delete(k); else profOpen.add(k); renderProfile();
 });
 $("pf-pens").addEventListener("click", e=>{
   const row = e.target.closest("[data-pfpen]"); if (!row) return;
@@ -2324,6 +2371,8 @@ function renderMe(){
   $("me-age").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.age));
   $("me-type").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.type));
   $("me-ars").hidden = $("me-ars-save").hidden = !pitches(prof.type);
+  $("me-batswrap").hidden = !(prof.type==="POS" || prof.type==="TWO");
+  $("me-bats").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.bats));
   if (pitches(prof.type)) arsenalPaint("me-ars", {hand: prof.hand, mix: prof.mix});
 }
 $("me-ars-save").addEventListener("click", async ()=>{
@@ -2347,6 +2396,12 @@ async function saveMe(patch){
   el.textContent = "Saved.";
   applyRole(); renderHit();
 }
+$("me-bats").addEventListener("click", async e=>{ const b = e.target.closest("button"); if (!b) return; const el = $("me-msg");
+  el.textContent = "Saving…";
+  const {data, error} = await sb.rpc("set_my_bats", {p_bats: b.dataset.v});
+  if (error || data!=="ok"){ el.textContent = "Couldn't save. Check your connection and try again."; return; }
+  athleteDocs[slug(playerName)] = Object.assign({}, myProfile(), {bats: b.dataset.v}); lsSet("bqpen.athletes", athleteDocs);
+  el.textContent = "Saved."; renderMe(); });
 ["me-age","me-type"].forEach(id=>$(id).addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return;
   saveMe(id==="me-age" ? {age: b.dataset.v} : {type: b.dataset.v}); }));
 $("cn-save").addEventListener("click", async ()=>{
