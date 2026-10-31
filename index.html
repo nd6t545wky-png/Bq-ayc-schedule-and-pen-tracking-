@@ -995,6 +995,37 @@ function abListHtml(pas){
 // shortstop and second baseman stand; pull and opposite field are everything outside them (by batting side).
 const SS_2B_ANGLE = 15;
 const sprayAngle = p => p.x==null ? null : Math.atan2(p.x*FIELD.w - FIELD.hx, FIELD.hy - p.y*FIELD.h)*180/Math.PI;
+// Coaches' read on a hitter, once 5 games are logged: where they hit it, how they hit it, and how they go out
+const TEND_GAMES = 5;
+function hitTendencyHtml(games, bats){
+  if (games.length < TEND_GAMES) return `<div class="gnote">Tendency shows once ${TEND_GAMES} games are logged (${games.length} so far).</div>`;
+  const pas = games.flatMap(h=>h.pas||[]), t = hitStats(pas), n = c => pas.filter(p=>p.res===c).length, pc = (a,b) => Math.round(100*a/b), out = [];
+  const ang = pas.filter(p=>p.zone && p.zone!=="Foul").map(sprayAngle).filter(a=>a!=null);
+  if (ang.length >= 5){
+    const l = ang.filter(a=>a < -SS_2B_ANGLE).length, r = ang.filter(a=>a > SS_2B_ANGLE).length, m = ang.length - l - r;
+    const [pull, oppo] = bats==="L" ? [r, l] : [l, r], sided = bats==="R" || bats==="L";
+    if (sided && pc(pull, ang.length) >= 50) out.push(`Pull hitter: ${pc(pull, ang.length)}% of balls in play pulled`);
+    else if (sided && pc(oppo, ang.length) >= 45) out.push(`Goes the other way: ${pc(oppo, ang.length)}% to the opposite field`);
+    else if (!sided && pc(Math.max(l, r), ang.length) >= 50) out.push(`Mostly to the ${l>r?"left":"right"} side: ${pc(Math.max(l, r), ang.length)}% of balls in play`);
+    else if (pc(m, ang.length) >= 45) out.push(`Up the middle: ${pc(m, ang.length)}% of balls in play`);
+    else out.push("Uses the whole field");
+  }
+  const ground = n("GO") + n("FC"), air = n("FO") + n("PO") + n("SF"), line = n("LO"), contact = ground + air + line;
+  if (contact >= 5){
+    if (pc(ground, contact) >= 50) out.push(`On the ground a lot: ${pc(ground, contact)}% of outs in play are ground balls`);
+    else if (pc(air, contact) >= 50) out.push(`In the air a lot: ${pc(air, contact)}% of outs in play are fly or pop outs`);
+  }
+  if (t.rated >= 5){
+    if (t.hardp >= .45) out.push(`Hits it hard: ${pctFmt(t.hardp)} hard-hit`);
+    else if (t.hardp <= .2) out.push(`Soft contact: only ${pctFmt(t.hardp)} hard-hit`);
+  }
+  if (t.pa >= 10 && t.kp >= .25) out.push(`Strikes out ${pctFmt(t.kp)} of the time${n("KL") > n("KS") ? ", more often looking" : ""}`);
+  else if (t.k >= 3 && n("KL") > n("KS")) out.push("Strikes out looking more than swinging");
+  if (t.pa >= 10 && t.bbp >= .12) out.push(`Patient: walks ${pctFmt(t.bbp)} of the time`);
+  if (t.pa >= 10) out.push(`QAB ${pctFmt(t.qabp)}`);
+  return `<div class="label" style="margin-top:8px">Tendency <span>· ${games.length} games</span></div>
+    <ul style="margin:0;padding-left:18px">${out.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`;
+}
 // season spray chart and a breakdown of results, where the ball went, and situations
 function hitBreakdownHtml(pas, id, bats){
   const n = c => pas.filter(p=>p.res===c).length, row = (label, v, of) => v ? `<tr><td>${label}</td><td>${v}</td><td>${of ? Math.round(100*v/of)+"%" : ""}</td></tr>` : "";
@@ -2157,6 +2188,7 @@ function renderProfile(){
   if (!$("pf-hit-card").hidden){
     const t = hitStats(hts.flatMap(h=>h.pas||[]));
     $("pf-hit").innerHTML = hts.length ? `<div class="gstats">${[["QAB %",pctFmt(t.qabp)],["Hard-hit %",pctFmt(t.hardp)],["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)]].map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
+      ${role!=="player" ? hitTendencyHtml(hts, a.bats) : ""}
       ${hitBreakdownHtml(hts.flatMap(h=>h.pas||[]), "pf-spray", a.bats)}
       <div class="label" style="margin-top:8px">Games <span>· tap one to see every at-bat</span></div>
       <div class="palist">${hts.map(h=>`<div class="prow" data-pfopen="h${h.date}" style="cursor:pointer"><div>${profOpen.has("h"+h.date)?"▾":"▸"} ${dd(h.date)}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>
