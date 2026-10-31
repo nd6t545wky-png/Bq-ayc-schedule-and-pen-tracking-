@@ -184,6 +184,9 @@ button:disabled{opacity:.35;cursor:default}
 .scale button{min-height:40px;padding:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:600;font-size:15px;border-radius:8px;font-variant-numeric:tabular-nums}
 .scale button.on{background:var(--maroon);border-color:var(--maroon);color:var(--maroon-ink)}
 .ends{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:3px}
+.sprint{border-top:.5px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+.sprint .reps{font-family:var(--display);font-size:20px;font-weight:700}
+.sprint ul{margin:0;padding-left:18px;font-size:14px;color:var(--muted)}
 .glog{border-top:.5px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px}
 .glog .q{font-weight:600;font-size:15px}
 .gform{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -878,6 +881,40 @@ function weekDates(offset=0){
   DAYS.forEach(([d],i)=>{ out[d] = localDate(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate()+i)); });
   return out;
 }
+// ---------- flat ground sprints (U18 pitcher-only) ----------
+// Day 1 straight after the full bullpen, Day 2 (primer) after the light pen. The week's row moves on
+// only once a Day 1 is done, so a missed week repeats. After week 12 it goes back to week 5.
+const SPRINT_WEEKS = [
+  ["4 × 20 m",0],["5 × 20 m",0],["6 × 20 m",0],["4 × 20 m (lighter week)",0],
+  ["3 × 20 m + 2 × flying 10 m",2],["3 × 20 m + 3 × flying 10 m",3],["2 × 20 m + 4 × flying 10 m",4],["2 × 20 m + 2 × flying 10 m (lighter week)",2],
+  ["2 × 20 m + 3 × 30 m",3],["2 × 20 m + 4 × 30 m",4],["2 × 20 m + 5 × 30 m",5],["2 × timed 20 m + 2 × 30 m (test week)",2]];
+const SPRINT_DAY2 = "3 × 10 m from a staggered stance, 60 s rest";
+const sprinter = name => { const a = athleteDocs[slug(name||"")]; return !!a && a.age==="U18" && a.type==="P"; };
+const mondayOf = date => { const d = new Date(date+"T00:00:00"); d.setDate(d.getDate() - (d.getDay()+6)%7); return localDate(d); };
+function sprintWeek(athlete, date){
+  const s = slug(athlete), mon = mondayOf(date), done = new Set();
+  Object.values(Object.assign({}, checkinDocs, outbox().checkins)).forEach(c=>{
+    if (c && c.sprint==="d1" && slug(c.athlete||"")===s && c.date < mon) done.add(mondayOf(c.date)); });
+  const n = done.size + 1;
+  return n <= 12 ? n : 5 + (n-13) % 8;
+}
+function sprintHtml(athlete, date, day){
+  const wk = sprintWeek(athlete, date), [reps, top] = SPRINT_WEEKS[wk-1], c = getCheckin(athlete, date) || {};
+  const flying = /flying/.test(reps), d1 = day===1;
+  const done = c.sprint ? `<div class="gnote" style="color:var(--hit)">✓ ${c.sprint==="swap" ? "Heavy pen: did 3 × 10 m instead (this week's row repeats next week)" : "Sprints done"}</div>
+      <button type="button" class="small ghost" data-sprint="${date}|" style="align-self:flex-start">Undo</button>`
+    : `<div class="row"><button type="button" class="small" data-sprint="${date}|${d1?"d1":"d2"}">Sprints done</button>${d1?`<button type="button" class="small ghost" data-sprint="${date}|swap">Heavy pen: did 3 × 10 m instead</button>`:""}</div>`;
+  return `<div class="sprint"><div class="q">Sprints · week ${wk} · ${d1?"Day 1":"Day 2 (primer)"}</div>
+    <div class="reps">${esc(d1 ? reps : SPRINT_DAY2)}</div>
+    <ul><li>Straight after the bullpen, before any lifting. Re-warm 3–5 min first: A-skips, B-skips, then build-ups at 80% and 90%.</li>
+      ${d1 ? `<li>Rest: 20 m 90 s–2 min${/30 m|flying/.test(reps)?", 30 m or flying 10 m 2.5–3 min":""}, 3–4 min between sets. Walk back; start the next rep only when fresh.</li>
+      ${flying?`<li>Flying 10 m = 20 m build-up into 10 m at max speed.</li>`:""}
+      ${top?`<li>${top} top-speed rep${top>1?"s":""} this week (max 5).</li>`:""}
+      ${wk===12?`<li>Time the 20 m and compare it to week 1.</li>`:""}
+      <li>Heavy or long pen and the legs feel flat: do 3 × 10 m instead.</li>` : ""}
+      <li>Stop the session when a rep looks or feels flat.</li></ul>
+    ${done}</div>`;
+}
 const checkinId = (athlete, date) => slug(athlete)+"_"+date;
 function getCheckin(athlete, date){ const id = checkinId(athlete, date); return outbox().checkins[id] || checkinDocs[id] || null; }
 function setCheckin(athlete, date, field, val){
@@ -1346,7 +1383,7 @@ function renderWeek(){
       <div class="dayhead" data-dtoggle><div class="dayname">${full}${d===today?"<small>Today</small>":""}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>${tourneyOn(dates[d]) ? `<span class="tag game">${esc(tourneyOn(dates[d]).label)}</span>` : label}</div>
       <div class="dtype" data-dtoggle><span class="int">${T.i}</span><span class="tag ${T.cls}">${T.n}</span>${d!==today?'<span class="caret" aria-hidden="true"></span>':""}</div>
       ${on ? `<dl class="items"><dt>Prep</dt><dd>Tissue prep, bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${armA||t==="lt"?`<dt>Arm care</dt><dd>${armA?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${recProg?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
-      ${arm}${recov}${btn}${game}${check}
+      ${arm}${recov}${btn}${ath && sprinter(ath) && (t==="pen" || t==="light") ? sprintHtml(ath, dates[d], t==="pen" ? 1 : 2) : ""}${game}${check}
     </div>`;
   }).join("");
   renderTeam();
@@ -1374,6 +1411,11 @@ $("w-gamego").addEventListener("click", ()=>{
   if (isPosOnly(curAthlete())){ hitDate = date; hitDraft = null; setTab("hit"); return; }
   gameEdit = date; openDays.add(date); renderWeek();
   document.querySelector(`[data-game="${date}"]`)?.scrollIntoView({behavior:"smooth", block:"center"});
+});
+$("w-days").addEventListener("click", e=>{
+  const b = e.target.closest("[data-sprint]"); if (!b) return;
+  const [date, val] = b.dataset.sprint.split("|"), ath = curAthlete(); if (!ath) return;
+  setCheckin(ath, date, "sprint", val || null); renderWeek();
 });
 $("w-days").addEventListener("click", e=>{
   const h = e.target.closest("[data-ghit]"); if (!h) return;
@@ -2145,15 +2187,17 @@ async function flush(){
 async function loadAll(){
   if (!sb || !role) return;
   const since = new Date(weekDates(-2).Mon+"T00:00:00");
-  const [p, a, c, g, h] = await Promise.all([
+  const [p, a, c, g, h, sp] = await Promise.all([
     sb.from("pens").select("data").order("created_at",{ascending:false}).limit(60),
     sb.from("athletes").select("id,data").limit(500),
     sb.from("checkins").select("data").gte("day", localDate(since)).limit(2000),
     sb.from("games").select("data").gte("day", localDate(since)).limit(1000),
-    sb.from("hitting").select("data").gte("day", localDate(since)).limit(1000)]);
+    sb.from("hitting").select("data").gte("day", localDate(since)).limit(1000),
+    // every finished sprint Day 1, older ones too: they set which week of the sprint program is next
+    sb.from("checkins").select("data").eq("data->>sprint", "d1").limit(2000)]);
   if (!p.error){ serverPens = p.data.map(r=>r.data); lsSet("bqpen.cache", serverPens); }
   if (!a.error){ athleteDocs = {}; a.data.forEach(r=>{ athleteDocs[r.id] = r.data; }); lsSet("bqpen.athletes", athleteDocs); }
-  if (!c.error){ checkinDocs = {}; c.data.forEach(r=>{ checkinDocs[r.data.id] = r.data; }); lsSet("bqpen.checkins", checkinDocs); }
+  if (!c.error){ checkinDocs = {}; c.data.concat(sp.error ? [] : sp.data).forEach(r=>{ checkinDocs[r.data.id] = r.data; }); lsSet("bqpen.checkins", checkinDocs); }
   if (!g.error){ gameDocs = {}; g.data.forEach(r=>{ gameDocs[r.data.id] = r.data; }); lsSet("bqpen.games", gameDocs); }
   if (!h.error){ h.data.forEach(r=>{ hitDocs[r.data.id] = r.data; }); lsSet("bqpen.hits", hitDocs); hitSeasonFor = null; }
   if (role==="player"){ const j = await sb.from("players").select("athlete_slug,added_at"); if (!j.error) setJoinDates(j.data); }
