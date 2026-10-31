@@ -175,6 +175,8 @@ button:disabled{opacity:.35;cursor:default}
 .verdict.fail{background:color-mix(in srgb,var(--miss) 11%,transparent)}
 .verdict b{font-family:var(--display);font-size:22px;font-weight:700;white-space:nowrap}
 .verdict.pass b{color:var(--hit)}.verdict.fail b{color:var(--miss)}
+div.pfdetail{background:var(--fill);border-radius:10px;padding:8px 10px;margin:2px 0 8px}
+tr.pfdetail td{white-space:normal;text-align:left;padding:4px 0 10px}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);justify-content:center}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
 .notice{font-size:15px;color:var(--warn)}
@@ -983,6 +985,28 @@ const surname = n => String(n||"").trim().split(/\s+/).pop();
 const byName = (a, b) => surname(a).localeCompare(surname(b), "en", {sensitivity:"base"}) || String(a||"").localeCompare(String(b||""), "en", {sensitivity:"base"});
 const avgFmt = v => v==null ? "–" : (v>=1 ? v.toFixed(3) : v.toFixed(3).replace(/^0/,""));
 const pctFmt = v => v==null ? "–" : Math.round(v*100)+"%";
+// every at-bat of a game, read-only (result, hard hit, spray zone, RBI, situation taps, QAB)
+function abListHtml(pas){
+  return `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${qabWhy(p).length?'<span class="qab">QAB ✓</span>':""}${esc((HR_BY[p.res]||[,p.res])[1])}${p.hh!=null ? (p.hh ? " · 👍" : " · 👎") : p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}${(m=>m.length?`<div class="m">${m.join(" · ")}</div>`:"")([p.rbi?p.rbi+" RBI":"", ...SIT_TAPS.concat(QAB_TAPS).filter(([k])=>p[k]).map(([,l])=>l)].filter(Boolean))}</div></div>`).join("")}</div>`;
+}
+// season spray chart and a breakdown of results, where the ball went, and situations
+function hitBreakdownHtml(pas, id){
+  const n = c => pas.filter(p=>p.res===c).length, row = (label, v, of) => v ? `<tr><td>${label}</td><td>${v}</td><td>${of ? Math.round(100*v/of)+"%" : ""}</td></tr>` : "";
+  const pa = pas.length, bip = pas.filter(p=>p.zone && p.zone!=="Foul");
+  const zones = ["LF","LC","CF","RC","RF","3B","SS","Up the middle","2B","1B"].map(z=>[z, bip.filter(p=>p.zone===z).length]).filter(([,v])=>v);
+  const left = bip.filter(p=>["LF","LC","3B","SS"].includes(p.zone)).length, mid = bip.filter(p=>["CF","Up the middle"].includes(p.zone)).length, right = bip.length - left - mid;
+  const dots = pas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:5}));
+  const results = [["Single","1B"],["Double","2B"],["Triple","3B"],["Home run","HR"],["Bunt hit","BH"],["Walk","BB"],["Hit by pitch","HBP"],["Reached on error","ROE"],["Fielder's choice","FC"],
+    ["K swinging","KS"],["K looking","KL"],["Ground out","GO"],["Fly out","FO"],["Line out","LO"],["Pop out","PO"],["Bunt out","BO"],["Sac fly","SF"],["Sac bunt","SH"]].map(([l,c])=>row(l, n(c), pa)).join("");
+  const sit = [["RBI", pas.reduce((a,p)=>a+(p.rbi||0),0)], ...SIT_TAPS.concat(QAB_TAPS).map(([k,l])=>[l, pas.filter(p=>p[k]).length])].map(([l,v])=>row(l, v)).join("");
+  return `${dots.length ? `<div class="label" style="margin-top:8px">Spray chart <span>· every ball in play</span></div>${fieldSvg(id, dots)}
+      <div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--muted)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
+    ${bip.length ? `<div class="gnote">Balls in play: ${bip.length} · left side ${Math.round(100*left/bip.length)}% · middle ${Math.round(100*mid/bip.length)}% · right side ${Math.round(100*right/bip.length)}%</div>` : ""}
+    <div class="label" style="margin-top:8px">Breakdown</div>
+    <div class="scroll"><table class="log"><tr><th>Result</th><th>#</th><th>% of PA</th></tr>${results}</table></div>
+    ${zones.length ? `<div class="scroll" style="margin-top:8px"><table class="log"><tr><th>Where it went</th><th>#</th><th>%</th></tr>${zones.map(([z,v])=>row(z, v, bip.length)).join("")}</table></div>` : ""}
+    ${sit ? `<div class="scroll" style="margin-top:8px"><table class="log"><tr><th>Situations</th><th>#</th><th></th></tr>${sit}</table></div>` : ""}`;
+}
 function gameLine(pas){
   const t = hitStats(pas), extras = [];
   ["2B","3B","HR"].forEach(c=>{ const n = pas.filter(p=>p.res===c).length; if (n) extras.push((n>1?n:"")+c); });
@@ -2058,6 +2082,7 @@ function renderVelo(){
 $("f-ath").addEventListener("change", ()=>renderVelo());
 // ---------- player profile (coaches): everything logged for one player ----------
 let profName = null, profData = null, profReturn = false;
+const profOpen = new Set();   // games opened on the profile ("g"+date pitching, "h"+date hitting)
 const TYPE_NAME = {P:"Pitcher", POS:"Position player", TWO:"Two-way"};
 async function openProfile(name){
   if (profName!==name) profData = null;
@@ -2109,7 +2134,8 @@ function renderProfile(){
   // games
   const gms = profRows(d.games, [gameDocs, ob.games], name).filter(g=>hasStats(g) || g.pitched).sort((x,y)=>y.date.localeCompare(x.date));
   $("pf-games").innerHTML = gms.length ? `<div class="scroll"><table class="log"><tr><th>Day</th><th>IP</th><th>P</th><th>K</th><th>BB</th><th>H</th><th>Top</th></tr>${gms.map(g=>
-    `<tr><td>${dd(g.date)}${g.opp?`<div class="m" style="color:var(--muted)">vs ${esc(g.opp)}</div>`:""}</td><td>${esc(g.ip||"–")}</td><td>${g.pitches ?? "–"}</td><td>${g.k ?? "–"}</td><td>${g.bb ?? "–"}</td><td>${g.h ?? "–"}</td><td>${g.topVelo ?? "–"}</td></tr>`).join("")}</table></div>`
+    `<tr data-pfopen="g${g.date}" style="cursor:pointer"><td>${profOpen.has("g"+g.date)?"▾":"▸"} ${dd(g.date)}${g.opp?`<div class="m" style="color:var(--muted)">vs ${esc(g.opp)}</div>`:""}</td><td>${esc(g.ip||"–")}</td><td>${g.pitches ?? "–"}</td><td>${g.k ?? "–"}</td><td>${g.bb ?? "–"}</td><td>${g.h ?? "–"}</td><td>${g.topVelo ?? "–"}</td></tr>
+     ${profOpen.has("g"+g.date) ? `<tr class="pfdetail"><td colspan="7">${gameSummaryHtml(g, name)}</td></tr>` : ""}`).join("")}</table></div>`
     : `<div class="empty">No games logged yet.</div>`;
   // hitting
   const hts = profRows(d.hits, [hitDocs, ob.hits], name).filter(h=>(h.pas||[]).length).sort((x,y)=>y.date.localeCompare(x.date));
@@ -2117,7 +2143,10 @@ function renderProfile(){
   if (!$("pf-hit-card").hidden){
     const t = hitStats(hts.flatMap(h=>h.pas||[]));
     $("pf-hit").innerHTML = hts.length ? `<div class="gstats">${[["QAB %",pctFmt(t.qabp)],["Hard-hit %",pctFmt(t.hardp)],["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)]].map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
-      <div class="palist">${hts.map(h=>`<div class="prow"><div>${dd(h.date)}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>`).join("")}</div>`
+      ${hitBreakdownHtml(hts.flatMap(h=>h.pas||[]), "pf-spray")}
+      <div class="label" style="margin-top:8px">Games <span>· tap one to see every at-bat</span></div>
+      <div class="palist">${hts.map(h=>`<div class="prow" data-pfopen="h${h.date}" style="cursor:pointer"><div>${profOpen.has("h"+h.date)?"▾":"▸"} ${dd(h.date)}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>
+        ${profOpen.has("h"+h.date) ? `<div class="pfdetail">${abListHtml(h.pas||[])}${(h.pas||[]).some(p=>p.x!=null) ? fieldSvg("pf-gspray-"+h.date, h.pas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:6}))) : ""}</div>` : ""}`).join("")}</div>`
       : `<div class="empty">No at-bats logged yet.</div>`;
   }
 }
@@ -2126,6 +2155,10 @@ $("pf-week").addEventListener("click", ()=>{
   const name = profName; closeProfile();
   $("w-ath").value = name; $("w-ath").dispatchEvent(new Event("change"));
   document.querySelector(".day.today, #w-days .day")?.scrollIntoView({behavior:"smooth", block:"start"});
+});
+$("v-prof").addEventListener("click", e=>{
+  const row = e.target.closest("[data-pfopen]"); if (!row) return;
+  const k = row.dataset.pfopen; if (profOpen.has(k)) profOpen.delete(k); else profOpen.add(k); renderProfile();
 });
 $("pf-pens").addEventListener("click", e=>{
   const row = e.target.closest("[data-pfpen]"); if (!row) return;
