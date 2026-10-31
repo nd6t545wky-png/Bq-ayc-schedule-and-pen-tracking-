@@ -904,7 +904,7 @@ function sprintHtml(athlete, date, day){
   const done = c.sprint ? `<div class="gnote" style="color:var(--hit)">✓ ${c.sprint==="swap" ? "Heavy pen: did 3 × 10 m instead (this week's row repeats next week)" : "Sprints done"}</div>
       <button type="button" class="small ghost" data-sprint="${date}|" style="align-self:flex-start">Undo</button>`
     : `<div class="row"><button type="button" class="small" data-sprint="${date}|${d1?"d1":"d2"}">Sprints done</button>${d1?`<button type="button" class="small ghost" data-sprint="${date}|swap">Heavy pen: did 3 × 10 m instead</button>`:""}</div>`;
-  return `<div class="sprint"><div class="q">Flat ground sprints · week ${wk} · ${d1?"Day 1":"Day 2 (primer)"}</div>
+  return `<div class="sprint"><div class="q">Sprints · week ${wk} · ${d1?"Day 1":"Day 2 (primer)"}</div>
     <div class="reps">${esc(d1 ? reps : SPRINT_DAY2)}</div>
     <ul><li>Straight after the bullpen, before any lifting. Re-warm 3–5 min first: A-skips, B-skips, then build-ups at 80% and 90%.</li>
       ${d1 ? `<li>Rest: 20 m 90 s–2 min${/30 m|flying/.test(reps)?", 30 m or flying 10 m 2.5–3 min":""}, 3–4 min between sets. Walk back; start the next rep only when fresh.</li>
