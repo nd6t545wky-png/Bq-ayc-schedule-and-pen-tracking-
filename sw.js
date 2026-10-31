@@ -1,7 +1,7 @@
 // Keeps the tracker working at the field with no signal.
 // The page itself is fetched fresh whenever there's a connection (so updates show on the
 // next open), falling back to the saved copy offline. Bump VERSION whenever a shell file changes.
-const VERSION = "bqpen-v64";
+const VERSION = "bqpen-v65";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./vendor/supabase-2.117.3.js",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 

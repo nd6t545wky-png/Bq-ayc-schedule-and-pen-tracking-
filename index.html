@@ -93,6 +93,10 @@ button:disabled{opacity:.35;cursor:default}
 #w-gseg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}#w-gseg button{padding:8px 0;font-size:15px}
 .qab{display:inline-block;font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.04em;padding:2px 8px;border-radius:999px;background:var(--gold-soft);color:var(--gold);margin-right:4px}
 .qab.no{background:var(--fill);color:var(--muted)}
+.hhbar{display:grid;grid-template-columns:62px 1fr 74px;align-items:center;gap:8px;font-size:14px;padding:3px 0}
+.hhbar i{display:block;height:10px;border-radius:5px;background:var(--fill);overflow:hidden}
+.hhbar i b{display:block;height:100%;background:var(--hit);border-radius:5px}
+.hhbar span:last-child{text-align:right;color:var(--muted)}
 .hres{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .hres button{min-height:42px;padding:6px 4px;font-size:14px;font-weight:600;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;line-height:1.1}
 .hres button.on{background:var(--maroon);border-color:var(--maroon);color:var(--maroon-ink)}
@@ -946,6 +950,15 @@ const surname = n => String(n||"").trim().split(/\s+/).pop();
 const byName = (a, b) => surname(a).localeCompare(surname(b), "en", {sensitivity:"base"}) || String(a||"").localeCompare(String(b||""), "en", {sensitivity:"base"});
 const avgFmt = v => v==null ? "–" : (v>=1 ? v.toFixed(3) : v.toFixed(3).replace(/^0/,""));
 const pctFmt = v => v==null ? "–" : Math.round(v*100)+"%";
+// Hard-hit tracker: season and last-5-games %, then a bar for each game (newest first)
+function hardTrackHtml(games){
+  const rated = games.map(h=>({h, t:hitStats(h.pas||[])})).filter(x=>x.t.rated);
+  if (!rated.length) return "";
+  const all = hitStats(games.flatMap(h=>h.pas||[])), last5 = hitStats(rated.slice(0,5).flatMap(x=>x.h.pas||[]));
+  return `<div class="label" style="margin-top:8px">Hard-hit tracker</div>
+    <div class="gnote">Season <b>${pctFmt(all.hardp)}</b> (${all.hard} of ${all.rated}) · last ${Math.min(5, rated.length)} game${rated.length>1?"s":""} <b>${pctFmt(last5.hardp)}</b></div>
+    ${rated.slice(0,10).map(({h,t})=>`<div class="hhbar"><span>${new Date(h.date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span><i><b style="width:${Math.round(t.hardp*100)}%"></b></i><span>${t.hard}/${t.rated} · ${pctFmt(t.hardp)}</span></div>`).join("")}`;
+}
 function gameLine(pas){
   const t = hitStats(pas), extras = [];
   ["2B","3B","HR"].forEach(c=>{ const n = pas.filter(p=>p.res===c).length; if (n) extras.push((n>1?n:"")+c); });
@@ -1020,6 +1033,7 @@ function renderHit(){
     <div class="gstats">${tiles.map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
     <div class="gnote">${t.h} H · ${t.xbh} XBH · ${t.rbi} RBI${t.bunt?` · ${t.bunt} bunt${t.bunt>1?"s":""}`:""}${t.r3?` · ${t.r3} runner${t.r3>1?"s":""} scored from 3rd`:""}</div>
     ${dots.length ? `<div class="label" style="margin-top:6px">Spray chart</div>${fieldSvg("h-spray", dots)}<div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--muted)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
+    ${hardTrackHtml(all)}
     ${all.length ? `<div class="label" style="margin-top:6px">Games</div><div class="palist">${all.map(h=>`<div class="prow" data-hdate="${h.date}" style="cursor:pointer"><div>${new Date(h.date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>`).join("")}</div>` : ""}`;
   if (hitSeasonFor !== slug(ath)) loadHitSeason(ath);
 }
@@ -1039,9 +1053,9 @@ function renderTeamHits(dates){
   const rows = Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && Object.values(dates).includes(h.date) && inGroup(h.athlete));
   const by = {}; rows.forEach(h=>{ (by[h.athlete] = by[h.athlete] || []).push(h); });
   const names = Object.keys(by).sort(byName);
-  $("team-hits").innerHTML = names.length ? `<div class="label" style="margin-top:6px">Hitting ${teamWeek?"last":"this"} week</div><div class="scroll"><table class="log team"><tr><th>Player</th><th>G</th><th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th><th>OPS</th><th>QAB</th></tr>${names.map(n=>{
+  $("team-hits").innerHTML = names.length ? `<div class="label" style="margin-top:6px">Hitting ${teamWeek?"last":"this"} week</div><div class="scroll"><table class="log team"><tr><th>Player</th><th>G</th><th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th><th>OPS</th><th>QAB</th><th>Hard</th></tr>${names.map(n=>{
     const t = hitStats(by[n].flatMap(h=>h.pas||[]));
-    return `<tr data-ath="${esc(n)}" style="cursor:pointer"><td><b>${esc(n)}</b></td><td>${by[n].length}</td><td>${t.ab}</td><td>${t.h}</td><td>${t.bb}</td><td>${t.k}</td><td>${avgFmt(t.avg)}</td><td>${avgFmt(t.ops)}</td><td>${pctFmt(t.qabp)}</td></tr>`; }).join("")}</table></div>` : "";
+    return `<tr data-ath="${esc(n)}" style="cursor:pointer"><td><b>${esc(n)}</b></td><td>${by[n].length}</td><td>${t.ab}</td><td>${t.h}</td><td>${t.bb}</td><td>${t.k}</td><td>${avgFmt(t.avg)}</td><td>${avgFmt(t.ops)}</td><td>${pctFmt(t.qabp)}</td><td>${pctFmt(t.hardp)}</td></tr>`; }).join("")}</table></div>` : "";
 }
 
 // ---------- reliever weeks ----------
@@ -2075,6 +2089,7 @@ function renderProfile(){
   if (!$("pf-hit-card").hidden){
     const t = hitStats(hts.flatMap(h=>h.pas||[]));
     $("pf-hit").innerHTML = hts.length ? `<div class="gstats">${[["QAB %",pctFmt(t.qabp)],["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)],["Hard-hit",pctFmt(t.hardp)]].map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
+      ${hardTrackHtml(hts)}
       <div class="palist">${hts.map(h=>`<div class="prow"><div>${dd(h.date)}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>`).join("")}</div>`
       : `<div class="empty">No at-bats logged yet.</div>`;
   }
