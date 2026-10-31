@@ -102,6 +102,8 @@ button:disabled{opacity:.35;cursor:default}
 .field .dirt{fill:color-mix(in srgb,var(--gold) 22%,var(--surface))}
 .field .line{stroke:var(--muted);stroke-width:1.2;fill:none}
 .field .base{fill:var(--surface);stroke:var(--muted)}
+.field .zline{stroke:var(--maroon);stroke-width:1.4;stroke-dasharray:5 4;fill:none;opacity:.7}
+.field .zlbl{fill:var(--maroon);font-size:10px;font-weight:700;letter-spacing:.06em;font-family:var(--display)}
 .field .lbl{fill:var(--muted);font-size:11px;font-family:var(--font)}
 .palist{display:flex;flex-direction:column;margin:0 -16px}
 .palist .prow b{font-variant-numeric:tabular-nums}
@@ -1006,7 +1008,7 @@ function hitBreakdownHtml(pas, id, bats){
   const results = [["Single","1B"],["Double","2B"],["Triple","3B"],["Home run","HR"],["Bunt hit","BH"],["Walk","BB"],["Hit by pitch","HBP"],["Reached on error","ROE"],["Fielder's choice","FC"],
     ["K swinging","KS"],["K looking","KL"],["Ground out","GO"],["Fly out","FO"],["Line out","LO"],["Pop out","PO"],["Bunt out","BO"],["Sac fly","SF"],["Sac bunt","SH"]].map(([l,c])=>row(l, n(c), pa)).join("");
   const sit = [["RBI", pas.reduce((a,p)=>a+(p.rbi||0),0)], ...SIT_TAPS.concat(QAB_TAPS).map(([k,l])=>[l, pas.filter(p=>p[k]).length])].map(([l,v])=>row(l, v)).join("");
-  return `${dots.length ? `<div class="label" style="margin-top:8px">Spray chart <span>· every ball in play</span></div>${fieldSvg(id, dots)}
+  return `${dots.length ? `<div class="label" style="margin-top:8px">Spray chart <span>· every ball in play</span></div>${fieldSvg(id, dots, bats==="R" ? ["PULL","MIDDLE","OPPO"] : bats==="L" ? ["OPPO","MIDDLE","PULL"] : ["LEFT","MIDDLE","RIGHT"])}
       <div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--miss)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
     ${side.length ? `<div class="gnote">Balls in play: ${side.length} · ${(([pull, oppo], pc) => bats==="R" || bats==="L"
         ? `pull ${pc(pull)} · up the middle ${pc(mid)} · opposite field ${pc(oppo)}`
@@ -1030,7 +1032,7 @@ function fieldZone(x, y){
   if (dist < FIELD.r*155/330) return ang < -27 ? "3B" : ang < -6 ? "SS" : ang <= 6 ? "Up the middle" : ang <= 27 ? "2B" : "1B";
   return ang < -27 ? "LF" : ang < -9 ? "LC" : ang <= 9 ? "CF" : ang <= 27 ? "RC" : "RF";
 }
-function fieldSvg(id, dots){
+function fieldSvg(id, dots, zones){
   // to scale: fence at 330 ft = r; 90 ft basepaths, mound at 60.5 ft, infield dirt 95 ft around the mound
   const {w,h,hx,hy,r} = FIELD, ft = r/330, a = Math.PI/4, lx = hx - r*Math.sin(a), ly = hy - r*Math.cos(a), rx = hx + r*Math.sin(a);
   const bp = 90*ft*Math.SQRT1_2, B1 = [hx+bp, hy-bp], B2 = [hx, hy-2*bp], B3 = [hx-bp, hy-bp], M = [hx, hy-60.5*ft];
@@ -1045,6 +1047,10 @@ function fieldSvg(id, dots){
   g += `<path class="line" d="M${lx},${ly} L${hx},${hy} L${rx},${ly}"/>`;
   g += base(B1) + base(B2) + base(B3) + `<path class="base" d="M${hx-3.5},${hy-3} h7 v3 l-3.5,3 l-3.5,-3 z"/>`;
   g += [["LF",-36,170],["LC",-18,182],["CF",0,188],["RC",18,182],["RF",36,170]].map(([t,ang,dist])=>`<text class="lbl" text-anchor="middle" x="${hx+dist*Math.sin(ang*Math.PI/180)}" y="${hy-dist*Math.cos(ang*Math.PI/180)}">${t}</text>`).join("");
+  // zones: [left label, middle label, right label] split at the shortstop and second baseman
+  if (zones){ const at = (ang, d) => [hx+d*Math.sin(ang*Math.PI/180), hy-d*Math.cos(ang*Math.PI/180)];
+    g += [-SS_2B_ANGLE, SS_2B_ANGLE].map(a=>{ const [x,y] = at(a, r); return `<path class="zline" d="M${hx},${hy} L${x},${y}"/>`; }).join("");
+    g += [[-30,zones[0]],[0,zones[1]],[30,zones[2]]].map(([a,t])=>{ const [x,y] = at(a, 120); return `<text class="zlbl" text-anchor="middle" x="${x}" y="${y}">${t}</text>`; }).join(""); }
   g += (dots||[]).map(p=>`<circle cx="${p.x*w}" cy="${p.y*h}" r="${p.r||6}" fill="${p.c}" stroke="var(--surface)" stroke-width="1.5"/>`).join("");
   return `<svg class="field" id="${id}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Baseball field">${g}</svg>`;
 }
