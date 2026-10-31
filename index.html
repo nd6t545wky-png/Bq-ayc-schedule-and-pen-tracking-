@@ -91,6 +91,8 @@ button:disabled{opacity:.35;cursor:default}
 .flags{background:color-mix(in srgb,var(--miss) 10%,transparent);border-radius:10px;padding:10px 12px;font-size:15px}.flags b{color:var(--miss)}.flags ul{margin:4px 0 0;padding-left:18px}
 .codebox{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--fill);border-radius:10px;padding:10px 12px;margin-top:8px}.codebox .code{font-family:ui-monospace,Menlo,monospace;font-size:22px;font-weight:700;letter-spacing:.12em}.codebox .lbl{font-size:13px;color:var(--muted)}
 #w-gseg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}#w-gseg button{padding:8px 0;font-size:15px}
+.qab{display:inline-block;font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.04em;padding:2px 8px;border-radius:999px;background:var(--gold-soft);color:var(--gold);margin-right:4px}
+.qab.no{background:var(--fill);color:var(--muted)}
 .hres{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .hres button{min-height:42px;padding:6px 4px;font-size:14px;font-weight:600;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;line-height:1.1}
 .hres button.on{background:var(--maroon);border-color:var(--maroon);color:var(--maroon-ink)}
@@ -901,12 +903,24 @@ const HRES = [
   ["BH","Bunt hit",{ab:1,h:1,tb:1,bip:1,bunt:1}],
   ["On base"], ["BB","Walk",{bb:1}], ["HBP","Hit by pitch",{hbp:1}], ["ROE","Reached on error",{ab:1,bip:1}], ["FC","Fielder's choice",{ab:1,bip:1}],
   ["Outs"], ["KS","K swinging",{ab:1,k:1}], ["KL","K looking",{ab:1,k:1}], ["GO","Ground out",{ab:1,bip:1}], ["FO","Fly out",{ab:1,bip:1}],
-  ["LO","Line out",{ab:1,bip:1}], ["PO","Pop out",{ab:1,bip:1}], ["SF","Sac fly",{sf:1,bip:1}], ["SH","Sac bunt",{sh:1,bip:1,bunt:1}],
-  ["BO","Bunt out",{ab:1,bip:1,bunt:1}],
+  ["LO","Line out",{ab:1,bip:1}], ["PO","Pop out",{ab:1,bip:1}], ["BO","Bunt out",{ab:1,bip:1,bunt:1}],
+  ["Situation"], ["SF","Sac fly",{sf:1,bip:1}], ["SH","Sac bunt",{sh:1,bip:1,bunt:1}],
 ];
 const HR_BY = Object.fromEntries(HRES.filter(r=>r[1]).map(r=>[r[0], r]));
 const isBunt = res => !!(HR_BY[res] && HR_BY[res][2].bunt);
 // hard hit: thumb up / down on every result but a bunt (older at-bats used Hard / Medium / Weak contact)
+// Quality at-bat: any one of these. The last three are quick taps on the at-bat screen.
+const QAB_TAPS = [["p7","7+ pitches"],["two","Battled with 2 strikes"]];
+// situation taps that go with any result, shown under Situation next to Sac fly / Sac bunt
+const SIT_TAPS = [["adv","Moved the runner"],["r3","Scored runner from 3rd"],["hnr","Hit and run"]];
+function qabWhy(p){
+  const c = (HR_BY[p.res]||[])[2] || {}, why = [];
+  if (c.h) why.push("hit"); if (c.bb) why.push("walk"); if (c.hbp) why.push("HBP");
+  if (hardOf(p)===1) why.push("hard hit"); if (p.rbi) why.push("RBI"); if (p.r3) why.push("runner from 3rd");
+  if (c.sh || c.sf) why.push("sacrifice"); if (p.adv) why.push("moved the runner"); if (p.hnr) why.push("hit and run");
+  QAB_TAPS.forEach(([k,l])=>{ if (p[k]) why.push(l.toLowerCase()); });
+  return why;
+}
 const hardOf = p => p.hh!=null ? p.hh : p.qual && (HR_BY[p.res]||[])[2]?.bip ? (p.qual==="H" ? 1 : 0) : null;
 const isHitter = name => { const a = athleteDocs[slug(name||"")]; return !!a && (a.type==="POS" || a.type==="TWO"); };
 const hitId = (athlete, date) => slug(athlete)+"_"+date;
@@ -914,13 +928,13 @@ function getHit(athlete, date){ const id = hitId(athlete, date); return outbox()
 function athleteHits(athlete){ const s = slug(athlete); return Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && slug(h.athlete)===s).sort((a,b)=>b.date.localeCompare(a.date)); }
 function saveHit(body){ body.updatedAt = Date.now(); body.summary = hitSummary(body.pas||[]); hitDocs[body.id] = body; const ob = outbox(); ob.hits[body.id] = body; saveOutbox(ob); flush(); }
 function hitStats(pas){
-  const t = {pa:0,ab:0,h:0,tb:0,bb:0,hbp:0,k:0,sf:0,sh:0,bip:0,bunt:0,hard:0,rated:0,rbi:0,xbh:0,r3:0};
+  const t = {pa:0,ab:0,h:0,tb:0,bb:0,hbp:0,k:0,sf:0,sh:0,bip:0,bunt:0,hard:0,rated:0,rbi:0,xbh:0,r3:0,qab:0};
   pas.forEach(p=>{ const c = (HR_BY[p.res]||[])[2] || {}; t.pa++; for (const k in c) t[k] += c[k];
     const hh = hardOf(p); if (hh!=null){ t.rated++; t.hard += hh; }
-    if (p.r3) t.r3++; t.rbi += p.rbi||0; if (["2B","3B","HR"].includes(p.res)) t.xbh++; });
+    if (p.r3) t.r3++; if (qabWhy(p).length) t.qab++; t.rbi += p.rbi||0; if (["2B","3B","HR"].includes(p.res)) t.xbh++; });
   const r = (a,b) => b ? a/b : null;
   t.avg = r(t.h,t.ab); t.obp = r(t.h+t.bb+t.hbp, t.ab+t.bb+t.hbp+t.sf); t.slg = r(t.tb,t.ab);
-  t.ops = t.obp!=null && t.slg!=null ? t.obp+t.slg : null; t.kp = r(t.k,t.pa); t.bbp = r(t.bb,t.pa); t.hardp = r(t.hard,t.rated);
+  t.ops = t.obp!=null && t.slg!=null ? t.obp+t.slg : null; t.kp = r(t.k,t.pa); t.bbp = r(t.bb,t.pa); t.hardp = r(t.hard,t.rated); t.qabp = r(t.qab,t.pa);
   return t;
 }
 // every list of people is A to Z by surname (then first name), ignoring capitals
@@ -936,7 +950,7 @@ function gameLine(pas){
   const t = hitStats(pas), extras = [];
   ["2B","3B","HR"].forEach(c=>{ const n = pas.filter(p=>p.res===c).length; if (n) extras.push((n>1?n:"")+c); });
   if (t.bb) extras.push((t.bb>1?t.bb:"")+"BB"); if (t.hbp) extras.push((t.hbp>1?t.hbp:"")+"HBP"); if (t.k) extras.push((t.k>1?t.k:"")+"K");
-  return `${t.h}-for-${t.ab}${extras.length?", "+extras.join(", "):""}${t.rbi?` · ${t.rbi} RBI`:""}`;
+  return `${t.h}-for-${t.ab}${extras.length?", "+extras.join(", "):""}${t.rbi?` · ${t.rbi} RBI`:""}${t.pa?` · QAB ${t.qab}/${t.pa}`:""}`;
 }
 // Field from the hitter's view: home at the bottom, left field on the left. Points are stored 0-1.
 const FIELD = {w:300, h:262, hx:150, hy:248, r:205};
@@ -984,22 +998,23 @@ function renderHit(){
   $("h-opp").value = (doc && doc.opp) || "";
   // this game
   $("h-game").innerHTML = `<div class="livehead"><div><div class="label" style="margin:0">${new Date(date+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"short"})}</div><div class="hitline">${pas.length ? gameLine(pas) : "No at-bats yet"}</div></div></div>
-    ${pas.length ? `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${esc(HR_BY[p.res][1])}${p.hh!=null ? (p.hh ? " · 👍 hard hit" : " · 👎") : p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}${p.rbi||p.r3?`<div class="m">${[p.rbi?p.rbi+" RBI":"", p.r3?"Scored runner from 3rd":""].filter(Boolean).join(" · ")}</div>`:""}</div><button class="small ghost" data-parm="${i}">Remove</button></div>`).join("")}</div>` : ""}`;
+    ${pas.length ? `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${qabWhy(p).length?'<span class="qab">QAB ✓</span>':""}${esc(HR_BY[p.res][1])}${p.hh!=null ? (p.hh ? " · 👍 hard hit" : " · 👎") : p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}${(m=>m.length?`<div class="m">${m.join(" · ")}</div>`:"")([p.rbi?p.rbi+" RBI":"", ...SIT_TAPS.concat(QAB_TAPS).filter(([k])=>p[k]).map(([,l])=>l)].filter(Boolean))}</div><button class="small ghost" data-parm="${i}">Remove</button></div>`).join("")}</div>` : ""}`;
   // new plate appearance
-  const d = hitDraft = hitDraft || {res:null, hh:null, r3:0, x:null, y:null, zone:null, rbi:0};
+  const d = hitDraft = hitDraft || {res:null, hh:null, r3:0, p6:0, adv:0, two:0, x:null, y:null, zone:null, rbi:0};
   const bip = d.res && (HR_BY[d.res][2].bip);
   const segBtns = (key, n, label) => `<div><div class="label">${label}</div><div class="seg" data-hk="${key}">${Array.from({length:n},(_,i)=>`<button type="button" data-v="${i}" class="${d[key]===i?'on':''}">${i}</button>`).join("")}</div></div>`;
   $("h-entry").innerHTML = `<h2>At-bat ${pas.length+1}</h2>
-    <div><div class="label">Result</div><div class="hres">${HRES.map(r=>r[1] ? `<button type="button" data-hres="${r[0]}" class="${d.res===r[0]?'on':''}">${r[1]}</button>` : `<div class="grp">${r[0]}</div>`).join("")}</div></div>
+    <div><div class="label">Result</div><div class="hres">${HRES.map(r=>r[1] ? `<button type="button" data-hres="${r[0]}" class="${d.res===r[0]?'on':''}">${r[1]}</button>` : `<div class="grp">${r[0]}</div>`).join("")}${SIT_TAPS.map(([k,l])=>`<button type="button" data-htog="${k}" class="${d[k]?'on':''}">${l}</button>`).join("")}</div></div>
     ${d.res && !isBunt(d.res) ? `<div><div class="label">Hard hit ball?</div><div class="seg" data-hk="hh">${[[1,"👍 Yes"],[0,"👎 No"]].map(([v,l])=>`<button type="button" data-v="${v}" class="${d.hh===v?'on':''}">${l}</button>`).join("")}</div></div>` : ""}
-    ${d.res ? `<div><div class="label">Runner on 3rd</div><div class="seg" data-hk="r3">${[[1,"Scored runner from 3rd"],[0,"No"]].map(([v,l])=>`<button type="button" data-v="${v}" class="${d.r3===v?'on':''}">${l}</button>`).join("")}</div></div>` : ""}
     ${bip ? `<div><div class="label">Where it went <span>· tap the field${d.zone?` · ${esc(d.zone)}`:""}</span></div>${fieldSvg("h-field", d.x!=null ? [{x:d.x, y:d.y, c:dotColour(d.res), r:8}] : [])}</div>` : ""}
     ${segBtns("rbi",5,"RBI")}
+    ${d.res ? `<div><div class="label">Quality at-bat <span>· tap any that happened</span></div><div class="checklist">${QAB_TAPS.map(([k,l])=>`<button type="button" data-htog="${k}" class="${d[k]?'on':''}">${l}</button>`).join("")}</div>
+      <div class="gnote" style="margin-top:8px">${(w=>w.length ? `<span class="qab">QAB ✓</span>${esc(w.join(", "))}` : `<span class="qab no">Not a QAB yet</span>`)(qabWhy(d))}</div></div>` : ""}
     <div class="notice" id="h-msg" hidden></div>
     <button class="primary" id="h-save" ${d.res?"":"disabled"}>Save at-bat</button>`;
   // season
   const all = athleteHits(ath), seasonPas = all.flatMap(h=>h.pas||[]), t = hitStats(seasonPas);
-  const tiles = [["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)],["Hard-hit",pctFmt(t.hardp)]];
+  const tiles = [["QAB %",pctFmt(t.qabp)],["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)],["Hard-hit",pctFmt(t.hardp)]];
   const dots = seasonPas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:5}));
   $("h-season").innerHTML = `<h2>${esc(ath)} · season</h2>
     <div class="gstats">${tiles.map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
@@ -1024,9 +1039,9 @@ function renderTeamHits(dates){
   const rows = Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && Object.values(dates).includes(h.date) && inGroup(h.athlete));
   const by = {}; rows.forEach(h=>{ (by[h.athlete] = by[h.athlete] || []).push(h); });
   const names = Object.keys(by).sort(byName);
-  $("team-hits").innerHTML = names.length ? `<div class="label" style="margin-top:6px">Hitting ${teamWeek?"last":"this"} week</div><div class="scroll"><table class="log team"><tr><th>Player</th><th>G</th><th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th><th>OPS</th></tr>${names.map(n=>{
+  $("team-hits").innerHTML = names.length ? `<div class="label" style="margin-top:6px">Hitting ${teamWeek?"last":"this"} week</div><div class="scroll"><table class="log team"><tr><th>Player</th><th>G</th><th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th><th>OPS</th><th>QAB</th></tr>${names.map(n=>{
     const t = hitStats(by[n].flatMap(h=>h.pas||[]));
-    return `<tr data-ath="${esc(n)}" style="cursor:pointer"><td><b>${esc(n)}</b></td><td>${by[n].length}</td><td>${t.ab}</td><td>${t.h}</td><td>${t.bb}</td><td>${t.k}</td><td>${avgFmt(t.avg)}</td><td>${avgFmt(t.ops)}</td></tr>`; }).join("")}</table></div>` : "";
+    return `<tr data-ath="${esc(n)}" style="cursor:pointer"><td><b>${esc(n)}</b></td><td>${by[n].length}</td><td>${t.ab}</td><td>${t.h}</td><td>${t.bb}</td><td>${t.k}</td><td>${avgFmt(t.avg)}</td><td>${avgFmt(t.ops)}</td><td>${pctFmt(t.qabp)}</td></tr>`; }).join("")}</table></div>` : "";
 }
 
 // ---------- reliever weeks ----------
@@ -1443,6 +1458,8 @@ $("v-hit").addEventListener("click", e=>{
   const ath = hitAthlete(), date = hitDate || localDate(), d = hitDraft;
   const seg = e.target.closest("[data-hk] button");
   if (seg){ const k = seg.parentElement.dataset.hk; d[k] = +seg.dataset.v; renderHit(); return; }
+  const tog = e.target.closest("[data-htog]");
+  if (tog){ d[tog.dataset.htog] = d[tog.dataset.htog] ? 0 : 1; renderHit(); return; }
   const r = e.target.closest("[data-hres]");
   if (r){ d.res = r.dataset.hres; if (isBunt(d.res)) d.hh = null; if (!HR_BY[d.res][2].bip){ d.x = d.y = d.zone = null; } renderHit(); return; }
   const svg = e.target.closest("#h-field");
@@ -1451,7 +1468,7 @@ $("v-hit").addEventListener("click", e=>{
   if (e.target.closest("#h-save")){
     if (!d.res) return;
     const doc = getHit(ath, date) || {id: hitId(ath, date), athlete: ath, date, opp: $("h-opp").value.trim() || null, pas: []};
-    const pa = {res:d.res, rbi:d.rbi||0}; if (d.hh!=null && !isBunt(d.res)) pa.hh = d.hh; if (d.r3) pa.r3 = 1; if (d.x!=null){ pa.x = +d.x.toFixed(3); pa.y = +d.y.toFixed(3); pa.zone = d.zone; }
+    const pa = {res:d.res, rbi:d.rbi||0}; if (d.hh!=null && !isBunt(d.res)) pa.hh = d.hh; SIT_TAPS.concat(QAB_TAPS).forEach(([k])=>{ if (d[k]) pa[k] = 1; }); if (d.x!=null){ pa.x = +d.x.toFixed(3); pa.y = +d.y.toFixed(3); pa.zone = d.zone; }
     saveHit(Object.assign({}, doc, {pas: (doc.pas||[]).concat([pa])})); hitDraft = null; renderHit();
     $("h-game").scrollIntoView({behavior:"smooth", block:"start"}); return;
   }
@@ -1945,7 +1962,7 @@ function gameSummary(g){
 }
 function hitSummary(pas){
   const t = hitStats(pas), c = code => pas.filter(p=>p.res===code).length, r3 = v => v==null ? null : +v.toFixed(3);
-  return {line: gameLine(pas), pa:t.pa, ab:t.ab, h:t.h, doubles:c("2B"), triples:c("3B"), hr:c("HR"), bunts:t.bunt, bb:t.bb, hbp:t.hbp, k:t.k, rbi:t.rbi, r3Scored:t.r3,
+  return {line: gameLine(pas), pa:t.pa, ab:t.ab, h:t.h, doubles:c("2B"), triples:c("3B"), hr:c("HR"), bunts:t.bunt, bb:t.bb, hbp:t.hbp, k:t.k, rbi:t.rbi, r3Scored:t.r3, qab:t.qab, qabPct: t.qabp==null ? null : Math.round(t.qabp*100),
     avg:r3(t.avg), obp:r3(t.obp), slg:r3(t.slg), hardPct: t.hardp==null ? null : Math.round(t.hardp*100)};
 }
 function queueSave(){
@@ -2057,7 +2074,7 @@ function renderProfile(){
   $("pf-hit-card").hidden = !hts.length && !isHitter(name);
   if (!$("pf-hit-card").hidden){
     const t = hitStats(hts.flatMap(h=>h.pas||[]));
-    $("pf-hit").innerHTML = hts.length ? `<div class="gstats">${[["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)],["Hard-hit",pctFmt(t.hardp)]].map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
+    $("pf-hit").innerHTML = hts.length ? `<div class="gstats">${[["QAB %",pctFmt(t.qabp)],["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)],["Hard-hit",pctFmt(t.hardp)]].map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
       <div class="palist">${hts.map(h=>`<div class="prow"><div>${dd(h.date)}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>`).join("")}</div>`
       : `<div class="empty">No at-bats logged yet.</div>`;
   }
