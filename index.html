@@ -334,6 +334,7 @@ details.plist .dose{color:var(--muted)}
         <div id="h-batswrap" hidden><div class="label" style="margin-top:8px">Bats</div><div class="seg" id="h-bats"><button type="button" data-v="R">Right</button><button type="button" data-v="L">Left</button><button type="button" data-v="S">Switch</button></div></div></div>
       <button type="button" class="small ghost" id="h-oppadd" hidden>+ Add opponent</button>
       <div id="h-oppwrap"><div class="label">Opponent</div><input id="h-opp" placeholder="e.g. Brisbane North" maxlength="60" autocomplete="off"></div>
+      <div id="h-noteswrap" hidden><div class="label">Game notes</div><input id="h-gnotes" placeholder="What worked, anything to follow up" maxlength="300" autocomplete="off"></div>
       <div class="pen-desc" id="h-note"></div>
     </div>
     <div class="card" id="h-game" hidden></div>
@@ -1026,6 +1027,26 @@ function hitTendencyHtml(games, bats){
   return `<div class="label" style="margin-top:8px">Tendency <span>· ${games.length} games</span></div>
     <ul style="margin:0;padding-left:18px">${out.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`;
 }
+// A read of the coaches' game notes (not the results), once more than 3 games have notes: the things that
+// come up in more than one game, then the latest notes word for word.
+const NOTE_STOP = new Set("the a an and or but to of in on at for with from was were is are be been it its this that these those he she they his her their him them we our you your i me my not no so too very just than then there here when what which who how all any some more most less much many one two three got get gets had has have did does do out up down over into off again also only still well good bit lot really".split(" "));
+function notesSummaryHtml(games){
+  const noted = games.filter(g=>g.notes && g.notes.trim()).sort((x,y)=>y.date.localeCompare(x.date));
+  if (noted.length <= 3) return noted.length ? `<div class="gnote" style="margin-top:8px">Notes summary shows once more than 3 games have notes (${noted.length} so far).</div>` : "";
+  const seen = {};   // phrase -> set of game dates
+  noted.forEach(g=>{
+    const w = g.notes.toLowerCase().replace(/[^a-z0-9' ]+/g," ").split(/\s+/).filter(x=>x.length>2 && !NOTE_STOP.has(x));
+    const grams = new Set();   // words and runs of up to 4 words
+    for (let n = 1; n <= 4; n++) for (let i = 0; i + n <= w.length; i++) grams.add(w.slice(i, i+n).join(" "));
+    grams.forEach(k=>{ (seen[k] = seen[k] || new Set()).add(g.date); });
+  });
+  let themes = Object.entries(seen).map(([k,d])=>[k, d.size]).filter(([,n])=>n>=2).sort((a,b)=>b[1]-a[1] || b[0].split(" ").length-a[0].split(" ").length);
+  themes = themes.filter(([k,n])=>!themes.some(([k2,n2])=>k2!==k && n2>=n && (" "+k2+" ").includes(" "+k+" "))).slice(0,6);   // "front side flying open" over "front side"
+  const dd = s => new Date(s+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"});
+  return `<div class="label" style="margin-top:10px">Notes summary <span>· ${noted.length} games with notes</span></div>
+    ${themes.length ? `<div class="gnote">Comes up again and again: ${themes.map(([k,n])=>`<b>${esc(k)}</b> (${n} games)`).join(", ")}</div>` : `<div class="gnote">No theme comes up in more than one game yet.</div>`}
+    <div class="palist">${noted.slice(0,3).map(g=>`<div class="prow"><div><div class="m">${dd(g.date)}${g.opp?` · vs ${esc(g.opp)}`:""}</div>${esc(g.notes)}</div></div>`).join("")}</div>`;
+}
 // season spray chart and a breakdown of results, where the ball went, and situations
 function hitBreakdownHtml(pas, id, bats){
   const n = c => pas.filter(p=>p.res===c).length, row = (label, v, of) => v ? `<tr><td>${label}</td><td>${v}</td><td>${of ? Math.round(100*v/of)+"%" : ""}</td></tr>` : "";
@@ -1096,9 +1117,10 @@ function renderHit(){
   ["h-game","h-entry","h-season"].forEach(id=>$(id).hidden = !hitter);
   const doc = hitter ? getHit(ath, date) : null, pas = doc ? doc.pas : [];
   const showOpp = hitter && (oppOpen || !!(doc && doc.opp));
-  $("h-oppwrap").hidden = !showOpp; $("h-oppadd").hidden = !hitter || showOpp;
+  $("h-oppwrap").hidden = !showOpp; $("h-oppadd").hidden = !hitter || showOpp; $("h-noteswrap").hidden = !hitter;
   if (!hitter) return;
   $("h-opp").value = (doc && doc.opp) || "";
+  $("h-noteswrap").hidden = false; $("h-gnotes").value = (doc && doc.notes) || "";
   // this game
   $("h-game").innerHTML = `<div class="livehead"><div><div class="label" style="margin:0">${new Date(date+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"short"})}</div><div class="hitline">${pas.length ? gameLine(pas) : "No at-bats yet"}</div></div></div>
     ${pas.length ? `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${qabWhy(p).length?'<span class="qab">QAB ✓</span>':""}${esc(HR_BY[p.res][1])}${p.hh!=null ? (p.hh ? " · 👍 hard hit" : " · 👎") : p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}${(m=>m.length?`<div class="m">${m.join(" · ")}</div>`:"")([p.rbi?p.rbi+" RBI":"", ...SIT_TAPS.concat(QAB_TAPS).filter(([k])=>p[k]).map(([,l])=>l)].filter(Boolean))}</div><button class="small ghost" data-parm="${i}">Remove</button></div>`).join("")}</div>` : ""}`;
@@ -1560,6 +1582,11 @@ var oppOpen = false;   // opponent box shown only once asked for, or when the ga
 $("h-oppadd").addEventListener("click", ()=>{ oppOpen = true; renderHit(); $("h-opp").focus(); });
 $("h-bats").addEventListener("click", e=>{ const b = e.target.closest("button"); const ath = hitAthlete(); if (!b || !ath) return; setAthleteField(ath, {bats: b.dataset.v}); renderHit(); });
 $("h-type").addEventListener("click", e=>{ const b = e.target.closest("button"); const ath = hitAthlete(); if (!b || !ath) return; setAthleteType(ath, b.dataset.v); renderHit(); });
+$("h-gnotes").addEventListener("change", ()=>{
+  const ath = hitAthlete(), date = hitDate || localDate(); if (!isHitter(ath)) return;
+  const doc = getHit(ath, date) || {id: hitId(ath, date), athlete: ath, date, pas: []};
+  saveHit(Object.assign({}, doc, {notes: $("h-gnotes").value.trim() || null})); renderHit();
+});
 $("h-opp").addEventListener("change", ()=>{
   const ath = hitAthlete(), date = hitDate || localDate(); if (!isHitter(ath)) return;
   const doc = getHit(ath, date) || {id: hitId(ath, date), athlete: ath, date, pas: []};
@@ -2182,17 +2209,18 @@ function renderProfile(){
     `<tr data-pfopen="g${g.date}" style="cursor:pointer"><td>${profOpen.has("g"+g.date)?"▾":"▸"} ${dd(g.date)}${g.opp?`<div class="m" style="color:var(--muted)">vs ${esc(g.opp)}</div>`:""}</td><td>${esc(g.ip||"–")}</td><td>${g.pitches ?? "–"}</td><td>${g.k ?? "–"}</td><td>${g.bb ?? "–"}</td><td>${g.h ?? "–"}</td><td>${g.topVelo ?? "–"}</td></tr>
      ${profOpen.has("g"+g.date) ? `<tr class="pfdetail"><td colspan="7">${gameSummaryHtml(g, name)}</td></tr>` : ""}`).join("")}</table></div>`
     : `<div class="empty">No games logged yet.</div>`;
+  if (gms.length && role!=="player") $("pf-games").innerHTML += notesSummaryHtml(gms);
   // hitting
   const hts = profRows(d.hits, [hitDocs, ob.hits], name).filter(h=>(h.pas||[]).length).sort((x,y)=>y.date.localeCompare(x.date));
   $("pf-hit-card").hidden = !hts.length && !isHitter(name);
   if (!$("pf-hit-card").hidden){
     const t = hitStats(hts.flatMap(h=>h.pas||[]));
     $("pf-hit").innerHTML = hts.length ? `<div class="gstats">${[["QAB %",pctFmt(t.qabp)],["Hard-hit %",pctFmt(t.hardp)],["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)]].map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
-      ${role!=="player" ? hitTendencyHtml(hts, a.bats) : ""}
+      ${role!=="player" ? hitTendencyHtml(hts, a.bats) + notesSummaryHtml(hts) : ""}
       ${hitBreakdownHtml(hts.flatMap(h=>h.pas||[]), "pf-spray", a.bats)}
       <div class="label" style="margin-top:8px">Games <span>· tap one to see every at-bat</span></div>
       <div class="palist">${hts.map(h=>`<div class="prow" data-pfopen="h${h.date}" style="cursor:pointer"><div>${profOpen.has("h"+h.date)?"▾":"▸"} ${dd(h.date)}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>
-        ${profOpen.has("h"+h.date) ? `<div class="pfdetail">${abListHtml(h.pas||[])}${(h.pas||[]).some(p=>p.x!=null) ? fieldSvg("pf-gspray-"+h.date, h.pas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:6}))) : ""}</div>` : ""}`).join("")}</div>`
+        ${profOpen.has("h"+h.date) ? `<div class="pfdetail">${h.notes?`<div class="gnote"><b>Notes:</b> ${esc(h.notes)}</div>`:""}${abListHtml(h.pas||[])}${(h.pas||[]).some(p=>p.x!=null) ? fieldSvg("pf-gspray-"+h.date, h.pas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:6}))) : ""}</div>` : ""}`).join("")}</div>`
       : `<div class="empty">No at-bats logged yet.</div>`;
   }
 }
