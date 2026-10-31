@@ -1,7 +1,7 @@
 // Keeps the tracker working at the field with no signal.
 // The page itself is fetched fresh whenever there's a connection (so updates show on the
 // next open), falling back to the saved copy offline. Bump VERSION whenever a shell file changes.
-const VERSION = "bqpen-v71";
+const VERSION = "bqpen-v72";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./vendor/supabase-2.117.3.js",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 
@@ -44,4 +44,18 @@ self.addEventListener("fetch", e => {
   if (url.origin !== self.location.origin && !fonts) return;   // Supabase calls go straight to the network
   const page = req.mode === "navigate" || url.pathname.endsWith("/") || url.pathname.endsWith("/index.html");
   e.respondWith(page ? networkFirst(req) : cacheFirst(req));
+});
+
+// Reminders sent by the push-reminders function (arm check-in, log your game)
+self.addEventListener("push", e => {
+  let m = {}; try { m = e.data ? e.data.json() : {}; } catch (x) { m = {body: e.data && e.data.text()}; }
+  e.waitUntil(self.registration.showNotification(m.title || "BQ Weekly", {
+    body: m.body || "", tag: m.tag || "bq", icon: "./icons/icon-192.png", badge: "./icons/icon-192.png"}));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({type: "window", includeUncontrolled: true}).then(list => {
+    const open = list.find(c => "focus" in c);
+    return open ? open.focus() : self.clients.openWindow("./");
+  }));
 });
