@@ -1000,7 +1000,7 @@ function hitBreakdownHtml(pas, id){
     ["K swinging","KS"],["K looking","KL"],["Ground out","GO"],["Fly out","FO"],["Line out","LO"],["Pop out","PO"],["Bunt out","BO"],["Sac fly","SF"],["Sac bunt","SH"]].map(([l,c])=>row(l, n(c), pa)).join("");
   const sit = [["RBI", pas.reduce((a,p)=>a+(p.rbi||0),0)], ...SIT_TAPS.concat(QAB_TAPS).map(([k,l])=>[l, pas.filter(p=>p[k]).length])].map(([l,v])=>row(l, v)).join("");
   return `${dots.length ? `<div class="label" style="margin-top:8px">Spray chart <span>· every ball in play</span></div>${fieldSvg(id, dots)}
-      <div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--muted)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
+      <div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--miss)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
     ${bip.length ? `<div class="gnote">Balls in play: ${bip.length} · left side ${Math.round(100*left/bip.length)}% · middle ${Math.round(100*mid/bip.length)}% · right side ${Math.round(100*right/bip.length)}%</div>` : ""}
     <div class="label" style="margin-top:8px">Breakdown</div>
     <div class="scroll"><table class="log"><tr><th>Result</th><th>#</th><th>% of PA</th></tr>${results}</table></div>
@@ -1039,7 +1039,7 @@ function fieldSvg(id, dots){
   g += (dots||[]).map(p=>`<circle cx="${p.x*w}" cy="${p.y*h}" r="${p.r||6}" fill="${p.c}" stroke="var(--surface)" stroke-width="1.5"/>`).join("");
   return `<svg class="field" id="${id}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Baseball field">${g}</svg>`;
 }
-const dotColour = res => ["1B","2B","3B","HR","BH"].includes(res) ? "var(--hit)" : res==="ROE" ? "var(--gold)" : "var(--muted)";
+const dotColour = res => ["1B","2B","3B","HR","BH"].includes(res) ? "var(--hit)" : res==="ROE" ? "var(--gold)" : "var(--miss)";
 function hitAthlete(){ return role==="player" ? playerName : $("h-ath").value.trim(); }
 function renderHit(){
   if ($("v-hit").hidden) return;
@@ -1080,7 +1080,7 @@ function renderHit(){
   $("h-season").innerHTML = `<h2>${esc(ath)} · season</h2>
     <div class="gstats">${tiles.map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
     <div class="gnote">${t.h} H · ${t.xbh} XBH · ${t.rbi} RBI${t.bunt?` · ${t.bunt} bunt${t.bunt>1?"s":""}`:""}${t.r3?` · ${t.r3} runner${t.r3>1?"s":""} scored from 3rd`:""}</div>
-    ${dots.length ? `<div class="label" style="margin-top:6px">Spray chart</div>${fieldSvg("h-spray", dots)}<div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--muted)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
+    ${dots.length ? `<div class="label" style="margin-top:6px">Spray chart</div>${fieldSvg("h-spray", dots)}<div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--miss)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
     ${all.length ? `<div class="label" style="margin-top:6px">Games</div><div class="palist">${all.map(h=>`<div class="prow" data-hdate="${h.date}" style="cursor:pointer"><div>${new Date(h.date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}${h.opp?` · vs ${esc(h.opp)}`:""}</div><b>${gameLine(h.pas||[])}</b></div>`).join("")}</div>` : ""}`;
   if (hitSeasonFor !== slug(ath)) loadHitSeason(ath);
 }
