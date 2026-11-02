@@ -259,36 +259,37 @@ details.plist .dose{color:var(--muted)}
 @media (max-width:480px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.pnum{font-size:34px}}
 @media (prefers-reduced-motion:no-preference){.prog i{transition:width .25s ease}.seg button,.tabs button{transition:background .15s ease}}
 
-/* ---- Look (after Dylan's reference screenshots): dark, quiet tiles, big serif headings and numbers, a floating
-   pill tab bar. BQ maroon and gold stay as the accents. Always dark: white on near-black reads well outdoors. ---- */
+/* ---- Look (after Dylan's reference screenshots): clean, rounded quiet tiles, serif headings and numbers, a floating
+   pill tab bar, in BQ colours: deep maroon throughout, gold for what's selected. ---- */
 :root,:root[data-theme="light"],:root[data-theme="dark"]{
-  --bg:#121316; --surface:#1d1f23; --fill:rgba(255,255,255,.07); --ink:#f4f1ec; --muted:rgba(244,241,236,.64); --line:rgba(255,255,255,.09);
-  --maroon:#f4f1ec; --maroon-ink:#ffffff; --brand:#5a1c30; --gold:#d9ad48; --gold-soft:rgba(217,173,72,.16); --maroon-soft:rgba(228,163,184,.14);
-  --intent:#5ab0ff; --hit:#5fd38a; --miss:#ff6b5e; --warn:#ffad4a;
-  --zone-fill:#25272c; --shadow:transparent; --thumb:#5c5e64; --serif:"Instrument Serif",Georgia,serif; color-scheme:dark}
-body{background:var(--bg)}
-header.top{border-bottom:0;padding-top:10px}
-header.top h1{font-family:var(--serif);font-weight:400;font-size:26px;letter-spacing:0}
-.tag.bq{background:var(--brand);color:var(--gold)}
-body{padding-bottom:calc(120px + env(safe-area-inset-bottom,0px))}
+  --bg:#1a0b11; --surface:#2a121b; --fill:rgba(255,255,255,.07); --ink:#fbf4ef; --muted:rgba(251,236,240,.66); --line:rgba(217,173,72,.16);
+  --maroon:#fbf4ef; --maroon-ink:#2a0c16; --brand:#4e1829; --gold:#d9ad48; --gold-soft:rgba(217,173,72,.16); --maroon-soft:rgba(217,173,72,.12);
+  --intent:#7cc1ff; --hit:#6fdc95; --miss:#ff7b6e; --warn:#ffb65c;
+  --zone-fill:#331720; --shadow:transparent; --thumb:#6e4a55; --serif:"Instrument Serif",Georgia,serif; color-scheme:dark}
+body{background:var(--bg);padding-bottom:calc(120px + env(safe-area-inset-bottom,0px))}
+header.top{border-bottom:1px solid var(--line);padding:12px 0 12px}
+header.top h1{font-family:var(--serif);font-weight:400;font-size:28px;letter-spacing:0;color:var(--gold)}
 h2,.dayname{font-family:var(--serif);font-weight:400;letter-spacing:0}
 h2{font-size:30px} .dayname{font-size:30px}
 .card,.day,.stat{border-radius:22px}
-.card,.day{padding:18px 18px}
+.card,.day{padding:18px}
 .day.today{box-shadow:inset 0 0 0 1.5px var(--gold)}
 input,select{border-radius:14px;background:rgba(255,255,255,.06)}
 button,button.small{border-radius:999px}
-button.primary{border-radius:999px;background:var(--brand);box-shadow:inset 0 0 0 1.5px var(--gold);color:#fff}
-.seg button,.checklist button,.hres button{background:transparent;border-color:rgba(255,255,255,.14);color:var(--ink);border-radius:999px}
+button{background:rgba(255,255,255,.07)}
+button.ghost{background:transparent}
+button.primary{border-radius:999px;background:var(--gold);box-shadow:none;color:#2a0c16}
+.seg button,.checklist button,.hres button{background:transparent;border-color:rgba(217,173,72,.28);color:var(--ink);border-radius:999px}
 .hres button{border-radius:14px}
-.seg button.on,.checklist button.on,.hres button.on{background:var(--brand);border-color:var(--gold);color:#fff}
+.seg button.on,.checklist button.on,.hres button.on{background:var(--gold);border-color:var(--gold);color:#2a0c16}
 .label{color:var(--muted);letter-spacing:.12em}
-/* floating pill tab bar */
-.tabs{left:16px;right:16px;bottom:calc(10px + env(safe-area-inset-bottom,0px));border-radius:36px;border:1px solid rgba(255,255,255,.08);
-  background:rgba(34,36,40,.86);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);padding:6px 8px;max-width:520px;margin:0 auto}
+.tag.bq{background:var(--gold);color:#2a0c16}
+/* floating pill tab bar in BQ maroon */
+.tabs{left:16px;right:16px;bottom:calc(10px + env(safe-area-inset-bottom,0px));border-radius:36px;border:1px solid rgba(217,173,72,.30);
+  background:rgba(78,24,41,.92);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);padding:6px 8px;max-width:520px;margin:0 auto}
 .tabs::after{display:none}
-.tabs button{color:var(--muted);border-radius:30px}
-.tabs button.on{background:rgba(255,255,255,.10);color:#fff}
+.tabs button{color:rgba(251,236,240,.72);border-radius:30px;background:transparent}
+.tabs button.on{background:var(--gold);color:#2a0c16}
 .tabs.mini{padding-top:4px;padding-bottom:4px}
 .gstats>div{border-radius:16px}
 .gstats b{font-family:var(--serif);font-weight:400;font-size:30px}
