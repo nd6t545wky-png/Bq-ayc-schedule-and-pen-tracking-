@@ -364,6 +364,7 @@ button.primary{border-radius:999px;background:var(--brand);box-shadow:inset 0 0 
       <button class="small" id="pf-week" style="align-self:flex-start;margin-top:8px">Open their throwing week</button>
       <div class="pen-desc" id="pf-load"></div>
     </div>
+    <div id="pf-rings" class="rings" hidden></div>
     <div class="card" id="pf-velo" hidden></div>
     <div class="card"><h2>Arm check-ins</h2><div id="pf-arm"></div></div>
     <div class="card" id="pf-pens-card"><h2>Bullpens</h2><div class="hist" id="pf-pens"></div></div>
@@ -1468,38 +1469,42 @@ function ringSvg(v, max, txt, col){
     (v==null ? "" : `<circle class="arc" cx="50" cy="50" r="42" stroke="${col}" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-f)).toFixed(1)}"/>`)+
     `<text class="num${v==null?' none':''}" x="50" y="51" text-anchor="middle" dominant-baseline="central">${txt}</text></svg>`;
 }
-function ringsData(ath){
-  const a = athleteDocs[slug(ath)] || {}, type = a.type || "P", s = slug(ath), out = [];
+// src (profile): {checkins, pens, games, hits} already narrowed to this athlete; the week uses what's on the phone
+function ringsData(ath, src){
+  const a = athleteDocs[slug(ath)] || {}, type = a.type || "P", s = slug(ath), out = [], prof = !!src;
+  src = src || {checkins: Object.values(Object.assign({}, checkinDocs, outbox().checkins)), pens: histDocs, games: Object.values(athleteGames(ath)), hits: athleteHits(ath)};
   const good = "var(--hit)", mid = "var(--warn)", bad = "var(--miss)";
   if (type!=="POS"){
     // arm: the latest check-in in the last 3 days (after throwing if logged, else before)
-    const recent = Object.values(Object.assign({}, checkinDocs, outbox().checkins))
-      .filter(c=>c && slug(c.athlete)===s && (c.before!=null || c.after!=null) && c.date>=addDays(localDate(),-2)).sort((x,y)=>y.date.localeCompare(x.date))[0];
+    // (on a profile: the latest check-in whenever it was)
+    const recent = src.checkins
+      .filter(c=>c && slug(c.athlete)===s && (c.before!=null || c.after!=null) && (prof || c.date>=addDays(localDate(),-2))).sort((x,y)=>y.date.localeCompare(x.date))[0];
     const arm = recent ? (recent.after ?? recent.before) : null;
     out.push({nm:"Arm", v:arm, max:10, txt:arm==null?"–":arm, col: arm==null?null: arm<=4?bad: arm<=6?mid:good,
-      sub: arm==null ? "Check in today" : recent.date===localDate() ? "Today" : "Last check-in"});
+      sub: arm==null ? (prof ? "No check-ins yet" : "Check in today") : recent.date===localDate() ? "Today"
+        : prof ? new Date(recent.date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"}) : "Last check-in"});
     // strike %: average of the last 3 finished pens
-    const pens = histDocs.filter(r=>slug(r.athlete||"")===s && r.pitches && r.pitches.length).slice(0,3).map(penSummary).filter(x=>x && x.strikePct!=null);
+    const pens = src.pens.filter(r=>slug(r.athlete||"")===s && r.pitches && r.pitches.length).sort((x,y)=>y.createdAt-x.createdAt).slice(0,3).map(penSummary).filter(x=>x && x.strikePct!=null);
     const sp = pens.length ? Math.round(pens.reduce((t,x)=>t+x.strikePct,0)/pens.length) : null;
     out.push({nm:"Strike %", v:sp, max:100, txt:sp==null?"–":sp+"%", col: sp==null?null: sp>=60?good: sp>=50?mid:bad, sub: pens.length ? `Last ${pens.length} pen${pens.length>1?"s":""}` : "No pens yet"});
     // 1:1 count win, season, chasing 70%
-    let n = 0, w = 0; Object.values(athleteGames(ath)).forEach(g=>{ if (+g.c11 && g.c11w!=null && g.c11w!==""){ n += +g.c11; w += +g.c11w; } });
+    let n = 0, w = 0; src.games.forEach(g=>{ if (+g.c11 && g.c11w!=null && g.c11w!==""){ n += +g.c11; w += +g.c11w; } });
     const c = n ? Math.round(100*w/n) : null;
     out.push({nm:"1:1 win", v:c, max:100, txt:c==null?"–":c+"%", col: c==null?null: c>=C11_TARGET?good:bad, sub:`Goal ${C11_TARGET}%`});
   }
   if (type!=="P"){
-    const pas = athleteHits(ath).flatMap(h=>h.pas||[]), t = hitStats(pas);
+    const pas = src.hits.flatMap(h=>h.pas||[]), t = hitStats(pas);
     const q = t.qabp==null ? null : Math.round(t.qabp*100), hh = t.hardp==null ? null : Math.round(t.hardp*100);
     out.push({nm:"QAB %", v:q, max:100, txt:q==null?"–":q+"%", col:"var(--gold)", sub: t.pa ? `${t.pa} PA` : "No at-bats yet"});
     if (type==="POS") out.push({nm:"Hard hit", v:hh, max:100, txt:hh==null?"–":hh+"%", col:"var(--gold)", sub: t.rated ? `${t.rated} rated` : "Season"});
   }
   return out;
 }
-function renderRings(ath){
-  const el = $("w-rings"); if (!el) return;
-  const show = !!ath && schedWeek===0 && (role==="player" || isCoach);
+function renderRings(ath, el, src){
+  el = el || $("w-rings"); if (!el) return;
+  const show = !!ath && (src || schedWeek===0) && (role==="player" || isCoach);
   el.hidden = !show; if (!show) return;
-  const d = ringsData(ath); el.style.setProperty("--n", d.length);
+  const d = ringsData(ath, src); el.style.setProperty("--n", d.length);
   el.innerHTML = d.map(r=>`<div class="ring">${ringSvg(r.v, r.max, esc(String(r.txt)), r.col)}<div class="nm">${r.nm}</div><div class="sub">${esc(r.sub)}</div></div>`).join("");
 }
 function renderWeek(){
@@ -2362,6 +2367,7 @@ function renderProfile(){
   if (gms.length && role!=="player") $("pf-games").innerHTML += notesSummaryHtml(gms);
   // hitting
   const hts = profRows(d.hits, [hitDocs, ob.hits], name).filter(h=>(h.pas||[]).length).sort((x,y)=>y.date.localeCompare(x.date));
+  renderRings(name, $("pf-rings"), {checkins: chk, pens, games: profRows(d.games, [gameDocs, ob.games], name), hits: hts});
   $("pf-hit-card").hidden = !hts.length && !isHitter(name);
   if (!$("pf-hit-card").hidden){
     const t = hitStats(hts.flatMap(h=>h.pas||[]));
