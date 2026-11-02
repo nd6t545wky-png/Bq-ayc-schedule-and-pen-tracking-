@@ -346,6 +346,7 @@ details.plist .dose{color:var(--muted)}
   <section id="v-setup" class="wrap" style="gap:16px" hidden>
     <div class="card" id="newpen">
       <h2>New pen</h2>
+      <div class="pen-desc" id="f-for" hidden></div>
       <div class="row">
         <div id="f-athwrap"><div class="label">Athlete</div><input id="f-ath" list="athletes" placeholder="Athlete name" autocomplete="off"><datalist id="athletes"></datalist></div>
         <div><div class="label">Age group</div><div class="seg" id="f-age"><button data-v="U16">U16</button><button data-v="U18">U18</button><button data-v="AYWC">AYWC</button><button data-v="AWC">AWC</button></div></div>
@@ -1455,7 +1456,7 @@ function renderWeek(){
     const armA = t==="pen" || t==="light" || t==="phi" || t==="pmod", recProg = t==="rec" || t==="tol";
     const arm = armA ? progList("Arm care A", ARM_A) : t==="lt" ? progList("Arm care B", ARM_B) : "";
     const recov = recProg ? progList("Recovery / mobility program (before or after throwing)", RECOVERY) : "";
-    const btn = T.pen ? `<button class="small" data-pen="${d}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
+    const btn = T.pen ? `<button class="small" data-pen="${dates[d]}">${t==="pospen"?"Log bullpen (if not pitching)":"Log this bullpen"}</button>` : "";
     let check = "", game = "";
     if (built && t==="game" && !ath) game = `<div class="glog"><button class="small" data-gneedath>Log this game</button></div>`;
     else if (built && t==="game"){
@@ -1552,7 +1553,7 @@ $("w-age").addEventListener("click", e=>{const b=e.target.closest("button"); if(
   repaintAll(); renderWeek(); renderHist(); renderHit();});
 $("w-days").addEventListener("click", e=>{
   const pb = e.target.closest("button[data-pen]");
-  if (pb){ setTab("pens"); show("v-setup"); $("f-ath").focus(); return; }
+  if (pb){ openPenFor(pb.dataset.pen); return; }
   if (e.target.closest("[data-gneedath]")){
     window.scrollTo({top:0, behavior:"smooth"}); $("w-ath").focus();
     $("w-ath").placeholder = "Enter the athlete's name first";
@@ -1594,7 +1595,24 @@ function setTab(t){
     });
   }, {passive:true});
 }
+// "Log this bullpen": carry on with a pen in progress (this session, or one saved on this phone),
+// otherwise a new pen for that athlete and day
+let penForDate = null;
+function openPenFor(date){
+  const ath = curAthlete();
+  if (pen && pen.status==="live" && live){ setTab("pens"); show("v-live"); return; }
+  const open = ath && Object.values(Object.assign({}, Object.fromEntries(histDocs.map(r=>[r.id, r])), outbox().pens))
+    .filter(r=>r && r.status==="live" && slug(r.athlete||"")===slug(ath) && Date.now() - (r.updatedAt || r.createdAt) < 36*3600e3).sort((a,b)=>b.createdAt-a.createdAt)[0];
+  setTab("pens");
+  if (open){ openSummary(open); pen.status = "live"; openLive(); return; }
+  penForDate = date;
+  if (ath && role!=="player"){ $("f-ath").value = ath; loadAthlete(); }
+  $("f-for").textContent = "Bullpen for "+new Date(date+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long", day:"numeric", month:"short"});
+  $("f-for").hidden = false;
+  show("v-setup");
+}
 $("tabs").addEventListener("click", e=>{const b=e.target.closest("button"); if(!b) return;
+  if (b.dataset.t==="pens"){ penForDate = null; $("f-for").hidden = true; }
   if (b.dataset.t==="pens" && pen && pen.status==="live" && live){ setTab("pens"); show("v-live"); return; }
   setTab(b.dataset.t);});
 
@@ -1735,10 +1753,10 @@ $("start").addEventListener("click", ()=>{
   const now = new Date();
   pen = { id:"p"+now.getTime().toString(36)+Math.random().toString(36).slice(2,6), athlete:ath, age:setup.age, hand:setup.hand, mix:setup.mix.slice(),
           design: setup.fw==="des" ? setup.des : null, fw:setup.fw, lvl:(setup.fw==="control"||setup.fw==="custom")?null:setup.lvl,
-          penKey:def.key, penName:def.name, mode:def.mode, date:localDate(now), createdAt:now.getTime(),
+          penKey:def.key, penName:def.name, mode:def.mode, date:penForDate || localDate(now), createdAt:now.getTime(),
           status:"live", pitches:[], hitters:[], armBefore, armAfter:null };
   if (armBefore!=null) setCheckin(ath, pen.date, "before", armBefore);
-  armBefore = null; paintArmBefore();
+  armBefore = null; paintArmBefore(); penForDate = null; $("f-for").hidden = true;
   if (def.mode==="counts") newHitter();
   openLive();
   queueSave();
