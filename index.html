@@ -1461,7 +1461,7 @@ $("w-type").innerHTML = GAME_SETS.map(w=>`<option value="${w.k}">${w.n}</option>
 $("w-type").value = weekKey;
 $("w-type").addEventListener("change", ()=>{ weekKey = $("w-type").value; saveWeekPick(); renderWeek(); });
 $("w-pitch").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; pitchKey = b.dataset.v; saveWeekPick(); renderWeek(); });
-// ---------- score rings (player profile): arm, strike %, 1:1 win, QAB %, hard hit % ----------
+// ---------- score rings (player profile): arm, strike %, 1:1 win, hard hit %, on-base % ----------
 function ringSvg(v, max, txt, col){
   const C = 2*Math.PI*42, f = v==null ? 0 : Math.max(0, Math.min(1, v/max));
   return `<svg viewBox="0 0 100 100" aria-hidden="true"><circle class="tr" cx="50" cy="50" r="42"/>`+
@@ -1490,9 +1490,9 @@ function ringsData(ath, src){
   }
   if (type!=="P"){
     const pas = src.hits.flatMap(h=>h.pas||[]), t = hitStats(pas);
-    const q = t.qabp==null ? null : Math.round(t.qabp*100), hh = t.hardp==null ? null : Math.round(t.hardp*100);
-    out.push({nm:"QAB %", v:q, max:100, txt:q==null?"–":q+"%", col:"var(--gold)", sub: t.pa ? `${t.pa} PA` : "No at-bats yet"});
-    if (type==="POS") out.push({nm:"Hard hit", v:hh, max:100, txt:hh==null?"–":hh+"%", col:"var(--gold)", sub: t.rated ? `${t.rated} rated` : "Season"});
+    const hh = t.hardp==null ? null : Math.round(t.hardp*100);
+    out.push({nm:"Hard hit", v:hh, max:100, txt:hh==null?"–":hh+"%", col:"var(--gold)", sub: t.rated ? `${t.rated} rated` : "No at-bats yet"});
+    if (type==="POS") out.push({nm:"On-base", v:t.obp, max:1, txt:avgFmt(t.obp), col:"var(--gold)", sub: t.pa ? `${t.pa} PA` : "Season"});
   }
   return out;
 }
