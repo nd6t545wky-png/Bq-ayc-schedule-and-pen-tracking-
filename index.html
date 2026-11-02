@@ -811,7 +811,18 @@ const DAYS = [["Mon","Monday"],["Tue","Tuesday"],["Wed","Wednesday"],["Thu","Thu
 const RECOVERY = [["Thoracic spine windmills","15 each direction"],["Pec minor release w/ active ER","2 min"],["Infraspinatus/teres minor self mobilization","2 min"],["Biceps tack and pump","2 min"],["Foam roll levered 90/90 to Y's","12 slides"]];
 const ARM_A = [["Superset x3: Posterior wall angels","20"],["Superset x3: Arm bar banded ER (abduction)","12"],["Superset x3: Single arm serratus slides","15 each"],["Superset x3: Tripod rotations w/ oscillations, weighted ball","12"],["Superset x3: SA split stance serratus scoops","15 slow"]];
 const ARM_B = [["Upward toss, green or blue ball (1 kg or 450 g)","2 x 30"],["Band pull-aparts, each direction","2 x 15"],["IR / ER at 90° with band","2 x 15"]];
-const progList = (name, rows) => `<details class="plist"><summary>${name}</summary><ol>${rows.map(([a,b])=>`<li>${esc(a)} <span class="dose">· ${esc(b)}</span></li>`).join("")}</ol></details>`;
+const progList = (name, rows) => `<details class="plist"><summary>${name}</summary><ol>${rows.map(([a,b])=>`<li>${esc(a)}${b?` <span class="dose">· ${esc(b)}</span>`:""}</li>`).join("")}</ol></details>`;
+// Team preparation, word for word from the BQ "Team Preparation" sheet (it gives no sets or reps)
+const PREP_LISTS = [
+  ["Early work prep (or running late)", ["World Greatest Stretch","Overhead Squat","Counter Rotations","Cross Body Reverse Lunge","PVC Turn and Burns","Shuffle Swings or Waterbags"]],
+  ["Team dynamic: forward", ["Pogos (on the spot)","Jog","Skip + Twist","Inchworm","World Greatest","Lunge + Overhead Reach","March w/ Overhead Reach","Counter Rotations","Sprint Variations"]],
+  ["Team dynamic: back", ["Back Peddle","Lateral Step Overs","Knee Hug Lateral Lunge","RDL + Pinch","Quad Stretch with Reach","A Skip w/ Overhead Reach","High Skip + Arms"]],
+  ["Upper body prep", ["Forward and Back Arm Swings","Under and Overs","Big Arm Circles (Both Ways)","Pec Dec","Goal Posts","Internal / External – Traffic Stoppers","Discus Throws (Both Ways)","Scapula Retractions","One Leg Small Arm Circles - Front","One Leg Small Arm Circles - Side","Bent over Flys","Bent over Rows"]],
+  ["J Band routine (as required): individual Driveline routine", ["Reverse Fly to OH Reach","Forward Fly to OH Reach","External Rotations","Internal Rotations","Bicep Curls w/ Supination","Tricep Extensions w/ Pronation"]],
+  ["J Band routine (as required): team routine", ["Pull Aparts - Straight","Pull Aparts - Diagonal","No Money","Overhead Pull Apart","Bent Over Row","Dislocations"]],
+];
+const prepHtml = () => `<details class="plist"><summary>Warm-up and bands</summary>${PREP_LISTS.map(([n, items])=>
+  `<div class="label" style="margin:10px 0 2px">${esc(n)}</div><ol>${items.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>`).join("")}</details>`;
 
 // ---------- state ----------
 const $ = id => document.getElementById(id);
@@ -1495,8 +1506,8 @@ function renderWeek(){
     return `<div class="day ${d===today?'today':''} ${closed?'closed':''}" data-date="${dates[d]}">
       <div class="dayhead" data-dtoggle><div class="dayname">${full}${d===today?"<small>Today</small>":""}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>${tourneyOn(dates[d]) ? `<span class="tag game">${esc(tourneyOn(dates[d]).label)}</span>` : label}</div>
       <div class="dtype" data-dtoggle><span class="int">${T.i}</span><span class="tag ${T.cls}">${T.n}</span>${d!==today?'<span class="caret" aria-hidden="true"></span>':""}</div>
-      ${on ? `<dl class="items"><dt>Prep</dt><dd>Tissue prep, bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${armA||t==="lt"?`<dt>Arm care</dt><dd>${armA?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${recProg?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
-      ${arm}${recov}${btn}${ath && sprinter(ath) && (t==="pen" || t==="light") ? sprintHtml(ath, dates[d], t==="pen" ? 1 : 2) : ""}${game}${check}
+      ${on ? `<dl class="items"><dt>Prep</dt><dd>Soft tissue (self manage), dynamic, bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${armA||t==="lt"?`<dt>Arm care</dt><dd>${armA?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${recProg?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
+      ${on ? prepHtml() : ""}${arm}${recov}${btn}${ath && sprinter(ath) && (t==="pen" || t==="light") ? sprintHtml(ath, dates[d], t==="pen" ? 1 : 2) : ""}${game}${check}
     </div>`;
   }).join("");
   if (role==="player" && schedWeek===0) pushGameDays(gameDays);
