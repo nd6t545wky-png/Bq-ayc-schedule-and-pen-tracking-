@@ -1472,13 +1472,15 @@ function ringSvg(v, max, txt, col){
 function ringsData(ath, src){
   const a = athleteDocs[slug(ath)] || {}, type = a.type || "P", s = slug(ath), out = [];
   const good = "var(--hit)", mid = "var(--warn)", bad = "var(--miss)";
-  if (type!=="POS"){
-    // arm: the latest check-in, whenever it was (after throwing if logged, else before)
+  {
+    // arm (everyone): the latest check-in, whenever it was (after throwing if logged, else before)
     const recent = src.checkins
       .filter(c=>c && slug(c.athlete)===s && (c.before!=null || c.after!=null)).sort((x,y)=>y.date.localeCompare(x.date))[0];
     const arm = recent ? (recent.after ?? recent.before) : null;
     out.push({nm:"Arm", v:arm, max:10, txt:arm==null?"–":arm, col: arm==null?null: arm<=4?bad: arm<=6?mid:good,
       sub: arm==null ? "No check-ins yet" : recent.date===localDate() ? "Today" : new Date(recent.date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})});
+  }
+  if (type!=="POS"){
     // strike %: average of the last 3 finished pens
     const pens = src.pens.filter(r=>slug(r.athlete||"")===s && r.pitches && r.pitches.length).sort((x,y)=>y.createdAt-x.createdAt).slice(0,3).map(penSummary).filter(x=>x && x.strikePct!=null);
     const sp = pens.length ? Math.round(pens.reduce((t,x)=>t+x.strikePct,0)/pens.length) : null;
