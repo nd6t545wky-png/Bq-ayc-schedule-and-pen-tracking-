@@ -816,6 +816,19 @@ const ARM_B = [["Upward toss, green or blue ball (1 kg or 450 g)","2 x 30"],["Ba
 const progList = (name, rows) => `<details class="plist"><summary>${name}</summary><ol>${rows.map(([a,b])=>`<li>${esc(a)}${b?` <span class="dose">· ${esc(b)}</span>`:""}</li>`).join("")}</ol></details>`;
 // Bands every throwing day: the individual (Driveline) J Band routine from the BQ Team Preparation sheet
 const BANDS = ["Reverse Fly to OH Reach","Forward Fly to OH Reach","External Rotations","Internal Rotations","Bicep Curls w/ Supination","Tricep Extensions w/ Pronation"];
+// Plyos (BQ throwing drills sheet). Full routine on full days; 50% days halve each dose;
+// recovery and tolerance days do the anchored drills only.
+const PLYO_ANCHORED = [["Reverse Throw", "8-10 throws, 1-2 kg (green / pink / black ball)", "4-5 throws, 1-2 kg (green / pink / black ball)"],
+  ["Oppo Feet Pivot Pick", "5 throws, 450 g (blue ball)", "2-3 throws, 450 g (blue ball)"]];
+const PLYO_ATHLETIC = ["Toe Taps","Walking Wind Ups","Step Back / In / Behind / Stomp / Up mound","Quick Pick","Double Hop"];
+const PLYO_EACH = "1-2 throws with each ball: blue, red, yellow, gray", PLYO_EACH_HALF = "1 throw with each ball: blue, red, yellow, gray";
+function plyoHtml(pl){
+  const half = /50%/.test(pl), anchoredOnly = /reverse throws and pivot picks only/i.test(pl);
+  if (!pl || pl==="-") return "";
+  const rows = PLYO_ANCHORED.map(([n, full, h])=>[n, half ? h : full])
+    .concat(anchoredOnly ? [] : PLYO_ATHLETIC.map(n=>[n, half ? PLYO_EACH_HALF : PLYO_EACH]));
+  return progList("Plyos: "+(anchoredOnly ? "reverse throws and pivot picks only" : half ? "50% volume" : "full routine"), rows);
+}
 const prepHtml = () => progList("Bands: J Band routine", BANDS.map(x=>[x, "x10"]));
 
 // ---------- state ----------
@@ -1501,7 +1514,7 @@ function renderWeek(){
       <div class="dayhead" data-dtoggle><div class="dayname">${full}${d===today?"<small>Today</small>":""}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>${tourneyOn(dates[d]) ? `<span class="tag game">${esc(tourneyOn(dates[d]).label)}</span>` : label}</div>
       <div class="dtype" data-dtoggle><span class="int">${T.i}</span><span class="tag ${T.cls}">${T.n}</span>${d!==today?'<span class="caret" aria-hidden="true"></span>':""}</div>
       ${on ? `<dl class="items"><dt>Prep</dt><dd>Soft tissue (self manage), bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${armA||t==="lt"?`<dt>Arm care</dt><dd>${armA?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${recProg?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
-      ${on ? prepHtml() : ""}${arm}${recov}${btn}${ath && sprinter(ath) && (t==="pen" || t==="light") ? sprintHtml(ath, dates[d], t==="pen" ? 1 : 2) : ""}${game}${check}
+      ${on ? plyoHtml(T.pl) + prepHtml() : ""}${arm}${recov}${btn}${ath && sprinter(ath) && (t==="pen" || t==="light") ? sprintHtml(ath, dates[d], t==="pen" ? 1 : 2) : ""}${game}${check}
     </div>`;
   }).join("");
   if (role==="player" && schedWeek===0) pushGameDays(gameDays);
