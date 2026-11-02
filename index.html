@@ -356,7 +356,7 @@ button.primary{border-radius:999px;background:var(--brand);box-shadow:inset 0 0 
     <div class="days" id="w-days"></div>
   </section>
 
-  <!-- PLAYER PROFILE (coaches) -->
+  <!-- PLAYER PROFILE (coaches open any player; players see their own at the top of Account) -->
   <section id="v-prof" class="wrap" style="gap:12px" hidden>
     <div class="card">
       <div class="livehead"><div><h2 id="pf-name"></h2><div class="pen" id="pf-sub"></div><div class="pen-desc" id="pf-joined"></div></div><button class="small ghost" id="pf-back">Back</button></div>
@@ -1681,10 +1681,10 @@ function setTab(t){
   if (locked() && t!=="acct") t = "acct";
   tab = t;
   $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t===t));
-  $("v-sched").hidden = t!=="sched"; $("v-hit").hidden = t!=="hit"; $("v-acct").hidden = t!=="acct"; $("v-prof").hidden = true;
+  $("v-sched").hidden = t!=="sched"; $("v-hit").hidden = t!=="hit"; $("v-acct").hidden = t!=="acct"; $("v-prof").hidden = true; profMine = false;
   if (t!=="pens"){ ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden=true); }
   renderNudge();
-  if (t==="acct") return;
+  if (t==="acct"){ showMyProfile(); return; }
   if (t==="sched") renderWeek();
   if (t==="hit"){ if (role!=="player" && !$("h-ath").value) $("h-ath").value = $("w-ath").value; renderHit(); }
   else if (t==="pens" && $("v-live").hidden && $("v-sum").hidden) $("v-setup").hidden = false;
@@ -2196,7 +2196,7 @@ function paintSummaryArm(r){
   $("s-arm").innerHTML = `<div class="armq"><div class="q">How does the arm feel now, after the pen?</div>${scaleHtml("s:after", a)}
     ${b==null ? `<div class="delta">No arm score was logged before this pen.</div>` : a==null ? `<div class="delta">Before the pen: <b>${b}</b></div>` : deltaHtml(b, a)}</div>`;
 }
-$("s-back").addEventListener("click", ()=>{ if (profReturn){ profReturn = false; setTab("sched"); openProfile(profName); } else show("v-setup"); });
+$("s-back").addEventListener("click", ()=>{ if (profReturn){ profReturn = false; if (role==="player") setTab("acct"); else { setTab("sched"); openProfile(profName); } } else show("v-setup"); });
 $("s-resume").addEventListener("click", ()=>{ pen.status="live"; openLive(); });
 $("s-again").addEventListener("click", ()=>{
   Object.assign(setup,{age:pen.age,hand:pen.hand,mix:mixOf(pen).slice(),fw:pen.fw,lvl:pen.lvl||1,des:pen.design||setup.des});
@@ -2298,23 +2298,38 @@ function renderVelo(){
   const name = role==="player" ? playerName : $("f-ath").value.trim();
   const h = name ? veloHtml(name, (role==="player" ? "Your" : name+"'s")+" velo") : "";
   $("velo-card").innerHTML = h; $("velo-card").hidden = !h;
-  if (role==="player"){ const m = veloHtml(playerName, "Your velo"); $("me-velo").innerHTML = m; $("me-velo").hidden = !m; }
+  $("me-velo").hidden = true;   // players see their velo on their profile at the top of Account
 }
 $("f-ath").addEventListener("change", ()=>renderVelo());
 // ---------- player profile (coaches): everything logged for one player ----------
 let profName = null, profData = null, profReturn = false;
 const profOpen = new Set();   // games opened on the profile ("g"+date pitching, "h"+date hitting)
 const TYPE_NAME = {P:"Pitcher", POS:"Position player", TWO:"Two-way"};
+let profMine = false, profLoading = null;   // profMine: a player's own profile, shown at the top of their Account tab
 async function openProfile(name){
   if (profName!==name) profData = null;
-  profName = name; profReturn = false;
+  profName = name; profReturn = false; profMine = false;
   $("v-sched").hidden = true; $("v-prof").hidden = false; window.scrollTo(0,0);
   renderProfile();
+  loadProfile(name);
+}
+// players: the Account tab is their own profile (rings, pens, check-ins, games, hitting), with their account settings below
+function showMyProfile(){
+  const on = tab==="acct" && role==="player" && !!playerName && !!session;
+  if (!on){ if (profMine){ profMine = false; $("v-prof").hidden = true; } return; }
+  if (profName!==playerName){ profName = playerName; profData = null; }
+  profMine = true; $("v-prof").hidden = false;
+  renderProfile();
+  if (!profData && profLoading!==playerName) loadProfile(playerName);
+}
+async function loadProfile(name){
   if (!sb || !role) return;
-  $("pf-load").textContent = "Loading their full history…";
+  profLoading = name;
+  $("pf-load").textContent = profMine ? "Loading your full history…" : "Loading their full history…";
   const id = slug(name), q = (t, order) => sb.from(t).select("data").eq("athlete_slug", id).order(order, {ascending:false}).limit(300);
   const [p, c, g, h, j] = await Promise.all([q("pens","created_at"), q("checkins","day"), q("games","day"), q("hitting","day"),
     sb.from("players").select("athlete_slug,added_at").eq("athlete_slug", id)]);
+  if (profLoading===name) profLoading = null;
   if (profName!==name) return;
   const ok = r => !r.error ? r.data.map(x=>x.data) : null;
   if (!j.error) setJoinDates(j.data);
@@ -2335,10 +2350,11 @@ function renderProfile(){
   const name = profName, a = athleteDocs[slug(name)] || {}, ob = outbox(), d = profData || {};
   const dd = s => new Date(s+"T00:00:00").toLocaleDateString("en-AU",{weekday:"short", day:"numeric", month:"short"});
   $("pf-name").textContent = name;
+  $("pf-back").hidden = profMine; $("pf-week").hidden = profMine;
   $("pf-sub").textContent = [a.age, TYPE_NAME[a.type], a.hand ? (a.hand==="L"?"LHP":"RHP") : "", (a.mix||[]).length ? "throws "+a.mix.join(", ") : "", BATS_NAME[a.bats] || ""].filter(Boolean).join(" · ");
   const joined = joinDates[slug(name)];
   $("pf-joined").textContent = joined ? "Joined the app "+new Date(joined+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})
-    : d.account===false ? "Hasn't joined the app yet" : "";
+    : d.account===false && !profMine ? "Hasn't joined the app yet" : "";
   // pens
   const pens = profRows(d.pens, [Object.fromEntries(histDocs.map(r=>[r.id,r])), ob.pens], name).sort((x,y)=>y.createdAt-x.createdAt);
   const v = veloHtml(name, "Velo", pens); $("pf-velo").innerHTML = v; $("pf-velo").hidden = !v;
@@ -2571,6 +2587,7 @@ function renderNudge(){
 $("acct-nudge-go").addEventListener("click", ()=>setTab("acct"));
 function msg(t, warn){ const el = $("a-msg"); el.textContent = t; el.hidden = !t; el.className = warn===false ? "pen-desc" : "notice"; }
 function renderAcct(){
+  showMyProfile();
   const n = pendingCount();
   $("acct-out").hidden = !!session; $("acct-in").hidden = !session; $("acct-reset").hidden = !(session && recovering);
   if (!sb){ msg("Sync isn't available. Pens are kept on this phone."); return; }
@@ -2646,7 +2663,7 @@ function pushGameDays(days){
 }
 function renderMe(){
   const prof = myProfile();
-  $("me-name").textContent = playerName || "Your details";
+  $("me-name").textContent = "Your details";   // their name heads their profile above
   renderVelo(); renderPush();
   $("me-age").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.age));
   $("me-type").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===prof.type));
