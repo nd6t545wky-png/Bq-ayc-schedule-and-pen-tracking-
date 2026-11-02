@@ -1033,7 +1033,7 @@ const HR_BY = Object.fromEntries(HRES.filter(r=>r[1]).map(r=>[r[0], r]));
 const isBunt = res => !!(HR_BY[res] && HR_BY[res][2].bunt);
 // hard hit: thumb up / down on every result but a bunt (older at-bats used Hard / Medium / Weak contact)
 // Quality at-bat: any one of these. The last three are quick taps on the at-bat screen.
-const QAB_TAPS = [["p7","7+ pitches"],["two","Battled with 2 strikes"]];
+const QAB_TAPS = [["p7","7+ pitches"]];   // "battled with 2 strikes" no longer counts as a QAB
 // situation taps that go with any result, shown under Situation next to Sac fly / Sac bunt
 const SIT_TAPS = [["adv","Moved the runner"],["r3","Scored runner from 3rd"],["hnr","Hit and run"],["sitx","Missed the situation"]];
 // situational execution: executed = sac fly / sac bunt / moved the runner / scored from 3rd / hit and run; chances = those plus "Missed the situation"

@@ -1,4 +1,5 @@
 -- Situational execution: a "Missed the situation" tap on at-bats; hitting games carry situations executed, chances and %.
+-- "Battled with 2 strikes" no longer counts as a quality at-bat (its column is dropped).
 -- Live sheets: Hitting games gets those three columns, At-bats a Situation column (Executed / Missed).
 create or replace function public.sheet_group(p_age text)
 returns jsonb
@@ -96,7 +97,7 @@ select jsonb_build_array(
       from hits h) s), '[]')),
 
   jsonb_build_object('name', 'At-bats',
-    'cols', '[["athlete","Player"],["date","Date"],["opp","Opponent"],["n","#"],["result","Result"],["qab","QAB"],["hardHit","Hard hit"],["contact","Contact"],["r3","Scored runner from 3rd"],["adv","Moved the runner"],["hnr","Hit and run"],["sit","Situation"],["p7","7+ pitches"],["two","Battled with 2 strikes"],["spray","Spray zone"],["rbi","RBI"]]'::jsonb,
+    'cols', '[["athlete","Player"],["date","Date"],["opp","Opponent"],["n","#"],["result","Result"],["qab","QAB"],["hardHit","Hard hit"],["contact","Contact"],["r3","Scored runner from 3rd"],["adv","Moved the runner"],["hnr","Hit and run"],["sit","Situation"],["p7","7+ pitches"],["spray","Spray zone"],["rbi","RBI"]]'::jsonb,
     'rows', coalesce((select jsonb_agg(r order by lower(regexp_replace(btrim(r->>'athlete'), '^.*\s', '')), lower(r->>'athlete'), r->>'date' desc, (r->>'n')::int) from (
       select jsonb_strip_nulls((x - array['b','s','res','qual','hh','r3','adv','hnr','sitx','p7','two','x','y','zone','rbi']) || jsonb_build_object(
         'athlete', abs.name, 'date', abs.day::text, 'opp', abs.opp, 'n', i,
@@ -107,12 +108,12 @@ select jsonb_build_array(
         'adv', case when x->>'adv' = '1' then 'Yes' end, 'hnr', case when x->>'hnr' = '1' then 'Yes' end,
         -- same rule as the app (sitDone): sac fly, sac bunt, moved the runner, scored from 3rd or hit and run; else the Missed tap
         'sit', case when x->>'res' in ('SF','SH') or '1' in (x->>'r3', x->>'adv', x->>'hnr') then 'Executed' when x->>'sitx' = '1' then 'Missed' end,
-        'p7', case when x->>'p7' = '1' then 'Yes' end, 'two', case when x->>'two' = '1' then 'Yes' end,
-        -- same rule as the app (qabWhy): a hit, walk, HBP, sacrifice, hard hit, RBI or any situation / QAB tap
+        'p7', case when x->>'p7' = '1' then 'Yes' end,
+        -- same rule as the app (qabWhy): a hit, walk, HBP, sacrifice, hard hit, RBI, a situation tap or 7+ pitches (battling with 2 strikes no longer counts)
         'qab', case when coalesce(abs.h, 0) + coalesce(abs.bb, 0) + coalesce(abs.hbp, 0) + coalesce(abs.sf, 0) > 0
           or x->>'res' = 'SH' or x->>'hh' = '1' or (x->>'hh' is null and x->>'qual' = 'H')
           or coalesce(public.sheet_num(x->>'rbi'), 0) > 0
-          or '1' in (x->>'r3', x->>'adv', x->>'hnr', x->>'p7', x->>'two') then 'Yes' else 'No' end,
+          or '1' in (x->>'r3', x->>'adv', x->>'hnr', x->>'p7') then 'Yes' else 'No' end,
         'spray', x->>'zone', 'rbi', public.sheet_num(x->>'rbi'))) r
       from abs) s), '[]'))
 );
