@@ -17,7 +17,7 @@
 <style>
 /* Layout: iOS grouped-inset app. Large title, segmented controls, white rounded groups on system grey. BQ maroon is the tint. */
 :root{
-  --bg:#f4f1f3; --surface:#ffffff; --fill:rgba(78,24,41,.08); --ink:#1a1018; --muted:rgba(64,40,56,.62); --line:rgba(78,24,41,.16);
+  --bg:#f4f1f3; --surface:#ffffff; --fill:rgba(78,24,41,.08); --ink:#1a1018; --muted:rgba(64,40,56,.78); --line:rgba(78,24,41,.16);
   --maroon:#4e1829; --maroon-ink:#ffffff; --gold:#b8891f; --gold-soft:rgba(184,137,31,.16); --maroon-soft:rgba(78,24,41,.10);
   --intent:#007aff; --hit:#248a3d; --miss:#d70015; --warn:#c93400;
   --zone-fill:#ffffff; --shadow:rgba(78,24,41,.06); --thumb:#ffffff;
@@ -25,12 +25,12 @@
   --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0e0a0d; --surface:#1d161b; --fill:rgba(182,93,121,.16); --ink:#ffffff; --muted:rgba(240,228,236,.62); --line:rgba(182,93,121,.24);
+  --bg:#0e0a0d; --surface:#1d161b; --fill:rgba(182,93,121,.16); --ink:#ffffff; --muted:rgba(240,228,236,.78); --line:rgba(182,93,121,.24);
   --maroon:#b65d79; --maroon-ink:#ffffff; --gold:#e2b84a; --gold-soft:rgba(226,184,74,.18); --maroon-soft:rgba(182,93,121,.18);
   --intent:#0a84ff; --hit:#30d158; --miss:#ff453a; --warn:#ff9f0a;
   --zone-fill:#271e24; --shadow:rgba(182,93,121,.10); --thumb:#636366; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0e0a0d; --surface:#1d161b; --fill:rgba(182,93,121,.16); --ink:#ffffff; --muted:rgba(240,228,236,.62); --line:rgba(182,93,121,.24);
+  --bg:#0e0a0d; --surface:#1d161b; --fill:rgba(182,93,121,.16); --ink:#ffffff; --muted:rgba(240,228,236,.78); --line:rgba(182,93,121,.24);
   --maroon:#b65d79; --maroon-ink:#ffffff; --gold:#e2b84a; --gold-soft:rgba(226,184,74,.18); --maroon-soft:rgba(182,93,121,.18);
   --intent:#0a84ff; --hit:#30d158; --miss:#ff453a; --warn:#ff9f0a;
   --zone-fill:#271e24; --shadow:rgba(182,93,121,.10); --thumb:#636366; color-scheme:dark}
@@ -46,32 +46,32 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:10p
 header.top img{height:26px;width:auto;order:2}
 header.top>div{min-width:0}
 header.top h1{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:.02em;margin:0;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card{background:var(--surface);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--surface);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
 .label{font-family:var(--display);font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px}
 .label span{text-transform:none}
 h2{font-family:var(--display);font-size:24px;font-weight:700;margin:0;letter-spacing:.01em}
 .row{display:flex;gap:12px;flex-wrap:wrap}
 .row>*{flex:1 1 140px;min-width:0}
-input,select{font:inherit;color:var(--ink);background:var(--fill);border:0;border-radius:10px;padding:11px 12px;width:100%;-webkit-appearance:none;appearance:none}
+input,select{font:inherit;color:var(--ink);background:var(--fill);border:0;border-radius:8px;padding:11px 12px;width:100%;-webkit-appearance:none;appearance:none}
 select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:34px}
 input::placeholder{color:var(--muted)}
 input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--intent);outline-offset:2px}
-button{font:inherit;font-size:17px;cursor:pointer;border:0;border-radius:10px;background:var(--fill);color:var(--maroon);padding:10px 14px;min-height:44px;font-weight:400}
+button{font:inherit;font-size:17px;cursor:pointer;border:0;border-radius:8px;background:var(--fill);color:var(--maroon);padding:10px 14px;min-height:44px;font-weight:400}
 button:active{opacity:.6}
-button.primary{background:var(--maroon);color:var(--maroon-ink);box-shadow:inset 0 0 0 1.5px var(--gold);font-family:var(--display);font-size:20px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;border-radius:12px;min-height:50px}
+button.primary{background:var(--maroon);color:var(--maroon-ink);box-shadow:inset 0 0 0 1.5px var(--gold);font-family:var(--display);font-size:20px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;border-radius:8px;min-height:50px}
 button.ghost{background:transparent;color:var(--maroon);padding-inline:4px}
-button.small{min-height:36px;padding:7px 12px;font-size:15px}
+button.small{min-height:42px;padding:8px 14px;font-size:16px}
 button:disabled{opacity:.35;cursor:default}
 /* selection buttons */
 .seg,.checklist{display:flex;flex-wrap:wrap;gap:6px}
 .seg button,.checklist button{flex:1 1 auto;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;min-height:44px;padding:9px 12px;font-weight:600;font-size:16px}
 .seg button.on,.checklist button.on{background:var(--maroon);border-color:var(--maroon);color:var(--maroon-ink)}
 /* tab bar fixed to the bottom of the screen, icon above each label */
-.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;gap:4px;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 14px var(--shadow);
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;gap:4px;background:var(--surface);border-top:1px solid var(--line);
   padding:6px max(8px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
 /* the bar's colour carries on below it, so no gap shows if iPad leaves space under a fixed bar (seen in iPadOS windows) */
 .tabs::after{content:"";position:absolute;left:0;right:0;top:100%;height:120px;background:var(--surface)}
-.tabs button{flex:1 1 0;max-width:160px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 2px;background:transparent;color:var(--muted);min-height:54px;border-radius:12px;font-family:var(--display);font-size:13px;font-weight:600;letter-spacing:.03em;line-height:1.1}
+.tabs button{flex:1 1 0;max-width:160px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 2px;background:transparent;color:var(--muted);min-height:54px;border-radius:8px;font-family:var(--display);font-size:13px;font-weight:600;letter-spacing:.03em;line-height:1.1}
 .tabs button svg{width:24px;height:24px;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .tabs button.on{background:var(--maroon);color:var(--maroon-ink)}
 .tabs button span{display:block;max-height:16px;overflow:hidden}
@@ -88,8 +88,8 @@ button:disabled{opacity:.35;cursor:default}
 .team td,.team th{text-align:center;white-space:nowrap;padding-right:6px}.team td:first-child,.team th:first-child{text-align:left}
 .team tr[data-ath]{cursor:pointer}.team tr.sel td{background:var(--fill)}
 .team .flag{color:var(--miss);font-weight:600}.team .na{color:var(--muted)}
-.flags{background:color-mix(in srgb,var(--miss) 10%,transparent);border-radius:10px;padding:10px 12px;font-size:15px}.flags b{color:var(--miss)}.flags ul{margin:4px 0 0;padding-left:18px}
-.codebox{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--fill);border-radius:10px;padding:10px 12px;margin-top:8px}.codebox .code{font-family:ui-monospace,Menlo,monospace;font-size:22px;font-weight:700;letter-spacing:.12em}.codebox .lbl{font-size:13px;color:var(--muted)}
+.flags{background:color-mix(in srgb,var(--miss) 10%,transparent);border-radius:8px;padding:10px 12px;font-size:15px}.flags b{color:var(--miss)}.flags ul{margin:4px 0 0;padding-left:18px}
+.codebox{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--fill);border-radius:8px;padding:10px 12px;margin-top:8px}.codebox .code{font-family:ui-monospace,Menlo,monospace;font-size:22px;font-weight:700;letter-spacing:.12em}.codebox .lbl{font-size:13px;color:var(--muted)}
 #w-gseg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}#w-gseg button{padding:8px 0;font-size:15px}
 .qab{display:inline-block;font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.04em;padding:2px 8px;border-radius:999px;background:var(--gold-soft);color:var(--gold);margin-right:4px}
 .qab.no{background:var(--fill);color:var(--muted)}
@@ -125,7 +125,7 @@ button:disabled{opacity:.35;cursor:default}
 .call{display:flex;flex-direction:column;gap:2px;min-width:0}
 .call .pt{font-family:var(--display);font-size:28px;font-weight:700;line-height:1.05}
 .call .meta{color:var(--muted);font-size:15px}
-.zbadge{font-size:12px;font-weight:600;color:var(--intent);background:color-mix(in srgb,var(--intent) 12%,transparent);border-radius:12px;padding:6px 12px;text-align:center;line-height:1.1;text-transform:uppercase}
+.zbadge{font-size:12px;font-weight:600;color:var(--intent);background:color-mix(in srgb,var(--intent) 12%,transparent);border-radius:8px;padding:6px 12px;text-align:center;line-height:1.1;text-transform:uppercase}
 .zbadge b{display:block;font-family:var(--display);font-size:28px;text-transform:none}
 .zonebox{display:flex;justify-content:center}
 .zsvg{width:100%;max-width:380px;height:auto;touch-action:manipulation;user-select:none;-webkit-user-select:none}
@@ -155,12 +155,12 @@ button:disabled{opacity:.35;cursor:default}
 .toggles{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .toggles button{flex:0 1 auto}
 .toggles button.on{background:var(--maroon);color:var(--maroon-ink)}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;background:var(--surface);border-radius:12px;overflow:hidden}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;background:var(--surface);border-radius:8px;overflow:hidden}
 .stat{background:var(--surface);padding:10px 12px;box-shadow:inset -.5px -.5px 0 var(--line)}
 .stat b{display:block;font-family:var(--display);font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
 .stat span{font-size:13px;color:var(--muted)}
 .card .stats{margin:0 -16px;border-radius:0}
-.count{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--fill);border-radius:10px;padding:10px 12px}
+.count{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--fill);border-radius:8px;padding:10px 12px}
 .count .bs{font-family:var(--display);font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
 .count .sit{font-size:15px;font-weight:600}
 .count .sit small{display:block;font-weight:400;color:var(--muted)}
@@ -170,12 +170,12 @@ button:disabled{opacity:.35;cursor:default}
 .log tr:last-child td{border-bottom:0}
 .scroll{overflow-x:auto}
 .pts2{color:var(--hit);font-weight:600}.pts1{color:var(--ink)}.pts0{color:var(--muted)}.ptsm{color:var(--miss);font-weight:600}
-.verdict{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px}
+.verdict{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:8px}
 .verdict.pass{background:color-mix(in srgb,var(--hit) 13%,transparent)}
 .verdict.fail{background:color-mix(in srgb,var(--miss) 11%,transparent)}
 .verdict b{font-family:var(--display);font-size:22px;font-weight:700;white-space:nowrap}
 .verdict.pass b{color:var(--hit)}.verdict.fail b{color:var(--miss)}
-div.pfdetail{background:var(--fill);border-radius:10px;padding:8px 10px;margin:2px 0 8px}
+div.pfdetail{background:var(--fill);border-radius:8px;padding:8px 10px;margin:2px 0 8px}
 tr.pfdetail td{white-space:normal;text-align:left;padding:4px 0 10px}
 .tabs button.lockhide{display:none}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);justify-content:center}
@@ -210,7 +210,7 @@ tr.pfdetail td{white-space:normal;text-align:left;padding:4px 0 10px}
 .ttp input{width:110px}
 /* schedule */
 .days{display:flex;flex-direction:column;gap:12px}
-.day{background:var(--surface);border-radius:12px;padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+.day{background:var(--surface);border-radius:8px;padding:12px 16px;display:flex;flex-direction:column;gap:8px}
 .day.today{box-shadow:inset 0 0 0 2px var(--gold)}
 .day.pre:not(.hasgame){opacity:.55}.day.pre.hasgame>.dayhead,.day.pre.hasgame>.pen-desc{opacity:.55}
 .dayhead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
@@ -1459,7 +1459,7 @@ function renderWeek(){
   // any day of last week or this week
   $("w-gamedate").min = weekDates(-1).Mon; $("w-gamedate").max = weekDates(0).Sun;
   $("w-wk").hidden = role==="coach";
-  $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+"."+penNote+" Tissue prep, bands and recovery every day except the no-throw day.";
+  $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+"."+penNote+" Soft tissue, dynamic, bands and recovery every day except the no-throw day.";
   const gameDays = [];
   $("w-days").innerHTML = DAYS.map(([d,full])=>{
     const t = w.d[d], T = DAYTYPES[t], _g = ["game","game2","pos","pospen"].includes(t) || tourneyOn(dates[d]) ? gameDays.push(dates[d]) : 0, dayLabel = `<div class="dayname">${full}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>`;
