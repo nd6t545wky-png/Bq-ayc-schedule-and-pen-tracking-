@@ -294,8 +294,9 @@ button.primary{border-radius:999px;background:var(--brand);box-shadow:inset 0 0 
 .gstats>div{border-radius:16px}
 .gstats b{font-family:var(--serif);font-weight:400;font-size:30px}
 /* score rings at the top of the week */
-.rings{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:8px;background:var(--surface);border-radius:22px;padding:18px 10px 14px}
-.ring{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;min-width:0}
+.rings{display:flex;flex-wrap:wrap;justify-content:center;row-gap:14px;column-gap:8px;background:var(--surface);border-radius:22px;padding:18px 10px 14px}
+.ring{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;min-width:0;flex:0 0 calc((100% - (var(--n,3) - 1)*8px)/var(--n,3))}
+/* a short last row sits in the middle instead of leaving a gap on the right */
 .ring svg{width:100%;max-width:92px;aspect-ratio:1;display:block}
 .ring .tr{fill:none;stroke:rgba(255,255,255,.09);stroke-width:7}
 .ring .arc{fill:none;stroke-width:7;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%}
@@ -1511,7 +1512,7 @@ function ringsData(ath, src){
 function renderRings(ath, el, src){
   const show = !!ath && (role==="player" || isCoach);
   el.hidden = !show; if (!show) return;
-  const d = ringsData(ath, src); el.style.setProperty("--n", Math.min(d.length, 4));   // two-way: pitching row of 4, hitting row of 3
+  const d = ringsData(ath, src); el.style.setProperty("--n", Math.min(d.length, 4));   // two-way: pitching row of 4, hitting row of 3 (centred)
   el.innerHTML = d.map(r=>`<div class="ring">${ringSvg(r.v, r.max, esc(String(r.txt)), r.col)}<div class="nm">${r.nm}</div><div class="sub">${esc(r.sub)}</div></div>`).join("");
 }
 function renderWeek(){
