@@ -177,6 +177,7 @@ button:disabled{opacity:.35;cursor:default}
 .verdict.pass b{color:var(--hit)}.verdict.fail b{color:var(--miss)}
 div.pfdetail{background:var(--fill);border-radius:10px;padding:8px 10px;margin:2px 0 8px}
 tr.pfdetail td{white-space:normal;text-align:left;padding:4px 0 10px}
+.tabs button.lockhide{display:none}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);justify-content:center}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
 .notice{font-size:15px;color:var(--warn)}
@@ -386,6 +387,7 @@ details.plist .dose{color:var(--muted)}
       <button class="primary" id="link-go" type="button">Confirm</button>
     </div>
     <div class="card" id="acct">
+      <div class="notice" id="lock-note" hidden>You need an account to use the app. Sign in, or tap <b>New account</b> and enter your team code.</div>
       <div id="acct-out">
         <h2>Sign in</h2>
         <div class="pen-desc">Coaches and players: new here? Tap <b>New account</b> and enter your team code.</div>
@@ -1582,6 +1584,7 @@ $("w-days").addEventListener("click", e=>{
 });
 let tab = "sched";
 function setTab(t){
+  if (locked() && t!=="acct") t = "acct";
   tab = t;
   $("tabs").querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.t===t));
   $("v-sched").hidden = t!=="sched"; $("v-hit").hidden = t!=="hit"; $("v-acct").hidden = t!=="acct"; $("v-prof").hidden = true;
@@ -2363,6 +2366,7 @@ async function loadAll(){
   rebuildHist(); paintArsenal(); if (role==="player") applyRole(); else renderWeek();
   renderHit();
 }
+let roleBoot = lsGet("bqpen.role", null);   // set up below, once the account state exists
 athleteDocs = lsGet("bqpen.athletes", {});
 checkinDocs = lsGet("bqpen.checkins", {});
 gameDocs = lsGet("bqpen.games", {});
@@ -2372,8 +2376,14 @@ let reloadT = null;
 function scheduleReload(){ clearTimeout(reloadT); reloadT = setTimeout(loadAll, 400); }
 async function afterAuth(){
   isCoach = false; coachInfo = null; role = null; playerName = null;
+  if (!session) lsSet("bqpen.role", null);
   if (session){
     const {data, error} = await sb.rpc("is_coach");
+    // no signal at the field: carry on as who they were last time on this phone
+    const cached = lsGet("bqpen.role", null);
+    if (error && cached && cached.uid===session.user.id){
+      ({role, playerName, isCoach, coachInfo} = cached); applyRole(); renderAcct(); return;
+    }
     isCoach = !error && data===true;
     if (isCoach){
       role = "coach";
@@ -2385,6 +2395,8 @@ async function afterAuth(){
       if (!r.error && r.data){ role = "player"; playerName = capName(r.data); }
     }
     if (!role && await autoJoin()) return afterAuth();
+    lsSet("bqpen.role", role ? {uid: session.user.id, role, playerName, isCoach, coachInfo} : null);
+    if (role) claimPhonePens();
   }
   applyRole();
   if (chan){ sb.removeChannel(chan); chan = null; }
@@ -2402,6 +2414,25 @@ async function afterAuth(){
   if (pen && $("v-sum").hidden===false) $("s-del").hidden = !isCoach;
   if (role==="coach") loadPlayers();
 }
+// Pens saved on this phone before anyone signed in go into the first account that signs in here
+function claimPhonePens(){
+  if (lsGet("bqpen.claimed", false)) return;
+  lsSet("bqpen.claimed", true);
+  if (role!=="player" || !playerName) return;   // a coach's sign-in uploads them as they are
+  const ob = outbox(); let n = 0;
+  Object.values(ob.pens).forEach(r=>{ if (r && slug(r.athlete||"")!==slug(playerName)){ r.athlete = playerName; r.updatedAt = Date.now(); n++; } });
+  if (n){ saveOutbox(ob); rebuildHist(); }
+}
+// No account, no app: until someone is signed in and on a team, only the Account tab shows
+const locked = () => !!sb && !role;
+function applyLock(){
+  const l = locked();
+  $("tabs").querySelectorAll("button").forEach(b=>{ if (b.dataset.t!=="acct") b.classList.toggle("lockhide", l); });
+  $("lock-note").hidden = !l;
+  if (l && tab!=="acct"){ lockForced = true; setTab("acct"); }
+  else if (!l && lockForced){ lockForced = false; setTab("sched"); }
+}
+let lockForced = false;
 function applyRole(){
   const player = role==="player";
   $("newpen").hidden = !!(session && !role);   // players log their own pens too
@@ -2431,6 +2462,7 @@ function applyRole(){
     if (!$("v-live").hidden) show("v-setup");
   }
   renderWeek();
+  applyLock();
 }
 // points people at the Account tab while they still need to sign in, join, or get an age group
 function renderNudge(){
@@ -2875,6 +2907,8 @@ $("a-out").addEventListener("click", async ()=>{
   ["bqpen.cache","bqpen.checkins","bqpen.athletes","bqpen.games","bqpen.hits","bqpen.joined"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
   serverPens = []; checkinDocs = {}; athleteDocs = {}; joinDates = {}; gameDocs = {}; hitDocs = {}; hitSeasonFor = null; rebuildHist(); renderWeek();
 });
+if (roleBoot && roleBoot.role){ ({role, playerName, isCoach, coachInfo} = roleBoot); applyRole(); }
+applyLock();
 if (sb){
   // supabase-js warns against awaiting its own calls inside this callback
   sb.auth.onAuthStateChange((ev, s)=>{ session = s; if (ev==="PASSWORD_RECOVERY"){ recovering = true; setTimeout(()=>setTab("acct"), 0); } setTimeout(afterAuth, 0); });
