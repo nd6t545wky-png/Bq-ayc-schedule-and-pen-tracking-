@@ -1419,8 +1419,13 @@ function renderWeek(){
   const posOnly = isPosOnly(ath);
   if (posOnly) w.d = posWeek(w.d);
   if (posOnly) $("w-pitchwrap").hidden = true;
+  // A bullpen can't follow a game the player pitched in: once innings are logged for the day before, it becomes a recovery day
+  let penDropped = null;
+  if (ath && !posOnly) DAYS.forEach(([k])=>{ const g = w.d[k]==="pen" && getGame(ath, addDays(dates[k], -1));
+    if (g && (ipOuts(g.ip) > 0 || +g.pitches > 0)){ w.d[k] = "rec"; penDropped = k; } });
   const penAt = DAYS.map(([k])=>k).find(k=>w.d[k]==="pen");
   const penNote = posOnly ? " Position player schedule."
+    : penDropped ? " No bullpen on "+DAYS.find(([k])=>k===penDropped)[1]+": pitched in the game the day before."
     : calMoved==="none" ? " No full bullpen this week: the BQ schedule leaves no safe day for one."
     : calMoved ? " Bullpen on "+DAYS.find(([k])=>k===calMoved)[1]+" this week to fit the BQ schedule."
     : setup.age==="U18" && penAt==="Wed" ? " Bullpen on Wednesday."
