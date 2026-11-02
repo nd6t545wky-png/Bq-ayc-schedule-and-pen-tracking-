@@ -1035,7 +1035,10 @@ const isBunt = res => !!(HR_BY[res] && HR_BY[res][2].bunt);
 // Quality at-bat: any one of these. The last three are quick taps on the at-bat screen.
 const QAB_TAPS = [["p7","7+ pitches"],["two","Battled with 2 strikes"]];
 // situation taps that go with any result, shown under Situation next to Sac fly / Sac bunt
-const SIT_TAPS = [["adv","Moved the runner"],["r3","Scored runner from 3rd"],["hnr","Hit and run"]];
+const SIT_TAPS = [["adv","Moved the runner"],["r3","Scored runner from 3rd"],["hnr","Hit and run"],["sitx","Missed the situation"]];
+// situational execution: executed = sac fly / sac bunt / moved the runner / scored from 3rd / hit and run; chances = those plus "Missed the situation"
+const SIT_DONE = ["adv","r3","hnr"];
+const sitDone = p => p.res==="SF" || p.res==="SH" || SIT_DONE.some(k=>p[k]);
 function qabWhy(p){
   const c = (HR_BY[p.res]||[])[2] || {}, why = [];
   if (c.h) why.push("hit"); if (c.bb) why.push("walk"); if (c.hbp) why.push("HBP");
@@ -1051,13 +1054,13 @@ function getHit(athlete, date){ const id = hitId(athlete, date); return outbox()
 function athleteHits(athlete){ const s = slug(athlete); return Object.values(Object.assign({}, hitDocs, outbox().hits)).filter(h=>h && slug(h.athlete)===s).sort((a,b)=>b.date.localeCompare(a.date)); }
 function saveHit(body){ body.updatedAt = Date.now(); body.summary = hitSummary(body.pas||[]); hitDocs[body.id] = body; const ob = outbox(); ob.hits[body.id] = body; saveOutbox(ob); flush(); }
 function hitStats(pas){
-  const t = {pa:0,ab:0,h:0,tb:0,bb:0,hbp:0,k:0,sf:0,sh:0,bip:0,bunt:0,hard:0,rated:0,rbi:0,xbh:0,r3:0,qab:0};
+  const t = {pa:0,ab:0,h:0,tb:0,bb:0,hbp:0,k:0,sf:0,sh:0,bip:0,bunt:0,hard:0,rated:0,rbi:0,xbh:0,r3:0,qab:0,sit:0,sitn:0};
   pas.forEach(p=>{ const c = (HR_BY[p.res]||[])[2] || {}; t.pa++; for (const k in c) t[k] += c[k];
     const hh = hardOf(p); if (hh!=null){ t.rated++; t.hard += hh; }
-    if (p.r3) t.r3++; if (qabWhy(p).length) t.qab++; t.rbi += p.rbi||0; if (["2B","3B","HR"].includes(p.res)) t.xbh++; });
+    if (p.r3) t.r3++; if (qabWhy(p).length) t.qab++; if (sitDone(p)){ t.sit++; t.sitn++; } else if (p.sitx) t.sitn++; t.rbi += p.rbi||0; if (["2B","3B","HR"].includes(p.res)) t.xbh++; });
   const r = (a,b) => b ? a/b : null;
   t.avg = r(t.h,t.ab); t.obp = r(t.h+t.bb+t.hbp, t.ab+t.bb+t.hbp+t.sf); t.slg = r(t.tb,t.ab);
-  t.ops = t.obp!=null && t.slg!=null ? t.obp+t.slg : null; t.kp = r(t.k,t.pa); t.bbp = r(t.bb,t.pa); t.hardp = r(t.hard,t.rated); t.qabp = r(t.qab,t.pa);
+  t.ops = t.obp!=null && t.slg!=null ? t.obp+t.slg : null; t.kp = r(t.k,t.pa); t.bbp = r(t.bb,t.pa); t.hardp = r(t.hard,t.rated); t.qabp = r(t.qab,t.pa); t.sitp = r(t.sit,t.sitn);
   return t;
 }
 // every list of people is A to Z by surname (then first name), ignoring capitals
@@ -1220,7 +1223,7 @@ function renderHit(){
     <button class="primary" id="h-save" ${d.res?"":"disabled"}>Save at-bat</button>`;
   // season
   const all = athleteHits(ath), seasonPas = all.flatMap(h=>h.pas||[]), t = hitStats(seasonPas);
-  const tiles = [["QAB %",pctFmt(t.qabp)],["Hard-hit %",pctFmt(t.hardp)],["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)]];
+  const tiles = [["QAB %",pctFmt(t.qabp)],["Hard-hit %",pctFmt(t.hardp)],["Situational %",pctFmt(t.sitp)],["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)]];
   const dots = seasonPas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:5}));
   $("h-season").innerHTML = `<h2>${esc(ath)} · season</h2>
     <div class="gstats">${tiles.map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
@@ -1322,7 +1325,7 @@ const GAME_FIELDS = [
   ["r","Runs",,,1],["er","Earned runs",,,1],["hr","Home runs",,,1],["wp","Wild pitches",,,1],
 ];
 // pitchers chase winning 70% of their 1-1 counts
-const C11_TARGET = 70, STRIKE_GOAL = 60, FPS_GOAL = 60;   // BQ approach goals
+const C11_TARGET = 70, STRIKE_GOAL = 60, FPS_GOAL = 60, QAB_GOAL = 60, HARD_GOAL = 50, SIT_GOAL = 60;   // BQ approach goals
 // Pitch Smart guidelines for 15-18 year olds (daily max by age; rest days by pitch count)
 const PITCH_MAX = {U16:95, U18:105};
 const restDays = n => n>=76 ? 4 : n>=61 ? 3 : n>=46 ? 2 : n>=31 ? 1 : 0;
@@ -1461,13 +1464,15 @@ $("w-type").innerHTML = GAME_SETS.map(w=>`<option value="${w.k}">${w.n}</option>
 $("w-type").value = weekKey;
 $("w-type").addEventListener("change", ()=>{ weekKey = $("w-type").value; saveWeekPick(); renderWeek(); });
 $("w-pitch").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; pitchKey = b.dataset.v; saveWeekPick(); renderWeek(); });
-// ---------- score rings (player profile): arm, strike %, 1st-pitch strike %, 1:1 win (with goals), hard hit %, on-base % ----------
+// ---------- score rings (player profile): arm, then the BQ goals: strike %, 1st-pitch strike %, 1:1 win; QAB %, hard hit %, situational ----------
 function ringSvg(v, max, txt, col){
   const C = 2*Math.PI*42, f = v==null ? 0 : Math.max(0, Math.min(1, v/max));
   return `<svg viewBox="0 0 100 100" aria-hidden="true"><circle class="tr" cx="50" cy="50" r="42"/>`+
     (v==null ? "" : `<circle class="arc" cx="50" cy="50" r="42" stroke="${col}" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-f)).toFixed(1)}"/>`)+
     `<text class="num${v==null?' none':''}" x="50" y="51" text-anchor="middle" dominant-baseline="central">${txt}</text></svg>`;
 }
+// a ring with a goal: green at or above it, red below
+const goalRing = (out, nm, v, g, sub) => out.push({nm, v, max:100, txt: v==null ? "–" : v+"%", col: v==null ? null : v>=g ? "var(--hit)" : "var(--miss)", sub: sub || `Goal ${g}%`});
 // src: {checkins, pens, games, hits} for this athlete, from their profile
 function ringsData(ath, src){
   const a = athleteDocs[slug(ath)] || {}, type = a.type || "P", s = slug(ath), out = [];
@@ -1482,7 +1487,7 @@ function ringsData(ath, src){
   }
   if (type!=="POS"){
     // BQ pitching approach goals: strike % > 60, 1st-pitch strikes > 60, win the 1-1 count > 70 (season, from game logs)
-    const goal = (nm, v, g, sub) => out.push({nm, v, max:100, txt: v==null ? "–" : v+"%", col: v==null ? null : v>=g ? good : bad, sub: sub || `Goal ${g}%`});
+    const goal = (nm, v, g, sub) => goalRing(out, nm, v, g, sub);
     const sum = (k, d) => src.games.reduce((t,g)=>{ const a = +g[k], b = +g[d]; return (g[k]!=null && g[k]!=="" && b) ? [t[0]+a, t[1]+b] : t; }, [0,0]);
     const pc = ([a,b]) => b ? Math.round(100*a/b) : null;
     let sp = pc(sum("strikes","pitches")), spSub = null;
@@ -1495,17 +1500,18 @@ function ringsData(ath, src){
     goal("1:1 win", pc(sum("c11w","c11")), C11_TARGET);
   }
   if (type!=="P"){
-    const pas = src.hits.flatMap(h=>h.pas||[]), t = hitStats(pas);
-    const hh = t.hardp==null ? null : Math.round(t.hardp*100);
-    out.push({nm:"Hard hit", v:hh, max:100, txt:hh==null?"–":hh+"%", col:"var(--gold)", sub: t.rated ? `${t.rated} rated` : "No at-bats yet"});
-    if (type==="POS") out.push({nm:"On-base", v:t.obp, max:1, txt:avgFmt(t.obp), col:"var(--gold)", sub: t.pa ? `${t.pa} PA` : "Season"});
+    // BQ hitting goals: QAB > 60, hard hit > 50, situational execution > 60 (season)
+    const t = hitStats(src.hits.flatMap(h=>h.pas||[])), p = v => v==null ? null : Math.round(v*100);
+    goalRing(out, "QAB %", p(t.qabp), QAB_GOAL, t.pa ? `Goal ${QAB_GOAL}%` : "No at-bats yet");
+    goalRing(out, "Hard hit", p(t.hardp), HARD_GOAL);
+    goalRing(out, "Situational", p(t.sitp), SIT_GOAL);
   }
   return out;
 }
 function renderRings(ath, el, src){
   const show = !!ath && (role==="player" || isCoach);
   el.hidden = !show; if (!show) return;
-  const d = ringsData(ath, src); el.style.setProperty("--n", d.length===5 ? 3 : d.length);
+  const d = ringsData(ath, src); el.style.setProperty("--n", Math.min(d.length, 4));   // two-way: pitching row of 4, hitting row of 3
   el.innerHTML = d.map(r=>`<div class="ring">${ringSvg(r.v, r.max, esc(String(r.txt)), r.col)}<div class="nm">${r.nm}</div><div class="sub">${esc(r.sub)}</div></div>`).join("");
 }
 function renderWeek(){
@@ -1752,7 +1758,10 @@ $("v-hit").addEventListener("click", e=>{
   const seg = e.target.closest("[data-hk] button");
   if (seg){ const k = seg.parentElement.dataset.hk; d[k] = +seg.dataset.v; renderHit(); return; }
   const tog = e.target.closest("[data-htog]");
-  if (tog){ d[tog.dataset.htog] = d[tog.dataset.htog] ? 0 : 1; renderHit(); return; }
+  if (tog){ const k = tog.dataset.htog; d[k] = d[k] ? 0 : 1;
+    // missed and executed don't go together on one at-bat
+    if (d[k] && k==="sitx") SIT_DONE.forEach(x=>{ d[x] = 0; }); else if (d[k] && SIT_DONE.includes(k)) d.sitx = 0;
+    renderHit(); return; }
   const r = e.target.closest("[data-hres]");
   if (r){ d.res = r.dataset.hres; if (isBunt(d.res)) d.hh = null; if (!HR_BY[d.res][2].bip){ d.x = d.y = d.zone = null; } renderHit(); return; }
   const svg = e.target.closest("#h-field");
@@ -2256,6 +2265,7 @@ function gameSummary(g){
 function hitSummary(pas){
   const t = hitStats(pas), c = code => pas.filter(p=>p.res===code).length, r3 = v => v==null ? null : +v.toFixed(3);
   return {line: gameLine(pas), pa:t.pa, ab:t.ab, h:t.h, doubles:c("2B"), triples:c("3B"), hr:c("HR"), bunts:t.bunt, bb:t.bb, hbp:t.hbp, k:t.k, rbi:t.rbi, r3Scored:t.r3, qab:t.qab, qabPct: t.qabp==null ? null : Math.round(t.qabp*100),
+    sitDone: t.sitn ? t.sit : null, sitChances: t.sitn || null, sitPct: t.sitp==null ? null : Math.round(t.sitp*100),
     avg:r3(t.avg), obp:r3(t.obp), slg:r3(t.slg), hardPct: t.hardp==null ? null : Math.round(t.hardp*100)};
 }
 function queueSave(){
@@ -2387,7 +2397,7 @@ function renderProfile(){
   $("pf-hit-card").hidden = !hts.length && !isHitter(name);
   if (!$("pf-hit-card").hidden){
     const t = hitStats(hts.flatMap(h=>h.pas||[]));
-    $("pf-hit").innerHTML = hts.length ? `<div class="gstats">${[["QAB %",pctFmt(t.qabp)],["Hard-hit %",pctFmt(t.hardp)],["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)]].map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
+    $("pf-hit").innerHTML = hts.length ? `<div class="gstats">${[["QAB %",pctFmt(t.qabp)],["Hard-hit %",pctFmt(t.hardp)],["Situational %",pctFmt(t.sitp)],["AVG",avgFmt(t.avg)],["OBP",avgFmt(t.obp)],["SLG",avgFmt(t.slg)],["OPS",avgFmt(t.ops)],["PA",t.pa],["K%",pctFmt(t.kp)],["BB%",pctFmt(t.bbp)]].map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
       ${role!=="player" ? hitTendencyHtml(hts, a.bats) + notesSummaryHtml(hts) : ""}
       ${hitBreakdownHtml(hts.flatMap(h=>h.pas||[]), "pf-spray", a.bats)}
       <div class="label" style="margin-top:8px">Games <span>· tap one to see every at-bat</span></div>
