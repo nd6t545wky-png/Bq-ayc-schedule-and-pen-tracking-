@@ -733,6 +733,16 @@ function u16Thursday(d){
   out.Wed = "lt"; out.Thu = "pen";
   return out;
 }
+// U18 throw every full bullpen on Wednesday (BQ training day), with the low-intent day on Tuesday.
+// Only a game, day off or travel day on the Wednesday itself moves it.
+function u18Wednesday(d){
+  if (!DAYS.some(([k])=>d[k]==="pen") || ["game","game2","pos","pospen","off"].includes(d.Wed)) return d;
+  const out = Object.assign({}, d);
+  DAYS.forEach(([k])=>{ if (out[k]==="pen" || out[k]==="lt") out[k] = "rec"; });
+  if (!["game","game2","pos","pospen","off"].includes(out.Tue)) out.Tue = "lt";
+  out.Wed = "pen";
+  return out;
+}
 const BQ_DAYS = {U16:["Mon","Thu"], U18:["Mon","Wed"], AYWC:[], AWC:[]};
 // QLD season calendar ("Prepare to win" schedule). Inside CAL_FROM..CAL_TO the BQ training tag comes
 // from here (a BQ weekday with no session shows no BQ tag); outside it, BQ_DAYS is used.
@@ -785,6 +795,7 @@ function applyCal(types, dates, age){
   if (!penWas) return null;                       // this week had no full bullpen to begin with
   const penDay = types[penWas]==="pen" ? penWas : null;
   if (penDay && !playing(next(penDay))) return null;
+  if (age==="U18" && penDay==="Wed") return null;   // U18 bullpen stays on Wednesday
   const ok = k => !fixed[k] && k!=="Sun" && ["rec","lt"].includes(types[k]) && !(next(k) && playing(next(k)));
   const to = penOrder(age).find(ok);
   if (penDay) types[penDay] = "rec";
@@ -1205,7 +1216,8 @@ function buildGameWeek(dates, games, age, forced){
   if (pitched){ if (penDay) types[penDay] = "rec"; }
   else {
     // keep the full bullpen, but never on a game day, a down day or the day before a game
-    const ok = k => !fixed[k] && k!=="Sun" && !games[addDays(dates[k],1)];
+    const ok = k => !fixed[k] && k!=="Sun" && (age==="U18" ? k==="Wed" || !games[addDays(dates[k],1)] : !games[addDays(dates[k],1)]);
+    // U18: always Wednesday unless the Wednesday itself is a game, down day, day off or travel day
     if (!penDay || !ok(penDay)){
       const to = penOrder(age).find(ok);
       if (to){
@@ -1402,7 +1414,7 @@ function renderWeek(){
   $("w-pitch").innerHTML = set.days.map(d=>[d, d]).concat([["none","Didn't pitch"]])
     .map(([v,l])=>`<button type="button" data-v="${v}" class="${pitchKey===v?'on':''}">${l}</button>`).join("");
   const pattern = WEEKS.find(x=>x.k===weekPattern(set.k, pitchKey)) || WEEKS[1];
-  const w = built ? {d: plan.types} : {d: Object.assign({}, setup.age==="U16" ? u16Thursday(pattern.d) : pattern.d)};
+  const w = built ? {d: plan.types} : {d: Object.assign({}, setup.age==="U16" ? u16Thursday(pattern.d) : setup.age==="U18" ? u18Wednesday(pattern.d) : pattern.d)};
   const calMoved = built ? null : applyCal(w.d, dates, setup.age);
   const posOnly = isPosOnly(ath);
   if (posOnly) w.d = posWeek(w.d);
@@ -1411,6 +1423,7 @@ function renderWeek(){
   const penNote = posOnly ? " Position player schedule."
     : calMoved==="none" ? " No full bullpen this week: the BQ schedule leaves no safe day for one."
     : calMoved ? " Bullpen on "+DAYS.find(([k])=>k===calMoved)[1]+" this week to fit the BQ schedule."
+    : setup.age==="U18" && penAt==="Wed" ? " Bullpen on Wednesday."
     : setup.age!=="U16" || penAt==="Thu" ? (setup.age==="U16" ? " Bullpen on Thursday." : "")
     : !penAt ? (built && !plan.pitched ? " No full bullpen this week: no safe day around this week's games." : " No full bullpen this week because of pitching in a game.")
     : " Bullpen moved to "+DAYS.find(([k])=>k===penAt)[1]+" this week: "+(w.d.Fri==="game" ? "no bullpen the day before a game." : w.d.Thu==="game" ? "Thursday is a game day." : "Thursday is a recovery day after pitching.");
