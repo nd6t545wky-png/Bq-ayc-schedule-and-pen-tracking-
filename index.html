@@ -1430,20 +1430,24 @@ function renderTeam(){
   if (role!=="coach") return;
   $("team-wk").querySelectorAll("button").forEach(b=>b.classList.toggle("on", +b.dataset.v===teamWeek));
   const dates = weekDates(teamWeek), byAth = {}, ob = outbox();
+  // this week: just yesterday and today; last week: the whole week
+  const today = localDate(), cols = teamWeek ? DAYS.map(([d,full])=>({date:dates[d], th:d, name:full}))
+    : [{date:addDays(today,-1), th:"Yesterday", name:"yesterday"}, {date:today, th:"Today", name:"today"}];
+  const colDates = cols.map(c=>c.date);
   const all = Object.assign({}, checkinDocs, ob.checkins);
-  Object.values(all).forEach(c=>{ if (c && Object.values(dates).includes(c.date) && (c.before!=null || c.after!=null)) (byAth[slug(c.athlete)] = byAth[slug(c.athlete)] || {name:c.athlete, days:{}}).days[c.date] = c; });
+  Object.values(all).forEach(c=>{ if (c && colDates.includes(c.date) && (c.before!=null || c.after!=null)) (byAth[slug(c.athlete)] = byAth[slug(c.athlete)] || {name:c.athlete, days:{}}).days[c.date] = c; });
   playerNames.forEach(n=>{ if (!(joinedOn(n) > dates.Sun)) byAth[slug(n)] = byAth[slug(n)] || {name:n, days:{}}; });
   $("team-title").textContent = "Team arm check-ins · "+setup.age;
   const rows = Object.values(byAth).filter(r=>inGroup(r.name)).sort((a,b)=>byName(a.name, b.name));
   const sel = slug($("w-ath").value||"");
   const flags = [];
-  $("team-tbl").innerHTML = `<tr><th>Player</th>${DAYS.map(([d])=>`<th>${d}</th>`).join("")}</tr>` + (rows.length ? rows.map(r=>`<tr data-ath="${esc(r.name)}" class="${slug(r.name)===sel?'sel':''}"><td><b>${esc(r.name)}</b></td>${DAYS.map(([d,full])=>{
-      const c = r.days[dates[d]];
-      if (!c) return `<td class="na">${dates[d] < joinedOn(r.name) ? "" : "–"}</td>`;
-      if (isFlag(c)) flags.push(`${esc(r.name)}, ${full}: ${c.before ?? "–"} → ${c.after ?? "–"}`);
+  $("team-tbl").innerHTML = `<tr><th>Player</th>${cols.map(c=>`<th>${c.th}</th>`).join("")}</tr>` + (rows.length ? rows.map(r=>`<tr data-ath="${esc(r.name)}" class="${slug(r.name)===sel?'sel':''}"><td><b>${esc(r.name)}</b></td>${cols.map(col=>{
+      const c = r.days[col.date];
+      if (!c) return `<td class="na">${col.date < joinedOn(r.name) ? "" : "–"}</td>`;
+      if (isFlag(c)) flags.push(`${esc(r.name)}, ${col.name}: ${c.before ?? "–"} → ${c.after ?? "–"}`);
       return `<td class="${isFlag(c)?'flag':''}">${c.before ?? "–"}→${c.after ?? "–"}</td>`;
     }).join("")}</tr>`).join("")
-    : `<tr><td colspan="8" class="na">No check-ins ${teamWeek?"last":"this"} week yet.</td></tr>`);
+    : `<tr><td colspan="${cols.length+1}" class="na">No check-ins ${teamWeek?"last week":"yesterday or today"} yet.</td></tr>`);
   renderTeamGames(dates); renderTeamHits(dates);
   $("team-flags").innerHTML = flags.length ? `<div class="flags"><b>${flags.length} to follow up</b><ul>${flags.map(f=>`<li>${f}</li>`).join("")}</ul></div>` : "";
 }
