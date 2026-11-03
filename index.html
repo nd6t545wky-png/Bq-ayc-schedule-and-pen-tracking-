@@ -1602,7 +1602,12 @@ function renderWeek(){
     // before the athlete joined, the only thing to fill in is a game they played that day
     if (dates[d] < start) return `<div class="day pre ${game?'hasgame':''}"><div class="dayhead">${dayLabel}<span class="tag off">Before joining</span></div><div class="pen-desc">${esc(ath)}'s schedule starts ${new Date(start+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long", day:"numeric", month:"short"})}, the day they joined.${game ? " You can still log this game." : ""}</div>${game}</div>`;
     // the 1-10 scales only on today's card; earlier days just show what was logged
-    if (on && dates[d] === todayDate){
+    // no-throw days still get the morning arm check (one 1-10 scale, saved as "before")
+    if (!on && dates[d] === todayDate){
+      if (!ath) check = `<div class="armq"><div class="pen-desc">Enter the athlete's name at the top to log how their arm feels today.</div></div>`;
+      else { const c = getCheckin(ath, dates[d]) || {};
+        check = `<div class="armq"><div class="q">How does ${esc(ath)}'s arm feel today?</div>${scaleHtml("w:before:"+dates[d], c.before)}</div>`; }
+    } else if (on && dates[d] === todayDate){
       if (!ath) check = `<div class="armq"><div class="pen-desc">Enter the athlete's name at the top to log how their arm feels before and after throwing.</div></div>`;
       else {
         const c = getCheckin(ath, dates[d]) || {};
@@ -1611,7 +1616,7 @@ function renderWeek(){
           <div class="label">After throwing</div>${scaleHtml("w:after:"+dates[d], c.after)}
           ${deltaHtml(c.before, c.after)}</div>`;
       }
-    } else if (on && ath && dates[d] < todayDate){
+    } else if (ath && dates[d] < todayDate){
       const c = getCheckin(ath, dates[d]);
       if (c && (c.before!=null || c.after!=null)) check = `<div class="armq">${deltaHtml(c.before, c.after) || `<div class="delta">Arm: before <b>${c.before ?? "–"}</b> · after <b>${c.after ?? "–"}</b></div>`}</div>`;
     }
