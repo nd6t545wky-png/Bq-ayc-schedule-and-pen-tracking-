@@ -2511,30 +2511,34 @@ hitDocs = lsGet("bqpen.hits", {});
 renderWeek();
 let reloadT = null;
 function scheduleReload(){ clearTimeout(reloadT); reloadT = setTimeout(loadAll, 400); }
+let authUid = null;   // the account the app is set up for (auth events for it again are just token refreshes)
 async function afterAuth(){
-  isCoach = false; coachInfo = null; role = null; playerName = null;
+  // work out who this is first, then switch over in one go: while the checks run the app keeps working as before
+  // (setting role to null here used to lock the app for a moment and throw players off a live pen)
+  let nRole = null, nName = null, nCoach = false, nInfo = null;
   if (!session) lsSet("bqpen.role", null);
   if (session){
     const {data, error} = await sb.rpc("is_coach");
     // no signal at the field: carry on as who they were last time on this phone
     const cached = lsGet("bqpen.role", null);
     if (error && cached && cached.uid===session.user.id){
-      ({role, playerName, isCoach, coachInfo} = cached); applyRole(); renderAcct(); return;
+      ({role, playerName, isCoach, coachInfo} = cached); authUid = session.user.id; applyRole(); renderAcct(); return;
     }
-    isCoach = !error && data===true;
-    if (isCoach){
-      role = "coach";
+    nCoach = !error && data===true;
+    if (nCoach){
+      nRole = "coach";
       const c = await sb.rpc("my_coach");
-      coachInfo = (!c.error && c.data) || {name:null, owner:false, age_groups:[]};
+      nInfo = (!c.error && c.data) || {name:null, owner:false, age_groups:[]};
     }
     else {
       const r = await sb.rpc("my_athlete");
-      if (!r.error && r.data){ role = "player"; playerName = capName(r.data); }
+      if (!r.error && r.data){ nRole = "player"; nName = capName(r.data); }
     }
-    if (!role && await autoJoin()) return afterAuth();
-    lsSet("bqpen.role", role ? {uid: session.user.id, role, playerName, isCoach, coachInfo} : null);
-    if (role) claimPhonePens();
+    if (!nRole && await autoJoin()) return afterAuth();
+    lsSet("bqpen.role", nRole ? {uid: session.user.id, role: nRole, playerName: nName, isCoach: nCoach, coachInfo: nInfo} : null);
   }
+  role = nRole; playerName = nName; isCoach = nCoach; coachInfo = nInfo; authUid = session && role ? session.user.id : null;
+  if (session && role) claimPhonePens();
   applyRole();
   if (chan){ sb.removeChannel(chan); chan = null; }
   if (role){
@@ -2566,8 +2570,9 @@ function applyLock(){
   const l = locked();
   $("tabs").querySelectorAll("button").forEach(b=>{ if (b.dataset.t!=="acct") b.classList.toggle("lockhide", l); });
   $("lock-note").hidden = !l;
-  if (l && tab!=="acct"){ lockForced = true; setTab("acct"); }
-  else if (!l && lockForced){ lockForced = false; setTab("sched"); }
+  if (l && tab!=="acct"){ lockForced = tab; setTab("acct"); }
+  else if (!l && lockForced){ const back = lockForced; lockForced = false;
+    if (back==="pens" && pen && pen.status==="live" && live){ setTab("pens"); show("v-live"); } else setTab(back); }
 }
 let lockForced = false;
 function applyRole(){
@@ -2596,7 +2601,8 @@ function applyRole(){
     $("w-ath").value = playerName;
     const prof = athleteDocs[slug(playerName)];
     if (prof && prof.age){ setup.age = prof.age; }
-    if (!$("v-live").hidden) show("v-setup");
+    // a live pen left on screen from someone else (e.g. a coach on this phone) goes back to setup; never the player's own pen
+    if (!$("v-live").hidden && !(pen && pen.status==="live" && slug(pen.athlete||"")===slug(playerName))) show("v-setup");
   }
   renderWeek();
   applyLock();
@@ -3049,7 +3055,10 @@ if (roleBoot && roleBoot.role){ ({role, playerName, isCoach, coachInfo} = roleBo
 applyLock();
 if (sb){
   // supabase-js warns against awaiting its own calls inside this callback
-  sb.auth.onAuthStateChange((ev, s)=>{ session = s; if (ev==="PASSWORD_RECOVERY"){ recovering = true; setTimeout(()=>setTab("acct"), 0); } setTimeout(afterAuth, 0); });
+  sb.auth.onAuthStateChange((ev, s)=>{ session = s; if (ev==="PASSWORD_RECOVERY"){ recovering = true; setTimeout(()=>setTab("acct"), 0); }
+    // a refreshed token, or the same account signing in again when the app comes back, changes nothing: keep going
+    if ((ev==="TOKEN_REFRESHED" || ev==="SIGNED_IN") && s && role && authUid===s.user.id) return;
+    setTimeout(afterAuth, 0); });
   window.addEventListener("online", flush);
   document.addEventListener("visibilitychange", ()=>{ if (!document.hidden){ flush(); scheduleReload(); } });
   setInterval(()=>{ if (pendingCount()) flush(); }, 30000);
