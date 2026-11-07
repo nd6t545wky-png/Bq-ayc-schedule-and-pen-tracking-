@@ -302,6 +302,7 @@ button.primary{border-radius:999px;background:var(--brand);box-shadow:inset 0 0 
 .ring .arc{fill:none;stroke-width:7;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%}
 .ring .num{font-family:var(--display);font-weight:700;font-size:28px;fill:var(--ink)}
 .ring .num.none{fill:var(--muted)}
+button[data-pain].on{background:color-mix(in srgb,var(--miss) 18%,transparent);color:var(--miss);box-shadow:inset 0 0 0 1.5px var(--miss)}
 .ring .nm{font-size:14px;font-weight:600;color:var(--ink);line-height:1.15}
 .ring .sub{font-size:12px;color:var(--muted);line-height:1.2}
 @media (prefers-reduced-motion:no-preference){.ring .arc{transition:stroke-dashoffset .6s ease}}
@@ -352,7 +353,7 @@ button.primary{border-radius:999px;background:var(--brand);box-shadow:inset 0 0 
       <div id="team-games"></div>
       <div id="team-hits"></div>
       <div class="scroll"><table class="log team" id="team-tbl"></table></div>
-      <div class="pen-desc">Before → after for each day. Red: arm score 4 or lower, or a drop of 3 or more. Tap a player to open their week below.</div>
+      <div class="pen-desc">Before → after for each day. Red: arm score 4 or lower, a drop of 3 or more, or pain while throwing. Tap a player to open their week below.</div>
     </div>
     <div class="days" id="w-days"></div>
   </section>
@@ -882,7 +883,7 @@ const prepHtml = () => progList("Bands: J Band routine", BANDS.map(x=>[x, "x10"]
 // ---------- individual throwing programs (one athlete only; replaces their normal week on these dates) ----------
 // Zavier Leigh: return to throwing program, 9 Nov 2026 to 3 Jan 2027 (rows Mon..Sun)
 const PROGRAMS = {
-  "zavier-leigh": {from: "2026-11-09", note: "If any pain occurs while throwing, stop immediately. When throwing resumes, restart at 60 ft for 20 throws.",
+  "zavier-leigh": {from: "2026-11-09", note: "If any pain occurs while throwing, stop immediately and tap ‘Had pain while throwing’: the next throwing day goes back one level.",
     weeks: [
       ["No throw","No throw","No throw","No throw","Start bands","Bands","Bands"],
       ["Bands","Bands","Bands","Bands","60 ft|20 throws","Bands","75 ft|25 throws"],
@@ -893,18 +894,37 @@ const PROGRAMS = {
       ["Hybrid B","Bands","90 ft|30 throws","Hybrid A|Pen: 25 pitches, fastball + changeup","90 ft|30 throws","Hybrid B","Bands"],
       ["Hybrid B","Bands","90 ft|30 throws","Hybrid A|Pen: 25 pitches, fastball + changeup","90 ft|30 throws","Hybrid B","Bands"]]}
 };
-// -> null, or {t, T, kind:"off"|"bands"|"throw", throws, pen, text} for this athlete and date
-function programDay(ath, date){
-  const pr = PROGRAMS[slug(ath||"")]; if (!pr || date < pr.from) return null;
-  const n = Math.round((new Date(date+"T00:00:00") - new Date(pr.from+"T00:00:00")) / 864e5), row = pr.weeks[Math.floor(n/7)];
-  if (!row) return null;
-  const cell = row[n % 7], [a, b] = cell.split("|");
+// One sheet cell -> a day: {t, T, kind:"off"|"bands"|"throw", throws, pen, text}
+function programCell(cell){
   if (cell==="No throw") return {t:"off", kind:"off", T:{n:"No throw",i:"0%",pl:"-",t:"-",cls:"off"}, text:"Full day off: no throwing, no bands."};
   if (cell==="Start bands" || cell==="Bands") return {t:"prog", kind:"bands", T:{n:"No throw",i:cell==="Start bands"?"Start bands":"Bands",pl:"-",t:"-",cls:""}, text: cell==="Start bands" ? "Start the J Band routine today. No throwing." : "J Band routine. No throwing."};
-  if (cell==="GAME") return {t:"game2", kind:"throw", throws:true, T:{n:"Game day",i:"Game",pl:"-",t:"Game",cls:"game"}, text:"Game day."};
-  const pen = /^Pen:/.test(b||"");
+  if (cell==="GAME") return {t:"game2", kind:"throw", throws:true, game:true, T:{n:"Game day",i:"Game",pl:"-",t:"Game",cls:"game"}, text:"Game day."};
+  const [a, b] = cell.split("|"), pen = /^Pen:/.test(b||"");
   return {t:"prog", kind:"throw", throws:true, pen, T:{n: pen ? "Bullpen" : (b || "Throwing day"), i:a, pl:"-", t:cell, cls: pen ? "pen" : "", pen},
     text: a + (b ? (pen ? ", then " + b.replace(/^Pen: /, "bullpen: ") : ": " + b) : "")};
+}
+const isLevel = c => c!=="No throw" && c!=="Start bands" && c!=="Bands" && c!=="GAME";   // a throwing step of the program
+const painOn = (ath, date) => !!(getCheckin(ath, date) || {}).pain;
+// -> null, or the day for this athlete and date. Pain on a throwing day sends the next throwing day back one step
+// (the step before the one that hurt), and the program carries on from there; bands / no-throw days stay as on the sheet.
+// While behind the sheet, game days become program throwing days (no pitching in the game).
+function programDay(ath, date){
+  const pr = PROGRAMS[slug(ath||"")]; if (!pr || date < pr.from) return null;
+  const cells = pr.weeks.flat(), N = Math.round((new Date(date+"T00:00:00") - new Date(pr.from+"T00:00:00")) / 864e5);
+  if (N >= cells.length) return null;
+  const levels = cells.filter(isLevel);
+  let ptr = 0, sched = 0, lastPain = null;
+  for (let i = 0; i <= N; i++){
+    const day = addDays(pr.from, i), cell = cells[i], behind = ptr < sched;
+    const step = isLevel(cell) || (cell==="GAME" && behind);
+    if (isLevel(cell)) sched++;
+    if (!step){ if (i===N) return Object.assign(programCell(cell), {lastPain}); continue; }
+    const shown = levels[ptr] || levels[levels.length-1], pain = painOn(ath, day);
+    if (i===N) return Object.assign(programCell(shown), {step:true, pain, lastPain, behind: ptr < sched - (isLevel(cell)?1:0), sheet: cell, wasGame: cell==="GAME"});
+    if (pain) lastPain = day;
+    ptr = pain ? Math.max(0, ptr - 1) : ptr + 1;
+  }
+  return null;
 }
 // Early work warm-up (Team Preparation sheet: Early Work Prep), first thing on every throwing day
 const EARLY_WORK = [["World's Greatest Stretch","4 / side"],["Overhead Squat","8"],["Counter Rotations","6 / side"],
@@ -1451,7 +1471,7 @@ let teamWeek = 0, playerNames = [];
 let joinDates = lsGet("bqpen.joined", {});
 function setJoinDates(rows){ rows.forEach(r=>{ if (r.added_at) joinDates[r.athlete_slug] = localDate(new Date(r.added_at)); }); lsSet("bqpen.joined", joinDates); }
 const joinedOn = ath => (ath && joinDates[slug(ath)]) || "";
-const isFlag = c => c && ((c.before!=null && c.before<=4) || (c.after!=null && c.after<=4) || (c.before!=null && c.after!=null && c.after-c.before<=-3));
+const isFlag = c => c && (c.pain || (c.before!=null && c.before<=4) || (c.after!=null && c.after<=4) || (c.before!=null && c.after!=null && c.after-c.before<=-3));
 // Coaches work one age group at a time: lists only show athletes in the selected age group
 // (players only ever see their own data, so nothing is filtered for them).
 function ageOfName(name){ const a = athleteDocs[slug(name||"")]; return (a && a.age) || ""; }
@@ -1466,7 +1486,7 @@ function renderTeam(){
     : [{date:addDays(today,-1), th:"Yesterday", name:"yesterday"}, {date:today, th:"Today", name:"today"}];
   const colDates = cols.map(c=>c.date);
   const all = Object.assign({}, checkinDocs, ob.checkins);
-  Object.values(all).forEach(c=>{ if (c && colDates.includes(c.date) && (c.before!=null || c.after!=null)) (byAth[slug(c.athlete)] = byAth[slug(c.athlete)] || {name:c.athlete, days:{}}).days[c.date] = c; });
+  Object.values(all).forEach(c=>{ if (c && colDates.includes(c.date) && (c.before!=null || c.after!=null || c.pain)) (byAth[slug(c.athlete)] = byAth[slug(c.athlete)] || {name:c.athlete, days:{}}).days[c.date] = c; });
   playerNames.forEach(n=>{ if (!(joinedOn(n) > dates.Sun)) byAth[slug(n)] = byAth[slug(n)] || {name:n, days:{}}; });
   $("team-title").textContent = "Team arm check-ins · "+setup.age;
   const rows = Object.values(byAth).filter(r=>inGroup(r.name)).sort((a,b)=>byName(a.name, b.name));
@@ -1475,13 +1495,20 @@ function renderTeam(){
   $("team-tbl").innerHTML = `<tr><th>Player</th>${cols.map(c=>`<th>${c.th}</th>`).join("")}</tr>` + (rows.length ? rows.map(r=>`<tr data-ath="${esc(r.name)}" class="${slug(r.name)===sel?'sel':''}"><td><b>${esc(r.name)}</b></td>${cols.map(col=>{
       const c = r.days[col.date];
       if (!c) return `<td class="na">${col.date < joinedOn(r.name) ? "" : "–"}</td>`;
-      if (isFlag(c)) flags.push(`${esc(r.name)}, ${col.name}: ${c.before ?? "–"} → ${c.after ?? "–"}`);
+      if (isFlag(c)) flags.push(`${esc(r.name)}, ${col.name}: ${c.before ?? "–"} → ${c.after ?? "–"}${c.pain ? " · pain while throwing" : ""}`);
       return `<td class="${isFlag(c)?'flag':''}">${c.before ?? "–"}→${c.after ?? "–"}</td>`;
     }).join("")}</tr>`).join("")
     : `<tr><td colspan="${cols.length+1}" class="na">No check-ins ${teamWeek?"last week":"yesterday or today"} yet.</td></tr>`);
   renderTeamGames(dates); renderTeamHits(dates);
   $("team-flags").innerHTML = flags.length ? `<div class="flags"><b>${flags.length} to follow up</b><ul>${flags.map(f=>`<li>${f}</li>`).join("")}</ul></div>` : "";
 }
+// pain while throwing on an individual program day: saved on that day's check-in, and the program steps back
+$("w-days").addEventListener("click", e=>{
+  const b = e.target.closest("[data-pain]"); if (!b) return;
+  const ath = curAthlete(); if (!ath) return;
+  const c = getCheckin(ath, b.dataset.pain) || {};
+  setCheckin(ath, b.dataset.pain, "pain", c.pain ? null : true); renderWeek();
+});
 // coaches have one This week / Last week switch (on the team card) for the team and the player's week
 $("team-wk").addEventListener("click", e=>{ const b = e.target.closest("button"); if (!b) return; teamWeek = schedWeek = +b.dataset.v; gameEdit = null; renderWeek(); });
 // tapping a player in the team lists opens their profile
@@ -1658,7 +1685,10 @@ function renderWeek(){
       <div class="dayhead" data-dtoggle><div class="dayname">${full}${d===today?"<small>Today</small>":""}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>${tourneyOn(dates[d]) ? `<span class="tag game">${esc(tourneyOn(dates[d]).label)}</span>` : label}</div>
       <div class="dtype" data-dtoggle><span class="int">${T.i}</span><span class="tag ${T.cls}">${T.n}</span>${d!==today?'<span class="caret" aria-hidden="true"></span>':""}</div>
       ${cu ? (cu.kind==="off" ? `<div class="pen-desc">${esc(cu.text)}</div>`
-        : `<dl class="items"><dt>Program</dt><dd>${esc(cu.text)}</dd>${cu.throws ? `<dt>Prep</dt><dd>Early work warm-up, bands</dd>` : ""}</dl>${cu.throws ? `<div class="pen-desc">${esc(PROGRAMS[slug(ath)].note)}</div>` : ""}`)
+        : `<dl class="items"><dt>Program</dt><dd>${esc(cu.text)}</dd>${cu.throws ? `<dt>Prep</dt><dd>Early work warm-up, bands</dd>` : ""}</dl>`
+          + (cu.behind ? `<div class="gwarn">Back one level after pain${cu.lastPain ? " on "+new Date(cu.lastPain+"T00:00:00").toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short"}) : ""}${cu.wasGame ? ": no pitching in today's game" : ""}. The sheet had: ${esc(programCell(cu.sheet).text)}</div>` : "")
+          + (cu.throws ? `<div class="pen-desc">${esc(PROGRAMS[slug(ath)].note)}</div>` : "")
+          + (cu.step && dates[d] <= todayDate ? `<div class="glog"><button type="button" class="small ${cu.pain?'on':''}" data-pain="${dates[d]}">${cu.pain ? "Pain logged: next throw goes back one level (tap to undo)" : "Had pain while throwing"}</button></div>` : ""))
       : on ? `<dl class="items"><dt>Prep</dt><dd>Early work warm-up, soft tissue (self manage), bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${armA||t==="lt"?`<dt>Arm care</dt><dd>${armA?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${recProg?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
       ${cu ? (cu.kind==="off" ? "" : (cu.throws ? earlyHtml() : "") + prepHtml()) : on ? earlyHtml() + prepHtml() + plyoHtml(T.pl, t) : ""}${arm}${recov}${btn}${ath && sprinter(ath) && (t==="pen" || t==="light") ? sprintHtml(ath, dates[d], t==="pen" ? 1 : 2) : ""}${game}${check}
     </div>`;
@@ -2521,17 +2551,19 @@ async function flush(){
 async function loadAll(){
   if (!sb || !role) return;
   const since = new Date(weekDates(-2).Mon+"T00:00:00");
-  const [p, a, c, g, h, sp] = await Promise.all([
+  const [p, a, c, g, h, sp, pn] = await Promise.all([
     sb.from("pens").select("data").order("created_at",{ascending:false}).limit(60),
     sb.from("athletes").select("id,data").limit(500),
     sb.from("checkins").select("data").gte("day", localDate(since)).limit(2000),
     sb.from("games").select("data").gte("day", localDate(since)).limit(1000),
     sb.from("hitting").select("data").gte("day", localDate(since)).limit(1000),
     // every finished sprint Day 1, older ones too: they set which week of the sprint program is next
-    sb.from("checkins").select("data").eq("data->>sprint", "d1").limit(2000)]);
+    sb.from("checkins").select("data").eq("data->>sprint", "d1").limit(2000),
+    // pain on an individual program day, older ones too: they set where the program is up to
+    sb.from("checkins").select("data").eq("data->>pain", "true").limit(2000)]);
   if (!p.error){ serverPens = p.data.map(r=>r.data); lsSet("bqpen.cache", serverPens); }
   if (!a.error){ athleteDocs = {}; a.data.forEach(r=>{ athleteDocs[r.id] = r.data; }); lsSet("bqpen.athletes", athleteDocs); }
-  if (!c.error){ checkinDocs = {}; c.data.concat(sp.error ? [] : sp.data).forEach(r=>{ checkinDocs[r.data.id] = r.data; }); lsSet("bqpen.checkins", checkinDocs); }
+  if (!c.error){ checkinDocs = {}; c.data.concat(sp.error ? [] : sp.data, pn.error ? [] : pn.data).forEach(r=>{ checkinDocs[r.data.id] = r.data; }); lsSet("bqpen.checkins", checkinDocs); }
   if (!g.error){ gameDocs = {}; g.data.forEach(r=>{ gameDocs[r.data.id] = r.data; }); lsSet("bqpen.games", gameDocs); }
   if (!h.error){ h.data.forEach(r=>{ hitDocs[r.data.id] = r.data; }); lsSet("bqpen.hits", hitDocs); hitSeasonFor = null; }
   if (role==="player"){ const j = await sb.from("players").select("athlete_slug,added_at"); if (!j.error) setJoinDates(j.data); }
