@@ -879,6 +879,33 @@ function plyoHtml(pl, t){
   return progList("Plyos: "+(anchoredOnly ? "reverse throws and pivot picks only" : half ? "50% volume" : game ? "game day" : "full routine"), rows);
 }
 const prepHtml = () => progList("Bands: J Band routine", BANDS.map(x=>[x, "x10"]));
+// ---------- individual throwing programs (one athlete only; replaces their normal week on these dates) ----------
+// Zavier Leigh: return to throwing program, 9 Nov 2026 to 3 Jan 2027 (rows Mon..Sun)
+const PROGRAMS = {
+  "zavier-leigh": {from: "2026-11-09", note: "If any pain occurs while throwing, stop immediately. When throwing resumes, restart at 60 ft for 20 throws.",
+    weeks: [
+      ["No throw","No throw","No throw","No throw","Start bands","Bands","Bands"],
+      ["Bands","Bands","Bands","Bands","60 ft|20 throws","Bands","75 ft|25 throws"],
+      ["90 ft|30 throws","Bands","90 ft|40 throws","90 ft|40 throws","Bands","110 ft|55 throws","Bands"],
+      ["120 ft|60 throws","Bands","90 ft|30 throws","120 ft|70 throws","Bands","Bands","GAME"],
+      ["90 ft|30 throws","Bands","Hybrid B","150 ft|80 throws","Bands","90 ft|30 throws","GAME"],
+      ["Hybrid B|Pen: 15 pitches","Bands","90 ft|30 throws","Hybrid A|Pen: 20 pitches, fastball","90 ft|30 throws","Hybrid B","Bands"],
+      ["Hybrid B","Bands","90 ft|30 throws","Hybrid A|Pen: 25 pitches, fastball + changeup","90 ft|30 throws","Hybrid B","Bands"],
+      ["Hybrid B","Bands","90 ft|30 throws","Hybrid A|Pen: 25 pitches, fastball + changeup","90 ft|30 throws","Hybrid B","Bands"]]}
+};
+// -> null, or {t, T, kind:"off"|"bands"|"throw", throws, pen, text} for this athlete and date
+function programDay(ath, date){
+  const pr = PROGRAMS[slug(ath||"")]; if (!pr || date < pr.from) return null;
+  const n = Math.round((new Date(date+"T00:00:00") - new Date(pr.from+"T00:00:00")) / 864e5), row = pr.weeks[Math.floor(n/7)];
+  if (!row) return null;
+  const cell = row[n % 7], [a, b] = cell.split("|");
+  if (cell==="No throw") return {t:"off", kind:"off", T:{n:"No throw",i:"0%",pl:"-",t:"-",cls:"off"}, text:"Full day off: no throwing, no bands."};
+  if (cell==="Start bands" || cell==="Bands") return {t:"prog", kind:"bands", T:{n:"No throw",i:cell==="Start bands"?"Start bands":"Bands",pl:"-",t:"-",cls:""}, text: cell==="Start bands" ? "Start the J Band routine today. No throwing." : "J Band routine. No throwing."};
+  if (cell==="GAME") return {t:"game2", kind:"throw", throws:true, T:{n:"Game day",i:"Game",pl:"-",t:"Game",cls:"game"}, text:"Game day."};
+  const pen = /^Pen:/.test(b||"");
+  return {t:"prog", kind:"throw", throws:true, pen, T:{n: pen ? "Bullpen" : (b || "Throwing day"), i:a, pl:"-", t:cell, cls: pen ? "pen" : "", pen},
+    text: a + (b ? (pen ? ", then " + b.replace(/^Pen: /, "bullpen: ") : ": " + b) : "")};
+}
 // Early work warm-up (Team Preparation sheet: Early Work Prep), first thing on every throwing day
 const EARLY_WORK = [["World's Greatest Stretch","4 / side"],["Overhead Squat","8"],["Counter Rotations","6 / side"],
   ["Cross Body Reverse Lunge","4 / side"],["Bear Crawl","4 x 4, forwards and backwards"],["Arm Circles","10 each way"]];
@@ -1575,9 +1602,11 @@ function renderWeek(){
   $("w-gamedate").min = weekDates(-1).Mon; $("w-gamedate").max = weekDates(0).Sun;
   $("w-wk").hidden = role==="coach";
   $("w-note").textContent = setup.age+(bq.length ? " BQ training: "+bq.map(d=>DAYS.find(x=>x[0]===d)[1]).join(" and ") : ": no set BQ training days")+"."+penNote+" Soft tissue, bands and recovery every day except the no-throw day.";
+  if (DAYS.some(([k])=>programDay(ath, dates[k]))) $("w-note").textContent = `${ath}'s own throwing program this week (it replaces the usual schedule). ${PROGRAMS[slug(ath)].note}`;
   const gameDays = [];
   $("w-days").innerHTML = DAYS.map(([d,full])=>{
-    const t = w.d[d], T = DAYTYPES[t], _g = ["game","game2","pos","pospen"].includes(t) || tourneyOn(dates[d]) ? gameDays.push(dates[d]) : 0, dayLabel = `<div class="dayname">${full}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>`;
+    const cu = programDay(ath, dates[d]);   // an individual program replaces the normal day
+    const t = cu ? cu.t : w.d[d], T = cu ? cu.T : DAYTYPES[t], _g = ["game","game2","pos","pospen"].includes(t) || tourneyOn(dates[d]) ? gameDays.push(dates[d]) : 0, dayLabel = `<div class="dayname">${full}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>`;
     const ev = calEvent(setup.age, dates[d]);
     const label = ev ? calTag(ev) : !inCal(dates[d]) && bq.includes(d) ? `<span class="tag bq">BQ training</span>` : t==="off" ? `<span class="tag off">Day off</span>` : `<span class="tag">On own</span>`;
     const on = t!=="off";
@@ -1607,7 +1636,7 @@ function renderWeek(){
     if (dates[d] < start) return `<div class="day pre ${game?'hasgame':''}"><div class="dayhead">${dayLabel}<span class="tag off">Before joining</span></div><div class="pen-desc">${esc(ath)}'s schedule starts ${new Date(start+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long", day:"numeric", month:"short"})}, the day they joined.${game ? " You can still log this game." : ""}</div>${game}</div>`;
     // the 1-10 scales only on today's card; earlier days just show what was logged
     // no-throw days still get the morning arm check (one 1-10 scale, saved as "before")
-    if (!on && dates[d] === todayDate){
+    if ((!on || (cu && !cu.throws)) && dates[d] === todayDate){
       if (!ath) check = `<div class="armq"><div class="pen-desc">Enter the athlete's name at the top to log how their arm feels today.</div></div>`;
       else { const c = getCheckin(ath, dates[d]) || {};
         check = `<div class="armq"><div class="q">How does ${esc(ath)}'s arm feel today?</div>${scaleHtml("w:before:"+dates[d], c.before)}</div>`; }
@@ -1628,8 +1657,10 @@ function renderWeek(){
     return `<div class="day ${d===today?'today':''} ${closed?'closed':''}" data-date="${dates[d]}">
       <div class="dayhead" data-dtoggle><div class="dayname">${full}${d===today?"<small>Today</small>":""}<span class="ddate">${new Date(dates[d]+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}</span></div>${tourneyOn(dates[d]) ? `<span class="tag game">${esc(tourneyOn(dates[d]).label)}</span>` : label}</div>
       <div class="dtype" data-dtoggle><span class="int">${T.i}</span><span class="tag ${T.cls}">${T.n}</span>${d!==today?'<span class="caret" aria-hidden="true"></span>':""}</div>
-      ${on ? `<dl class="items"><dt>Prep</dt><dd>Early work warm-up, soft tissue (self manage), bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${armA||t==="lt"?`<dt>Arm care</dt><dd>${armA?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${recProg?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
-      ${on ? earlyHtml() + prepHtml() + plyoHtml(T.pl, t) : ""}${arm}${recov}${btn}${ath && sprinter(ath) && (t==="pen" || t==="light") ? sprintHtml(ath, dates[d], t==="pen" ? 1 : 2) : ""}${game}${check}
+      ${cu ? (cu.kind==="off" ? `<div class="pen-desc">${esc(cu.text)}</div>`
+        : `<dl class="items"><dt>Program</dt><dd>${esc(cu.text)}</dd>${cu.throws ? `<dt>Prep</dt><dd>Early work warm-up, bands</dd>` : ""}</dl>${cu.throws ? `<div class="pen-desc">${esc(PROGRAMS[slug(ath)].note)}</div>` : ""}`)
+      : on ? `<dl class="items"><dt>Prep</dt><dd>Early work warm-up, soft tissue (self manage), bands</dd><dt>Plyos</dt><dd>${esc(T.pl)}</dd><dt>Throwing</dt><dd>${esc(T.t)}</dd>${armA||t==="lt"?`<dt>Arm care</dt><dd>${armA?"Arm care A":"Arm care B"}</dd>`:""}<dt>Recovery</dt><dd>${recProg?"Recovery / mobility program":"Recovery"}</dd></dl>` : `<div class="pen-desc">Full day off from throwing. No plyos or bands.</div>`}
+      ${cu ? (cu.kind==="off" ? "" : (cu.throws ? earlyHtml() : "") + prepHtml()) : on ? earlyHtml() + prepHtml() + plyoHtml(T.pl, t) : ""}${arm}${recov}${btn}${ath && sprinter(ath) && (t==="pen" || t==="light") ? sprintHtml(ath, dates[d], t==="pen" ? 1 : 2) : ""}${game}${check}
     </div>`;
   }).join("");
   if (role==="player" && schedWeek===0) pushGameDays(gameDays);
