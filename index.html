@@ -363,6 +363,7 @@ button[data-pain].on{background:color-mix(in srgb,var(--miss) 18%,transparent);c
     <div class="card">
       <div class="livehead"><div><h2 id="pf-name"></h2><div class="pen" id="pf-sub"></div><div class="pen-desc" id="pf-joined"></div></div><button class="small ghost" id="pf-back">Back</button></div>
       <button class="small" id="pf-week" style="align-self:flex-start;margin-top:8px">Open their throwing week</button>
+      <div class="pen-desc" id="pf-bz"></div>
       <div class="pen-desc" id="pf-load"></div>
     </div>
     <div id="pf-rings" class="rings" hidden></div>
@@ -1082,6 +1083,13 @@ const HRES = [
   ["Situation"], ["SF","Sac fly",{sf:1,bip:1}], ["SH","Sac bunt",{sh:1,bip:1,bunt:1}],
 ];
 const HR_BY = Object.fromEntries(HRES.filter(r=>r[1]).map(r=>[r[0], r]));
+// at-bats built from Ballclubz game totals (no detail on the type of out or strikeout)
+Object.assign(HR_BY, {K:["K","Strikeout",{ab:1,k:1}], OUT:["OUT","Out",{ab:1,bip:1}], XPA:["XPA","HBP / sacrifice",{}]});
+// days imported from Ballclubz arrive without the app's summary: work it out and save it (the live sheets read it)
+function bzBackfill(games, hits){
+  (games || []).forEach(g=>{ if (g && g.src==="ballclubz" && !g.summary) saveGame(Object.assign({}, g)); });
+  (hits || []).forEach(h=>{ if (h && h.src==="ballclubz" && !h.summary) saveHit(Object.assign({}, h)); });
+}
 const isBunt = res => !!(HR_BY[res] && HR_BY[res][2].bunt);
 // hard hit: thumb up / down on every result but a bunt (older at-bats used Hard / Medium / Weak contact)
 // Quality at-bat: any one of these. The last three are quick taps on the at-bat screen.
@@ -2418,13 +2426,15 @@ async function loadProfile(name){
   profLoading = name;
   $("pf-load").textContent = profMine ? "Loading your full history…" : "Loading their full history…";
   const id = slug(name), q = (t, order) => sb.from(t).select("data").eq("athlete_slug", id).order(order, {ascending:false}).limit(300);
-  const [p, c, g, h, j] = await Promise.all([q("pens","created_at"), q("checkins","day"), q("games","day"), q("hitting","day"),
-    sb.from("players").select("athlete_slug,added_at").eq("athlete_slug", id)]);
+  const [p, c, g, h, j, bz] = await Promise.all([q("pens","created_at"), q("checkins","day"), q("games","day"), q("hitting","day"),
+    sb.from("players").select("athlete_slug,added_at").eq("athlete_slug", id),
+    sb.from("ballclubz_links").select("league,status,bz_name,synced_at").eq("athlete_slug", id)]);
   if (profLoading===name) profLoading = null;
   if (profName!==name) return;
   const ok = r => !r.error ? r.data.map(x=>x.data) : null;
   if (!j.error) setJoinDates(j.data);
-  profData = {pens: ok(p), checkins: ok(c), games: ok(g), hits: ok(h), account: j.error ? null : j.data.length > 0};
+  profData = {pens: ok(p), checkins: ok(c), games: ok(g), hits: ok(h), account: j.error ? null : j.data.length > 0, bz: bz.error ? null : (bz.data[0] || false)};
+  bzBackfill(profData.games, profData.hits);
   $("pf-load").textContent = [p,c,g,h].some(r=>r.error) ? "Couldn't load everything. Showing what's on this phone." : "";
   renderProfile();
 }
@@ -2442,6 +2452,12 @@ function renderProfile(){
   const dd = s => new Date(s+"T00:00:00").toLocaleDateString("en-AU",{weekday:"short", day:"numeric", month:"short"});
   $("pf-name").textContent = name;
   $("pf-back").hidden = profMine; $("pf-week").hidden = profMine;
+  // Ballclubz: games from the GBL D1 league pages come in automatically, matched by name
+  const bz = d.bz, BZ_LEAGUE = {gbld1:"GBL D1"};
+  $("pf-bz").innerHTML = bz && bz.status==="linked" ? `Ballclubz (${esc(BZ_LEAGUE[bz.league]||bz.league)}): games import automatically, last checked ${new Date(bz.synced_at).toLocaleDateString("en-AU",{day:"numeric",month:"short"})}.${isCoach ? ' <button type="button" class="small ghost" data-bzsync>Check now</button>' : ""}`
+    : bz && bz.status==="ambiguous" ? `Ballclubz: more than one player called ${esc(name)}. Tell Dylan their club so the right games come in.`
+    : bz && bz.status==="not_found" ? (isCoach ? `Not found on Ballclubz (${esc(BZ_LEAGUE[bz.league]||bz.league)}), so games are logged by hand.` : "")
+    : "";
   $("pf-sub").textContent = [a.age, TYPE_NAME[a.type], a.hand ? (a.hand==="L"?"LHP":"RHP") : "", (a.mix||[]).length ? "throws "+a.mix.join(", ") : "", BATS_NAME[a.bats] || ""].filter(Boolean).join(" · ");
   const joined = joinDates[slug(name)];
   $("pf-joined").textContent = joined ? "Joined the app "+new Date(joined+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})
@@ -2487,7 +2503,13 @@ $("pf-week").addEventListener("click", ()=>{
   $("w-ath").value = name; $("w-ath").dispatchEvent(new Event("change"));
   document.querySelector(".day.today, #w-days .day")?.scrollIntoView({behavior:"smooth", block:"start"});
 });
-$("v-prof").addEventListener("click", e=>{
+$("v-prof").addEventListener("click", async e=>{
+  const sy = e.target.closest("[data-bzsync]");
+  if (sy){ sy.disabled = true; sy.textContent = "Checking…";
+    const r = await sb.functions.invoke("ballclubz-sync", {body: {}}).catch(err=>({error: err}));
+    sy.textContent = r.error ? "Couldn't reach Ballclubz" : "Done";
+    if (!r.error){ await loadAll(); if (profName) loadProfile(profName); }
+    return; }
   const row = e.target.closest("[data-pfopen]"); if (!row) return;
   const k = row.dataset.pfopen; if (profOpen.has(k)) profOpen.delete(k); else profOpen.add(k); renderProfile();
 });
@@ -2569,6 +2591,7 @@ async function loadAll(){
   if (role==="player"){ const j = await sb.from("players").select("athlete_slug,added_at"); if (!j.error) setJoinDates(j.data); }
   rebuildHist(); paintArsenal(); if (role==="player") applyRole(); else renderWeek();
   renderHit();
+  bzBackfill(Object.values(gameDocs), Object.values(hitDocs));
 }
 let roleBoot = lsGet("bqpen.role", null);   // set up below, once the account state exists
 athleteDocs = lsGet("bqpen.athletes", {});
