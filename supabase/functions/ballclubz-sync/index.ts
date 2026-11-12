@@ -6,7 +6,10 @@
 //   3. Pitching lines go into games, batting lines into hitting (as at-bats built from the totals).
 //      Anything typed in the app is never overwritten: a game or hitting day logged by hand is left alone
 //      (pitching: only empty fields are filled in).
+//   4. Each pitching game's box score (box.ts) adds strikes, batters faced, first-pitch strikes, 1-1 counts and
+//      how many were won, getting to 2 strikes first, and pitches thrown with 2 strikes.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { gameFor, liveGameFileUrl, parseScheduleGames, pitchingFromGameFile, playerTeam, type ScheduleGame } from "./box.ts";
 
 const LEAGUES = ["gbld1"];   // Baseball Queensland leagues on Ballclubz (GBL D1)
 const BASE = "https://www.ballclubz.com";
@@ -16,7 +19,7 @@ const txt = (h: string) => h.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").repl
 const num = (s: string | undefined) => { const n = parseFloat(s ?? ""); return Number.isFinite(n) ? n : 0; };
 
 async function get(path: string): Promise<string> {
-  const r = await fetch(BASE + path, {headers: {"User-Agent": "BQ-Weekly-sync"}});
+  const r = await fetch(path.startsWith("https://") ? path : BASE + path, {headers: {"User-Agent": "BQ-Weekly-sync"}});
   if (!r.ok) throw new Error(`${path}: ${r.status}`);
   const t = await r.text();
   if (t.length > 2_000_000) throw new Error(`${path}: too big`);
@@ -74,6 +77,21 @@ Deno.serve(async (req) => {
     let listHtml: string;
     try { listHtml = await get(`/${league}/teams`); } catch (e) { report.push({league, error: String(e)}); continue; }
     const years = seasonYears(listHtml);
+    // box scores: the schedule once per run, and each game's file once however many of our pitchers threw in it
+    let schedule: ScheduleGame[] | null = null;
+    const files = new Map<string, unknown>();
+    const boxLine = async (date: string, team: string | null, opp: string | null, who: string) => {
+      if (!team || !opp) return null;
+      try {
+        schedule = schedule ?? parseScheduleGames(await get(`/${league}/schedule`));
+        const game = gameFor(schedule, date, team, opp); if (!game) return null;
+        if (!files.has(game.path)) {
+          const url = liveGameFileUrl(await get(game.path));
+          files.set(game.path, url && url.startsWith("https://game.ballclubz.com/") ? JSON.parse(await get(url)) : null);
+        }
+        return pitchingFromGameFile(files.get(game.path), who);
+      } catch (_e) { return null; }
+    };
     const players = [...listHtml.matchAll(/<a href="\/[^"\/]+\/teams\/[^"\/]*\/(\d+)">([^<]+)<\/a><\/td><td[^>]*>([^<]*)<\/td>/g)]
       .map(m => ({id: m[1], last: txt(m[2]), first: txt(m[3])}));
     const byName = new Map<string, Set<string>>();
@@ -95,7 +113,8 @@ Deno.serve(async (req) => {
       let html: string;
       try { html = await get(`/${league}/teams//${pid}`); } catch (e) { report.push({athlete: name, error: String(e)}); continue; }
       const bzName = txt((html.match(/<h\d[^>]*>([^<]+)<\/h\d>\s*(?:<[^>]+>\s*)*AVG\/OBP\/SLG/) || [, ""])[1] as string) || name;
-      let gamesSaved = 0, hitsSaved = 0;
+      const team = playerTeam(html);
+      let gamesSaved = 0, hitsSaved = 0, boxes = 0;
 
       // ---- pitching: one game per day (a doubleheader's lines are added together)
       const pit = new Map<string, {outs: number; h: number; r: number; er: number; k: number; bb: number; hbp: number; pitches: number; opp: string | null}>();
@@ -109,13 +128,21 @@ Deno.serve(async (req) => {
         const id = `${s}_${d}`;
         const cur = (await db.from("games").select("data").eq("id", id).maybeSingle()).data?.data;
         const stats: Record<string, unknown> = {ip: outsToIp(g.outs), h: g.h, r: g.r, er: g.er, k: g.k, bb: g.bb, hbp: g.hbp, pitches: g.pitches || null};
+        // the box score, read once per game (box: 1 marks it done)
+        let box = cur?.box ? 1 : 0;
+        if (!box) {
+          const b = await boxLine(d, team, g.opp, bzName);
+          if (b) { Object.assign(stats, {pitches: b.pitches, strikes: b.strikes, bf: b.bf, fps: b.fps, c11: b.c11, c11w: b.c11w, r2k: b.r2k, p2k: b.p2k}); box = 1; boxes++; }
+        }
         let next: Record<string, unknown>;
         if (!cur) next = {id, athlete: name, date: d, pitched: true, opp: g.opp, ...stats, src: "ballclubz"};
+        // (a game already read keeps its box-score numbers: stats then only carries the player-page line)
         else if (cur.src === "ballclubz") next = {...cur, ...stats, opp: cur.opp || g.opp, pitched: true};
         else {   // logged in the app: only fill what is empty
           next = {...cur}; for (const [k, v] of Object.entries(stats)) if ((cur[k] ?? "") === "" && v != null) next[k] = v;
           if (!cur.opp && g.opp) next.opp = g.opp; next.pitched = true;
         }
+        if (box) next.box = 1;
         const changed = !cur || Object.keys(next).some(k => JSON.stringify(next[k]) !== JSON.stringify(cur[k]));
         if (!changed) continue;
         if (cur) delete next.summary;   // the app works the summary out again
@@ -153,7 +180,7 @@ Deno.serve(async (req) => {
       }
 
       if (!dry) await db.from("ballclubz_links").upsert({athlete_slug: s, league, player_id: pid, bz_name: bzName, status, synced_at: new Date().toISOString()});
-      report.push({athlete: name, league, player: pid, pitching: pit.size, batting: bat.size, gamesSaved, hitsSaved});
+      report.push({athlete: name, league, player: pid, pitching: pit.size, batting: bat.size, gamesSaved, hitsSaved, boxes});
       await new Promise(r => setTimeout(r, 300));   // go easy on their site
     }
   }

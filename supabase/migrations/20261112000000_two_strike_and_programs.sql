@@ -91,7 +91,7 @@ select jsonb_build_array(
   jsonb_build_object('name', 'Games',
     'cols', '[["athlete","Player"],["date","Date"],["opp","Opponent"],["pitched","Pitched"],["ip","IP"],["bf","Batters faced"],["pitches","Pitches"],["strikes","Strikes"],["balls","Balls"],["strikePct","Strike %"],["fps","1st-pitch strikes"],["fpsPct","1st-pitch strike %"],["c11","1-1 counts"],["c11w","1-1 counts won"],["c11Pct","1-1 win %"],["r2k","Got to 2 strikes first"],["r2kPct","Race to 2K %"],["p2k","2-strike pitches"],["os2k","2-strike offspeed"],["os2kPct","2K offspeed %"],["k","K"],["bb","BB"],["hbp","HBP"],["h","H"],["r","R"],["er","ER"],["hr","HR"],["wp","WP"],["topVelo","Top velo (mph)"],["whip","WHIP"],["pitchesPerInning","Pitches / inning"],["restDays","Rest days"],["overMax","Over daily max"],["notes","Notes"],["src","Source"]]'::jsonb,
     'rows', coalesce((select jsonb_agg(r order by lower(regexp_replace(btrim(r->>'athlete'), '^.*\s', '')), lower(r->>'athlete'), r->>'date' desc) from (
-      select jsonb_strip_nulls((g.data - array['id','athlete','date','updatedAt','summary','pitched','src']) || coalesce(g.data->'summary', '{}') || jsonb_build_object(
+      select jsonb_strip_nulls((g.data - array['id','athlete','date','updatedAt','summary','pitched','src','box']) || coalesce(g.data->'summary', '{}') || jsonb_build_object(
         'athlete', g.name, 'date', g.day::text, 'pitched', public.sheet_yn(g.data->>'pitched'),
         'src', case when g.data->>'src' = 'ballclubz' then 'Ballclubz' end)) r
       from games g) s), '[]')),
