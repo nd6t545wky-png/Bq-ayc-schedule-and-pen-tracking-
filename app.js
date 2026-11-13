@@ -503,6 +503,11 @@ function bzBackfill(games, hits){
   (games || []).forEach(g=>{ if (g && g.src==="ballclubz" && !g.summary) saveGame(Object.assign({}, g)); });
   (hits || []).forEach(h=>{ if (h && h.src==="ballclubz" && !h.summary) saveHit(Object.assign({}, h)); });
 }
+// what an imported hitting day still needs from the player
+function bzTodo(doc){
+  const hh = (doc.pas||[]).some(p=>HR_BY[p.res] && HR_BY[p.res][2].bip && !isBunt(p.res) && p.hh==null), notes = !(doc.notes||"").trim();
+  return hh && notes ? "Tap 👍 or 👎 on each ball you put in play, and add your game notes below." : hh ? "Tap 👍 or 👎 on each ball you put in play." : notes ? "Add your game notes below." : "";
+}
 const isBunt = res => !!(HR_BY[res] && HR_BY[res][2].bunt);
 // hard hit: thumb up / down on every result but a bunt (older at-bats used Hard / Medium / Weak contact)
 // Quality at-bat: any one of these. The last three are quick taps on the at-bat screen.
@@ -680,7 +685,8 @@ function renderHit(){
   $("h-noteswrap").hidden = false; $("h-gnotes").value = (doc && doc.notes) || "";
   // this game
   $("h-game").innerHTML = `<div class="livehead"><div><div class="label" style="margin:0">${new Date(date+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"short"})}</div><div class="hitline">${pas.length ? gameLine(pas) : "No at-bats yet"}</div></div></div>
-    ${pas.length ? `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${qabWhy(p).length?'<span class="qab">QAB ✓</span>':""}${esc(HR_BY[p.res][1])}${p.hh!=null ? (p.hh ? " · 👍 hard hit" : " · 👎") : p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}${(m=>m.length?`<div class="m">${m.join(" · ")}</div>`:"")([p.rbi?p.rbi+" RBI":"", ...SIT_TAPS.concat(QAB_TAPS).filter(([k])=>p[k]).map(([,l])=>l)].filter(Boolean))}</div><button class="small ghost" data-parm="${i}">Remove</button></div>`).join("")}</div>` : ""}`;
+    ${pas.length ? `<div class="palist">${pas.map((p,i)=>`<div class="prow"><div><b>${i+1}.</b> ${qabWhy(p).length?'<span class="qab">QAB ✓</span>':""}${esc(HR_BY[p.res][1])}${p.hh!=null ? (p.hh ? " · 👍 hard hit" : " · 👎") : p.qual?` · ${({H:"hard",M:"medium",W:"weak"})[p.qual]}`:""}${p.zone?` · ${esc(p.zone)}`:""}${(m=>m.length?`<div class="m">${m.join(" · ")}</div>`:"")([p.rbi?p.rbi+" RBI":"", ...SIT_TAPS.concat(QAB_TAPS).filter(([k])=>p[k]).map(([,l])=>l)].filter(Boolean))}</div><div class="pacts">${HR_BY[p.res][2].bip && !isBunt(p.res) ? `<span class="seg hhseg">${[[1,"👍"],[0,"👎"]].map(([v,l])=>`<button type="button" data-pahh="${i}|${v}" class="${p.hh===v?'on':''}" aria-label="${v?"Hard hit":"Not hard hit"}" aria-pressed="${p.hh===v}">${l}</button>`).join("")}</span>` : ""}<button class="small ghost" data-parm="${i}">Remove</button></div></div>`).join("")}</div>` : ""}
+    ${doc && doc.src==="ballclubz" && bzTodo(doc) ? `<div class="gnote bztodo">Imported from Ballclubz. ${esc(bzTodo(doc))}</div>` : ""}`;
   // new plate appearance
   const d = hitDraft = hitDraft || {res:null, hh:null, r3:0, p6:0, adv:0, two:0, x:null, y:null, zone:null, rbi:0};
   const bip = d.res && (HR_BY[d.res][2].bip);
@@ -854,6 +860,7 @@ function readGameForm(box, athlete, date){
   const out = {id: checkinId(athlete, date), athlete: athlete.trim(), date, opp: val("opp") || null, notes: val("notes") || null};
   const prev = getGame(athlete, date);
   if (prev && prev.pitched!=null) out.pitched = prev.pitched;   // keep Pitched / Not used when saving the log
+  if (prev && prev.src){ out.src = prev.src; if (prev.box) out.box = prev.box; }   // and that it came from Ballclubz
   for (const [k] of GAME_FIELDS){
     const v = val(k);
     if (k==="ip"){ if (v && ipOuts(v)==null) return {err:"Innings like 4, 4.1 or 4.2 (.1 and .2 are outs)."}; out.ip = v || null; continue; }
@@ -1370,6 +1377,10 @@ $("v-hit").addEventListener("click", e=>{
     saveHit(Object.assign({}, doc, {pas: (doc.pas||[]).concat([pa])})); hitDraft = null; renderHit();
     $("h-game").scrollIntoView({behavior:"smooth", block:"start"}); return;
   }
+  const ph = e.target.closest("[data-pahh]");
+  if (ph){ const [i, v] = ph.dataset.pahh.split("|").map(Number), doc = getHit(ath, date); if (!doc || !doc.pas[i]) return;
+    const pas = doc.pas.map((p, j)=>{ if (j!==i) return p; const q = Object.assign({}, p); if (p.hh===v) delete q.hh; else q.hh = v; delete q.qual; return q; });
+    saveHit(Object.assign({}, doc, {pas})); renderHit(); return; }
   const rm = e.target.closest("[data-parm]");
   if (rm){ if (rm.dataset.armed!=="1"){ rm.dataset.armed = "1"; rm.textContent = "Tap again"; return; }
     const doc = getHit(ath, date); if (!doc) return; const pas = doc.pas.slice(); pas.splice(+rm.dataset.parm, 1);
@@ -2214,7 +2225,20 @@ function applyRole(){
   }
   renderWeek();
   applyLock();
+  openFromLink(); pushDefault();
 }
+// a tapped "game imported" notification opens that game: ?hit=date (hitting) or ?game=date (pitching)
+var linkOpen = (q=>q.get("hit") ? {hit: q.get("hit")} : q.get("game") ? {game: q.get("game")} : null)(new URLSearchParams(location.search));
+if (linkOpen) history.replaceState(null, "", location.pathname);
+function openFromLink(){
+  const l = linkOpen; if (!l || role!=="player" || locked() || !athleteDocs[slug(playerName||"")]) return;   // waits for the player's own details
+  linkOpen = null;
+  const date = l.hit || l.game; if (!/^\d{4}-\d\d-\d\d$/.test(date)) return;
+  if (l.hit && !$("tab-hit").hidden){ hitDate = date; hitDraft = null; setTab("hit"); return; }
+  if (date >= weekDates(-1).Mon && date <= weekDates(0).Sun){ schedWeek = date >= weekDates(0).Mon ? 0 : -1; openDays.add(date); setTab("sched");
+    setTimeout(()=>document.querySelector(`[data-game="${date}"]`)?.scrollIntoView({behavior:"smooth", block:"center"}), 50); }
+}
+if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e=>{ if (e.data && (e.data.hit || e.data.game)){ linkOpen = e.data; openFromLink(); } });
 // points people at the Account tab while they still need to sign in, join, or get an age group
 function renderNudge(){
   const t = !sb ? "" : !session ? "Sign in or create an account to save and sync."
@@ -2278,6 +2302,28 @@ async function renderPush(){
   btn.hidden = false; btn.textContent = sub ? "Turn off reminders" : "Turn on reminders"; btn.dataset.on = sub ? "1" : "";
 }
 function b64key(s){ const p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from(b, c=>c.charCodeAt(0)); }
+// asks the phone for permission (if it hasn't been given) and signs this phone up; false if the player said no
+async function pushEnable(){
+  if (await Notification.requestPermission() !== "granted") return false;
+  const r = await navigator.serviceWorker.ready;
+  const sub = await r.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64key(PUSH_KEY)});
+  const {data, error} = await sb.rpc("save_push_sub", {p_sub: sub.toJSON()});
+  if (error || data!=="ok") throw new Error("save");
+  lsSet("bqpen.push", true); lsSet("bqpen.gamedays", ""); renderWeek();   // sends this week's game days
+  return true;
+}
+// Reminders are on unless a player turns them off: a phone that already allows notifications is signed up straight
+// away, and one that hasn't been asked gets the phone's own question on the player's first tap (phones only show it
+// after a tap), once.
+var pushAuto = false;
+async function pushDefault(){
+  if (pushAuto || role!=="player" || !sb || !pushOK() || (isIOS() && !installed()) || lsGet("bqpen.push", null)===false) return;
+  pushAuto = true;
+  const go = () => pushEnable().then(()=>renderPush()).catch(()=>{});
+  if (Notification.permission==="granted"){ if (!await pushSub()) go(); return; }
+  if (Notification.permission!=="default" || lsGet("bqpen.pushAsked", false)) return;
+  document.addEventListener("click", ()=>{ lsSet("bqpen.pushAsked", true); go(); }, {once: true, capture: true});
+}
 $("push-btn").addEventListener("click", async ()=>{
   const btn = $("push-btn"), note = $("push-note"); btn.disabled = true;
   try{
@@ -2285,12 +2331,7 @@ $("push-btn").addEventListener("click", async ()=>{
       const sub = await pushSub(); if (sub){ await sb.rpc("delete_push_sub", {p_endpoint: sub.endpoint}); await sub.unsubscribe(); }
       lsSet("bqpen.push", false);
     } else {
-      if (await Notification.requestPermission() !== "granted"){ btn.disabled = false; renderPush(); return; }
-      const r = await navigator.serviceWorker.ready;
-      const sub = await r.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64key(PUSH_KEY)});
-      const {data, error} = await sb.rpc("save_push_sub", {p_sub: sub.toJSON()});
-      if (error || data!=="ok") throw new Error("save");
-      lsSet("bqpen.push", true); lsSet("bqpen.gamedays", ""); renderWeek();   // sends this week's game days
+      if (!await pushEnable()){ btn.disabled = false; renderPush(); return; }
     }
   }catch(e){ note.textContent = "Couldn't change reminders. Check your connection and try again."; btn.disabled = false; return; }
   btn.disabled = false; renderPush();
