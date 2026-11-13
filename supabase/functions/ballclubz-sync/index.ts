@@ -8,6 +8,9 @@
 //      (pitching: only empty fields are filled in).
 //   4. Each pitching game's box score (box.ts) adds strikes, batters faced, first-pitch strikes, 1-1 counts and
 //      how many were won, getting to 2 strikes first, and pitches thrown with 2 strikes.
+//   5. A player whose game from the last week has just come in gets one notification: add your notes (and, for a
+//      hitting day, mark the hard hit balls). What a player adds to imported at-bats is kept on later runs.
+import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { gameFor, liveGameFileUrl, parseScheduleGames, pitchingFromGameFile, playerTeam, type ScheduleGame } from "./box.ts";
 
@@ -72,6 +75,13 @@ Deno.serve(async (req) => {
   const { data: aths, error } = await db.from("athletes").select("id,data");
   if (error) return new Response(JSON.stringify({error: error.message}), {status: 500, headers: cors});
   const report: Record<string, unknown>[] = [];
+  // games that came in new on this run, by athlete (for the notification)
+  const fresh = new Map<string, {hit?: string; game?: string; opp: string | null}>();
+  const recent = new Date(Date.now() + 10*3600e3 - 7*864e5).toISOString().slice(0, 10);   // the last week, Brisbane
+  const isNew = (s: string, kind: "hit" | "game", d: string, o: string | null) => {
+    if (d < recent) return;
+    const f = fresh.get(s) ?? {opp: o}; if (!f[kind] || d > f[kind]!) { f[kind] = d; f.opp = o ?? f.opp; } fresh.set(s, f);
+  };
 
   for (const league of LEAGUES) {
     let listHtml: string;
@@ -149,7 +159,7 @@ Deno.serve(async (req) => {
         next.updatedAt = Date.now();
         if (dry){ gamesSaved++; continue; }
         const { error: e } = await db.from("games").upsert({id, data: next, day: d});
-        if (!e) gamesSaved++; else report.push({athlete: name, date: d, error: e.message});
+        if (!e) { gamesSaved++; if (!cur) isNew(s, "game", d, g.opp); } else report.push({athlete: name, date: d, error: e.message});
       }
 
       // ---- hitting: at-bats rebuilt from the day's totals (hits by type, walks, strikeouts, other outs)
@@ -171,12 +181,19 @@ Deno.serve(async (req) => {
           ...Array(t.bb).fill("BB"), ...Array(t.so).fill("K"), ...Array(outs).fill("OUT"), ...Array(other).fill("XPA"),
         ].map(res => ({res, rbi: 0, bz: 1}));
         if (pas.length && t.rbi) pas[0].rbi = t.rbi;
+        // what the player added to these at-bats (hard hit, where it went, situation taps) stays
+        const core = (l: Record<string, unknown>[]) => JSON.stringify(l.map(p => [p.res, p.rbi || 0]));
+        if (cur && core(cur.pas || []) === core(pas)) continue;
+        const old: Record<string, unknown>[] = [...(cur?.pas || [])];
+        for (const p of pas) {
+          const i = old.findIndex(o => o.res === p.res); if (i < 0) continue;
+          const [o] = old.splice(i, 1); Object.assign(p, {...o, rbi: p.rbi});
+        }
         const next: Record<string, unknown> = {...(cur || {}), id, athlete: name, date: d, pas, opp: cur?.opp || t.opp || null, src: "ballclubz"};
-        if (cur && JSON.stringify(cur.pas) === JSON.stringify(pas)) continue;
         delete next.summary; next.updatedAt = Date.now();
         if (dry){ hitsSaved++; continue; }
         const { error: e } = await db.from("hitting").upsert({id, data: next, day: d});
-        if (!e) hitsSaved++; else report.push({athlete: name, date: d, error: e.message});
+        if (!e) { hitsSaved++; if (!cur) isNew(s, "hit", d, t.opp ?? null); } else report.push({athlete: name, date: d, error: e.message});
       }
 
       if (!dry) await db.from("ballclubz_links").upsert({athlete_slug: s, league, player_id: pid, bz_name: bzName, status, synced_at: new Date().toISOString()});
@@ -184,5 +201,17 @@ Deno.serve(async (req) => {
       await new Promise(r => setTimeout(r, 300));   // go easy on their site
     }
   }
-  return new Response(JSON.stringify({ok: true, dry: !!dry, report}), {headers: cors});
+  // tell each player whose game just came in (one message a run, opening that game)
+  let notified = 0;
+  if (!dry && fresh.size && cfg?.vapid_public) {
+    webpush.setVapidDetails("https://nd6t545wky-png.github.io/Bq-ayc-schedule-and-pen-tracking-/", cfg.vapid_public, cfg.vapid_private);
+    const { data: subs } = await db.from("push_subs").select("endpoint,sub,athlete_slug").in("athlete_slug", [...fresh.keys()]);
+    for (const sub of subs || []) {
+      const f = fresh.get(sub.athlete_slug)!, vs = f.opp ? ` vs ${f.opp}` : "";
+      const body = f.hit ? `Your game${vs} has been imported. Add your notes and mark your hard hit balls.` : `Your game${vs} has been imported. Add your notes.`;
+      try { await webpush.sendNotification(sub.sub, JSON.stringify({title: "BQ Weekly", body, tag: "import", open: f.hit ? {hit: f.hit} : {game: f.game}}), {TTL: 24*3600}); notified++; }
+      catch (e) { if (e.statusCode === 404 || e.statusCode === 410) await db.rpc("drop_push_sub", {p_endpoint: sub.endpoint}); }
+    }
+  }
+  return new Response(JSON.stringify({ok: true, dry: !!dry, notified, report}), {headers: cors});
 });
