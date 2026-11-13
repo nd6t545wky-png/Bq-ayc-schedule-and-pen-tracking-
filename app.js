@@ -2225,7 +2225,7 @@ function applyRole(){
   }
   renderWeek();
   applyLock();
-  openFromLink();
+  openFromLink(); pushDefault();
 }
 // a tapped "game imported" notification opens that game: ?hit=date (hitting) or ?game=date (pitching)
 var linkOpen = (q=>q.get("hit") ? {hit: q.get("hit")} : q.get("game") ? {game: q.get("game")} : null)(new URLSearchParams(location.search));
@@ -2302,6 +2302,28 @@ async function renderPush(){
   btn.hidden = false; btn.textContent = sub ? "Turn off reminders" : "Turn on reminders"; btn.dataset.on = sub ? "1" : "";
 }
 function b64key(s){ const p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from(b, c=>c.charCodeAt(0)); }
+// asks the phone for permission (if it hasn't been given) and signs this phone up; false if the player said no
+async function pushEnable(){
+  if (await Notification.requestPermission() !== "granted") return false;
+  const r = await navigator.serviceWorker.ready;
+  const sub = await r.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64key(PUSH_KEY)});
+  const {data, error} = await sb.rpc("save_push_sub", {p_sub: sub.toJSON()});
+  if (error || data!=="ok") throw new Error("save");
+  lsSet("bqpen.push", true); lsSet("bqpen.gamedays", ""); renderWeek();   // sends this week's game days
+  return true;
+}
+// Reminders are on unless a player turns them off: a phone that already allows notifications is signed up straight
+// away, and one that hasn't been asked gets the phone's own question on the player's first tap (phones only show it
+// after a tap), once.
+var pushAuto = false;
+async function pushDefault(){
+  if (pushAuto || role!=="player" || !sb || !pushOK() || (isIOS() && !installed()) || lsGet("bqpen.push", null)===false) return;
+  pushAuto = true;
+  const go = () => pushEnable().then(()=>renderPush()).catch(()=>{});
+  if (Notification.permission==="granted"){ if (!await pushSub()) go(); return; }
+  if (Notification.permission!=="default" || lsGet("bqpen.pushAsked", false)) return;
+  document.addEventListener("click", ()=>{ lsSet("bqpen.pushAsked", true); go(); }, {once: true, capture: true});
+}
 $("push-btn").addEventListener("click", async ()=>{
   const btn = $("push-btn"), note = $("push-note"); btn.disabled = true;
   try{
@@ -2309,12 +2331,7 @@ $("push-btn").addEventListener("click", async ()=>{
       const sub = await pushSub(); if (sub){ await sb.rpc("delete_push_sub", {p_endpoint: sub.endpoint}); await sub.unsubscribe(); }
       lsSet("bqpen.push", false);
     } else {
-      if (await Notification.requestPermission() !== "granted"){ btn.disabled = false; renderPush(); return; }
-      const r = await navigator.serviceWorker.ready;
-      const sub = await r.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64key(PUSH_KEY)});
-      const {data, error} = await sb.rpc("save_push_sub", {p_sub: sub.toJSON()});
-      if (error || data!=="ok") throw new Error("save");
-      lsSet("bqpen.push", true); lsSet("bqpen.gamedays", ""); renderWeek();   // sends this week's game days
+      if (!await pushEnable()){ btn.disabled = false; renderPush(); return; }
     }
   }catch(e){ note.textContent = "Couldn't change reminders. Check your connection and try again."; btn.disabled = false; return; }
   btn.disabled = false; renderPush();
