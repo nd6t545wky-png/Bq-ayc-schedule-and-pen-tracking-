@@ -1,4 +1,5 @@
 (() => {
+if (window.top !== window.self){ document.documentElement.hidden = true; return; }   // never run inside another site's frame
 // ---------- pen definitions (zones written for a RHP, pitcher's view; mirrored for LHP) ----------
 const MIRROR = {1:3,3:1,4:6,6:4,7:9,9:7,11:12,12:11,13:14,14:13};
 const P = (set,p,z,extra) => Object.assign({set,p,z},extra||{});
@@ -117,6 +118,16 @@ function rolePitch(role, k, rec){
 }
 
 // ---------- throwing schedule ----------
+// Rows from the server were typed by players and coaches. Free text (names, notes, opponents) is escaped where it is
+// shown; every other text value is a code, a number or a date, so anything that could act as page markup is dropped
+// from it as it arrives. (index.html also carries a Content-Security-Policy that stops injected script running.)
+const FREE_TEXT = new Set(["notes","note","opp","athlete","name","penName","bz_name","event","hitter","count"]);
+function clean(v, key){
+  if (typeof v==="string") return FREE_TEXT.has(key) ? v : v.replace(/[<>"`]/g, "");
+  if (Array.isArray(v)) return v.map(x=>clean(x, key));
+  if (v && typeof v==="object"){ const o = {}; for (const k of Object.keys(v)) o[clean(k)] = clean(v[k], k); return o; }
+  return v;
+}
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const T_GAME = "Pregame throw and bullpen, pitch count under 45";
 const T_REC = "Play catch to max 90 ft (no more than 30 throws total)";
@@ -1957,7 +1968,7 @@ async function loadProfile(name){
     sb.from("ballclubz_links").select("league,status,bz_name,synced_at").eq("athlete_slug", id)]);
   if (profLoading===name) profLoading = null;
   if (profName!==name) return;
-  const ok = r => !r.error ? r.data.map(x=>x.data) : null;
+  const ok = r => !r.error ? clean(r.data).map(x=>x.data) : null;
   if (!j.error) setJoinDates(j.data);
   profData = {pens: ok(p), checkins: ok(c), games: ok(g), hits: ok(h), account: j.error ? null : j.data.length > 0, bz: bz.error ? null : (bz.data[0] || false)};
   bzBackfill(profData.games, profData.hits);
@@ -2112,6 +2123,7 @@ async function loadAll(){
     sb.from("checkins").select("data").eq("data->>sprint", "d1").limit(2000),
     // pain on an individual program day, older ones too: they set where the program is up to
     sb.from("checkins").select("data").eq("data->>pain", "true").limit(2000)]);
+  [p, a, c, g, h, sp, pn].forEach(r=>{ if (!r.error) r.data = clean(r.data); });
   if (!p.error){ serverPens = p.data.map(r=>r.data); lsSet("bqpen.cache", serverPens); }
   if (!a.error){ athleteDocs = {}; a.data.forEach(r=>{ athleteDocs[r.id] = r.data; }); lsSet("bqpen.athletes", athleteDocs); }
   if (!c.error){ checkinDocs = {}; c.data.concat(sp.error ? [] : sp.data, pn.error ? [] : pn.data).forEach(r=>{ checkinDocs[r.data.id] = r.data; }); lsSet("bqpen.checkins", checkinDocs); }
