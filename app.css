@@ -293,3 +293,6 @@ button[data-pain].on{background:color-mix(in srgb,var(--miss) 18%,transparent);c
 @media (prefers-reduced-motion:no-preference){.ring .arc{transition:stroke-dashoffset .6s ease}}
 
 .pacts{display:flex;align-items:center;gap:8px;flex:none}.hhseg{display:inline-flex}.hhseg button{min-width:40px;padding:6px 8px}.bztodo{color:var(--gold);padding:10px 16px}
+/* live pen: nothing floats over the strike zone, and on short phones the zone fits on screen */
+body:has(#v-live:not([hidden])) .tabs,body:has(#v-live:not([hidden])) header.top{display:none}
+@media (max-height:720px){#v-live{gap:8px!important}#v-live .card{padding-top:12px;padding-bottom:12px}#v-live .zsvg{max-height:58vh;width:auto;max-width:100%;display:block;margin:0 auto}#v-live .next .pt{font-size:26px}}
