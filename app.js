@@ -629,7 +629,7 @@ function hitBreakdownHtml(pas, id, bats){
     right = side.filter(a=>a > SS_2B_ANGLE).length, mid = side.length - left - right;
   const dots = pas.filter(p=>p.x!=null).map(p=>({x:p.x, y:p.y, c:dotColour(p.res), r:5}));
   const results = [["Single","1B"],["Double","2B"],["Triple","3B"],["Home run","HR"],["Bunt hit","BH"],["Walk","BB"],["Hit by pitch","HBP"],["Reached on error","ROE"],["Fielder's choice","FC"],
-    ["K swinging","KS"],["K looking","KL"],["Ground out","GO"],["Fly out","FO"],["Line out","LO"],["Pop out","PO"],["Bunt out","BO"],["Sac fly","SF"],["Sac bunt","SH"]].map(([l,c])=>row(l, n(c), pa)).join("");
+    ["K swinging","KS"],["K looking","KL"],["Ground out","GO"],["Fly out","FO"],["Line out","LO"],["Pop out","PO"],["Bunt out","BO"],["Strikeout","K"],["Out","OUT"],["HBP / sacrifice","XPA"],["Sac fly","SF"],["Sac bunt","SH"]].map(([l,c])=>row(l, n(c), pa)).join("");
   const sit = [["RBI", pas.reduce((a,p)=>a+(p.rbi||0),0)], ...SIT_TAPS.concat(QAB_TAPS).map(([k,l])=>[l, pas.filter(p=>p[k]).length])].map(([l,v])=>row(l, v)).join("");
   return `${dots.length ? `<div class="label" style="margin-top:8px">Spray chart <span>· every ball in play</span></div>${fieldSvg(id, dots)}
       <div class="legend"><span><i style="background:var(--hit)"></i>Hit</span><span><i style="background:var(--miss)"></i>Out</span><span><i style="background:var(--gold)"></i>Error</span></div>` : ""}
@@ -1310,7 +1310,7 @@ function setTab(t){
   $("v-sched").hidden = t!=="sched"; $("v-hit").hidden = t!=="hit"; $("v-acct").hidden = t!=="acct"; $("v-prof").hidden = true; profMine = false;
   if (t!=="pens"){ ["v-setup","v-live","v-sum"].forEach(v=>$(v).hidden=true); }
   renderNudge();
-  if (t==="acct"){ showMyProfile(); return; }
+  if (t==="acct"){ if (role==="player") renderMe(); showMyProfile(); return; }
   if (t==="sched") renderWeek();
   if (t==="hit"){ if (role!=="player" && !$("h-ath").value) $("h-ath").value = $("w-ath").value; renderHit(); }
   else if (t==="pens" && $("v-live").hidden && $("v-sum").hidden) $("v-setup").hidden = false;
@@ -1375,9 +1375,10 @@ $("v-hit").addEventListener("click", e=>{
   if (tog){ const k = tog.dataset.htog; d[k] = d[k] ? 0 : 1;
     // missed and executed don't go together on one at-bat
     if (d[k] && k==="sitx") SIT_DONE.forEach(x=>{ d[x] = 0; }); else if (d[k] && SIT_DONE.includes(k)) d.sitx = 0;
+    if (d.sitx && (d.res==="SF" || d.res==="SH")) d.sitx = 0;   // a sacrifice is the situation done
     renderHit(); return; }
   const r = e.target.closest("[data-hres]");
-  if (r){ d.res = r.dataset.hres; if (isBunt(d.res)) d.hh = null; if (!HR_BY[d.res][2].bip){ d.x = d.y = d.zone = null; } renderHit(); return; }
+  if (r){ d.res = r.dataset.hres; if (isBunt(d.res)) d.hh = null; if (d.res==="SF" || d.res==="SH") d.sitx = 0; if (!HR_BY[d.res][2].bip){ d.x = d.y = d.zone = null; } renderHit(); return; }
   const svg = e.target.closest("#h-field");
   if (svg){ const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const q = pt.matrixTransform(svg.getScreenCTM().inverse());
     d.x = Math.min(1, Math.max(0, q.x/FIELD.w)); d.y = Math.min(1, Math.max(0, q.y/FIELD.h)); d.zone = fieldZone(d.x, d.y); renderHit(); return; }
